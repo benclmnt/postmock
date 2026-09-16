@@ -1,10 +1,8 @@
 import { apiError } from "../errors.ts";
-import { testTokenContext } from "../state/servers.ts";
+import { TEST_TOKEN, testTokenContext } from "../state/servers.ts";
 import type { State } from "../state/store.ts";
 import { Unsupported } from "./respond.ts";
 import type { AuthRequirement, AuthResult } from "./routes.ts";
-
-export const TEST_TOKEN = "POSTMARK_API_TEST";
 
 // "The header name and value are case insensitive." refs/api_overview.md:21 (docs/02 §3.1).
 const same = (a: string, b: string): boolean => a.toLowerCase() === b.toLowerCase();

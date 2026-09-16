@@ -1,3 +1,5 @@
+export const TEST_TOKEN = "POSTMARK_API_TEST";
+
 import { newHex, newToken } from "./ids.ts";
 import { type State, type Store, streamKey } from "./store.ts";
 import type { MessageStream, MessageStreamType, Server } from "./types.ts";
@@ -62,11 +64,20 @@ const defaultStreams = (serverId: number, now: Date): MessageStream[] =>
  */
 export function createServer(store: Store, now: Date, settings: ServerSettings = {}): Server {
   const tokens = settings.ApiTokens ?? [newToken()];
-  for (const other of store.state.servers.values()) {
-    const taken = other.ApiTokens.find((t) =>
-      tokens.some((u) => u.toLowerCase() === t.toLowerCase()),
-    );
-    if (taken !== undefined) throw new Error(`server ${other.ID} already holds token ${taken}`);
+  const held = new Map(
+    [...store.state.servers.values()].flatMap((other) =>
+      other.ApiTokens.map((t) => [t.toLowerCase(), { token: t, server: other.ID }] as const),
+    ),
+  );
+  for (const token of tokens) {
+    refuseTestToken(token);
+    const holder = held.get(token.toLowerCase());
+    if (holder !== undefined) {
+      throw new Error(`server ${holder.server} already holds token ${holder.token}`);
+    }
+    if (tokens.filter((t) => t.toLowerCase() === token.toLowerCase()).length > 1) {
+      throw new Error(`token ${token} appears twice`);
+    }
   }
   const id =
     settings.ID === undefined ? store.nextId("server") : store.useId("server", settings.ID);
@@ -76,6 +87,22 @@ export function createServer(store: Store, now: Date, settings: ServerSettings =
     store.state.streams.set(streamKey(id, stream.ID), stream);
   }
   return server;
+}
+
+// Auth treats POSTMARK_API_TEST as the test token before any lookup (docs/02 §3.3).
+function refuseTestToken(token: string): void {
+  if (token.toLowerCase() === TEST_TOKEN.toLowerCase()) {
+    throw new Error(`${TEST_TOKEN} is the test token, not a stored token`);
+  }
+}
+
+/** Adds an account token. Tokens compare without case (docs/02 §3.1). */
+export function addAccountToken(store: Store, token: string): void {
+  refuseTestToken(token);
+  if (store.state.account.tokens.some((t) => t.toLowerCase() === token.toLowerCase())) {
+    throw new Error(`account token ${token} exists`);
+  }
+  store.state.account.tokens.push(token);
 }
 
 /**
@@ -91,7 +118,7 @@ export interface TestTokenContext {
 
 export const testTokenContext = (now: Date): TestTokenContext => ({
   kind: "test",
-  server: newServer(0, ["POSTMARK_API_TEST"], { Name: "POSTMARK_API_TEST", InboundHash: "" }),
+  server: newServer(0, [TEST_TOKEN], { Name: TEST_TOKEN, InboundHash: "" }),
   streams: defaultStreams(0, now),
 });
 

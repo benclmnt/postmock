@@ -29,5 +29,6 @@ export async function applySeed(runtime: Runtime, name: string): Promise<void> {
   if (!/^[a-z0-9-]+$/.test(name) || !existsSync(file)) {
     throw new Error(`unknown seed '${name}'; seeds: ${seedNames().join(", ")}`);
   }
-  await defaultFunction<Seed>({ url: file, module: await import(file.href) })(runtime);
+  const seed = defaultFunction<Seed>({ url: file, module: await import(file.href) });
+  await runtime.store.seeding(async () => seed(runtime));
 }

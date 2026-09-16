@@ -57,6 +57,8 @@ export interface State {
   smtpTokens: Map<string, SmtpToken>;
   faults: Fault[];
   usedIds: Record<IdKind, Set<number>>;
+  /** Highest used ID per kind. */
+  maxIds: Record<IdKind, number>;
 }
 
 function emptyState(): State {
@@ -98,34 +100,59 @@ function emptyState(): State {
       sender: new Set(),
       dataRemoval: new Set(),
     },
+    maxIds: {
+      server: 0,
+      bounce: 0,
+      template: 0,
+      webhook: 0,
+      webhookAttempt: 0,
+      inboundRule: 0,
+      domain: 0,
+      sender: 0,
+      dataRemoval: 0,
+    },
   };
 }
 
 /** The whole in-memory account. `reset()` swaps in an empty state; hold the Store, not the state. */
 export class Store {
   state: State = emptyState();
+  private seedDepth = 0;
 
   reset(): void {
     this.state = emptyState();
   }
 
-  /** The next unused integer ID of a kind, above every ID used so far (docs/04 Mock must: bounce IDs increase). */
-  nextId(kind: IdKind): number {
-    const used = this.state.usedIds[kind];
-    const id = Math.max(0, ...used) + 1;
-    used.add(id);
-    return id;
+  /**
+   * Runs a seed. Inside it `nextId` throws: a seed part claims fixed IDs from its track's range
+   * (docs/11 §5), so its IDs do not depend on the parts other tracks add.
+   */
+  async seeding<T>(apply: () => Promise<T>): Promise<T> {
+    this.seedDepth += 1;
+    try {
+      return await apply();
+    } finally {
+      this.seedDepth -= 1;
+    }
   }
 
-  /**
-   * Claims a fixed ID. Seed parts use fixed IDs, so the IDs one track seeds do not depend on the
-   * parts other tracks add.
-   */
+  /** The next ID of a kind, above every ID used so far (docs/04 Mock must: bounce IDs increase). */
+  nextId(kind: IdKind): number {
+    if (this.seedDepth > 0) throw new Error(`${kind} needs a fixed ID while seeding (store.useId)`);
+    return this.claim(kind, this.state.maxIds[kind] + 1);
+  }
+
+  /** Claims a fixed ID. */
   useId(kind: IdKind, id: number): number {
-    const used = this.state.usedIds[kind];
-    if (!Number.isInteger(id) || id < 1 || used.has(id))
+    if (!Number.isInteger(id) || id < 1 || this.state.usedIds[kind].has(id)) {
       throw new Error(`${kind} ID ${id} is taken or invalid`);
-    used.add(id);
+    }
+    return this.claim(kind, id);
+  }
+
+  private claim(kind: IdKind, id: number): number {
+    this.state.usedIds[kind].add(id);
+    this.state.maxIds[kind] = Math.max(this.state.maxIds[kind], id);
     return id;
   }
 }

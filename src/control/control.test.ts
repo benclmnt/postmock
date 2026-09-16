@@ -56,7 +56,7 @@ describe("POST /control/seed", () => {
     const res = await post("/control/seed", { name: "conformance" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
-      error: "seed 'conformance' failed: server 1 already holds token postmock-server-token",
+      error: "seed 'conformance' failed: account token postmock-account-token exists",
     });
     expect(runtime.store.state.account.tokens).toEqual([CONFORMANCE.accountToken]);
     expect(runtime.store.state.servers.size).toBe(1);
