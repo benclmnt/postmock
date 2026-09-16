@@ -2,8 +2,9 @@
 # Writes a throwaway test CA and a server certificate for the Postmark host names into <out dir>:
 #   ca.pem (trust this), cert.pem + key.pem (serve these).
 # A client that trusts ca.pem accepts postmock as api.postmarkapp.com (docs/01 §3.3 option B).
-# The CA key is deleted after signing, and name constraints limit the CA to postmarkapp.com,
-# localhost and 127.0.0.1, so a leaked ca.pem cannot vouch for any other name.
+# The protection is the deleted CA key: nobody can sign another certificate with this CA.
+# Name constraints (postmarkapp.com, localhost, 127.0.0.1) add a limit for clients that enforce
+# them on a trust anchor; Java does not.
 set -euo pipefail
 out="${1:?usage: tools/test-ca.sh <out dir>}"
 mkdir -p "$out"

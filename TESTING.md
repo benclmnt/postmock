@@ -40,15 +40,15 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request.
-It needs no secret. Actions are pinned by commit SHA; images by digest. A newer push cancels the running workflow of its ref.
+It needs no secret. Actions are pinned by commit SHA; images by digest. A newer push to a pull request cancels its running workflow; pushes to `main` all finish.
 
 | Job | Runs |
 | --- | --- |
 | `check` | In the small `nix develop .#node` shell: `pnpm check`, then `tools/pack-smoke.sh` |
-| `compose` | `docker compose run --rm --build example-node`: `examples/node/default-hosts.ts` on the internal network, no base-URL option (`docs/01` §3.3 option B); `docker compose -f examples/compose/compose.yaml config -q` |
+| `compose` | `docker compose run --rm --build example-node`: `examples/node/default-hosts.ts` on the internal network, no base-URL option (`docs/01` §3.3 option B); then `examples/compose/compose.yaml` (`config -q`, `run --rm --build app`) |
 | `runners` | Lists every `conformance/<sdk>/run.ts` for the matrix |
 | `conformance` (one per SDK) | `tools/fetch-sources.sh <sdk>`, `nix develop -c pnpm conformance <sdk>`, `pnpm conformance:check <sdk>`; uploads `conformance/results/<sdk>.json` |
-| `compat-table` | After every `conformance` job passes: downloads the results, runs `pnpm compat-table`, and fails when `README.md` changes. Commit the new table when a suite changes its counts. |
+| `compat-table` | After every `conformance` job passes: downloads the results, writes the full table to the job summary, and runs `pnpm compat-table --check`: it fails when a row `README.md` lists as run differs from the results. A `not run` row enters `README.md` only after a real run: copy it from the job summary, or run `pnpm compat-table` on fresh local results. |
 
 The container runners (php, java, cli) run on the Linux runner's Docker Engine: see the `host-gateway` trap below.
 Each job downloads its nix shell; there is no nix store cache yet.

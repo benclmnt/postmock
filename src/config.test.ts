@@ -20,12 +20,12 @@ describe("applyFlags", () => {
   });
 
   it.each([
-    [["--bogus", "1"], {}],
-    [["conformance"], {}],
-    [["--seed", ""], {}],
-    [[], { POSTMOCK_SMTP_TLS_KEY: "" }],
-  ])("refuses %j with env %j", (argv, env) => {
-    expect(() => applyFlags(argv, env)).toThrow();
+    [["--bogus", "1"], {}, /Unknown option '--bogus'/],
+    [["conformance"], {}, /Unexpected argument 'conformance'/],
+    [["--seed", ""], {}, /^POSTMOCK_SEED is empty/],
+    [[], { POSTMOCK_SMTP_TLS_KEY: "" }, /^POSTMOCK_SMTP_TLS_KEY is empty/],
+  ])("refuses %j with env %j", (argv, env, message) => {
+    expect(() => applyFlags(argv, env)).toThrow(message);
   });
 });
 
@@ -40,14 +40,17 @@ describe("configFromEnv", () => {
   });
 
   it.each([
-    [{ POSTMOCK_API_PORT: "0x50" }],
-    [{ POSTMOCK_API_PORT: " 80" }],
-    [{ POSTMOCK_CONTROL_PORT: "1e3" }],
-    [{ POSTMOCK_API_PORT: "70000" }],
-    [{ POSTMOCK_HOST: "" }],
-    [{ POSTMOCK_HTTPS_PORT: "443" }],
-  ])("refuses %j", (env) => {
-    expect(() => configFromEnv(env)).toThrow();
+    [{ POSTMOCK_API_PORT: "0x50" }, /POSTMOCK_API_PORT[\s\S]*a decimal port/],
+    [{ POSTMOCK_API_PORT: " 80" }, /POSTMOCK_API_PORT[\s\S]*a decimal port/],
+    [{ POSTMOCK_CONTROL_PORT: "1e3" }, /POSTMOCK_CONTROL_PORT[\s\S]*a decimal port/],
+    [{ POSTMOCK_API_PORT: "70000" }, /POSTMOCK_API_PORT[\s\S]*65535/],
+    [{ POSTMOCK_HOST: "" }, /too_small[\s\S]*POSTMOCK_HOST/],
+    [
+      { POSTMOCK_HTTPS_PORT: "443" },
+      /^set POSTMOCK_HTTPS_PORT, POSTMOCK_HTTPS_TLS_KEY and POSTMOCK_HTTPS_TLS_CERT, or none$/,
+    ],
+  ])("refuses %j", (env, message) => {
+    expect(() => configFromEnv(env)).toThrow(message);
   });
 
   it("names the env key of a missing PEM file", () => {

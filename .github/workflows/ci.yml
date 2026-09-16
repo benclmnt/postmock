@@ -13,7 +13,8 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Cancel superseded pull request runs; every push to main finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -40,8 +41,12 @@ jobs:
         run: docker compose run --rm --build example-node
       - name: the include example resolves
         run: docker compose -f examples/compose/compose.yaml config -q
+      - name: an application's Compose file that includes postmock's
+        run: docker compose -f examples/compose/compose.yaml run --rm --build app
       - if: always()
-        run: docker compose --profile example down -v
+        run: |
+          docker compose --profile example down -v
+          docker compose -f examples/compose/compose.yaml down -v
 
   runners:
     runs-on: ubuntu-24.04
@@ -97,7 +102,5 @@ jobs:
           merge-multiple: true
       - run: tools/fetch-sources.sh
       - run: nix develop .#node -c pnpm install --frozen-lockfile
-      - name: README table matches the CI results
-        run: |
-          nix develop .#node -c pnpm compat-table
-          git diff --exit-code README.md
+      - name: README rows listed as run match the CI results
+        run: nix develop .#node -c pnpm compat-table --check

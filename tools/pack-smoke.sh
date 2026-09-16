@@ -18,9 +18,10 @@ echo '{"name": "postmock-pack-smoke", "private": true}' >package.json
 pnpm add --silent ./benclmnt-postmock-*.tgz nodemailer@9.1.1
 [ ! -e node_modules/@benclmnt/postmock/src ] || { echo "the package ships the sources" >&2; exit 1; }
 # Discovery loads what is on disk, so a module missing from dist/ is a missing route or seed part.
-# Test files and test helpers stay out of the package (tsconfig.build.json).
-(cd "$root" && find src seeds -name '*.ts' ! -name '*.test.ts' ! -name 'test-*.ts' ! -name 'testkit.ts' |
-  sed 's/\.ts$//' | sort) >expected-modules
+# The expected modules are the source files tsconfig.build.json compiles.
+(cd "$root" && pnpm exec tsc -p tsconfig.build.json --listFilesOnly |
+  sed -nE "s#^$root/((src|seeds)/.*)\.ts\$#\1#p" | sort) >expected-modules
+[ -s expected-modules ] || { echo "tsc listed no source modules" >&2; exit 1; }
 (cd node_modules/@benclmnt/postmock/dist && find src seeds -name '*.js' | sed 's/\.js$//' | sort) >packed-modules
 diff expected-modules packed-modules || { echo "dist/ modules differ from the sources" >&2; exit 1; }
 echo "modules: $(wc -l <packed-modules | tr -d ' ') in dist/"

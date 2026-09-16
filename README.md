@@ -27,7 +27,7 @@ The control API and SMTP have no real authentication: publish their ports on `12
 Startup prints one `name=url` per listener:
 
 ```text
-postmock api=http://127.0.0.1:8080 control=http://127.0.0.1:8025 smtp=smtp://127.0.0.1:53648 seed=conformance
+postmock api=http://127.0.0.1:8080 smtp=smtp://127.0.0.1:53648 control=http://127.0.0.1:8025 seed=conformance
 ```
 
 Every setting is an env key and a flag (`postmock --help`). A flag wins over the env:
@@ -80,9 +80,9 @@ postmock serves REST over TLS on 443 and SMTP with STARTTLS on 25, 587 and 2525.
 | `tls` | `cert.pem`, `key.pem` | postmock only |
 
 The `ca` service ([`tools/compose-ca.sh`](tools/compose-ca.sh)) writes both with [`tools/test-ca.sh`](tools/test-ca.sh).
-It deletes the CA key after signing.
-Name constraints limit the CA to `postmarkapp.com`, `localhost` and `127.0.0.1`.
-The volumes keep the CA across runs; a missing file, or a certificate that expires within a day, makes a new one.
+It deletes the CA key after signing: that is the protection, as nobody can sign another certificate with this CA.
+Name constraints on the CA (`postmarkapp.com`, `localhost`, `127.0.0.1`) add a limit only for clients that enforce them on a trust anchor; Java does not.
+The volumes keep the CA across runs. A missing file, a key that does not match the certificate, or a certificate that fails to verify or expires within a day makes a new one; restart postmock after that (`docker compose restart postmock`).
 
 Run the example application:
 
@@ -151,7 +151,8 @@ Reference: [`CONTROL-API.md`](CONTROL-API.md).
 Each official SDK's own live integration suite runs unmodified against postmock ([`TESTING.md`](TESTING.md)).
 `pnpm compat-table` writes this table from `conformance/results/*.json`.
 `not run` means the suite has no results yet: postmark-cli, postmark-java and postmark-php run in Docker containers and have not run for this table.
-CI runs every suite and fails when this table differs from its results ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+CI runs every suite, writes the full table to its job summary, and fails when a row this table lists as run differs from its results ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+A `not run` row enters this table only after a real run.
 
 <!-- compat-table:start -->
 | SDK | SDK commit | Pass | Fail | Skip | Baseline |

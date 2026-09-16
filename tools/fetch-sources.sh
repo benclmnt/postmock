@@ -17,11 +17,12 @@ postmark-rails f9e4accd3a808c9d6e7f2115103723e1992f6fa4
 postmark.js f9552126ff83c07205576f42584487a651896945
 LIST
 )"
+repos="$(cut -d' ' -f1 <<<"$list")"
 for want in "$@"; do
-  grep -q "^$want " <<<"$list" || { echo "unknown repo: $want" >&2; exit 2; }
+  grep -qxF -- "$want" <<<"$repos" || { echo "unknown repo: $want" >&2; exit 2; }
 done
 while read -r repo sha; do
-  if [ $# -gt 0 ] && ! printf '%s\n' "$@" | grep -qx -- "$repo"; then continue; fi
+  if [ $# -gt 0 ] && ! printf '%s\n' "$@" | grep -qxF -- "$repo"; then continue; fi
   dir="$root/sdk/$repo"
   [ -d "$dir" ] || git clone -q --filter=blob:none https://github.com/ActiveCampaign/$repo.git "$dir"
   git -C "$dir" fetch -q --depth 1 origin "$sha"
