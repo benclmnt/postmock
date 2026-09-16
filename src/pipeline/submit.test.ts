@@ -418,6 +418,7 @@ describe("submitOutbound", () => {
       expect(parsedBy(result.error.Message)[0]).toEqual(["b@example.com"]);
       expect(sent).toEqual([result.message.MessageID]);
       expect(runtime.store.state.outbound.size).toBe(1);
+      expect(result.message.suppressedRecipients).toEqual(["b@example.com"]);
     });
 
     it("reads only the send stream's list", async () => {

@@ -6,7 +6,7 @@ import type { ServerAuth } from "../http/routes.ts";
 import type { Runtime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
 import { findStream, type TestTokenContext } from "../state/servers.ts";
-import { suppressionKey } from "../state/store.ts";
+import { suppressedAddresses } from "../state/suppressions.ts";
 import type { Address, OutboundMessage } from "../state/types.ts";
 import { parseAddressList } from "./addresses.ts";
 import { inactiveRecipientsError } from "./inactive.ts";
@@ -280,6 +280,7 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
     rawSource: submission.rawSource,
     bulkRequestId: submission.bulkRequestId,
     templateId: submission.templateId,
+    suppressedRecipients: uniqueEmails(inactive),
   };
   runtime.store.state.outbound.set(message.MessageID, message);
   return inactive.length === 0
@@ -394,15 +395,16 @@ const domainOf = (address: Address): string =>
   (address.Email.split("@").at(-1) as string).toLowerCase();
 
 /** Recipients on the send stream's suppression list; each stream has its own list (docs/04 §3.3). */
-const inactiveRecipients = (
+function inactiveRecipients(
   runtime: Runtime,
   serverId: number,
   streamId: string,
   recipients: Address[],
-): Address[] =>
-  recipients.filter((r) =>
-    runtime.store.state.suppressions.has(suppressionKey(serverId, streamId, r.Email)),
-  );
+): Address[] {
+  const emails = recipients.map((r) => r.Email);
+  const suppressed = new Set(suppressedAddresses(runtime.store.state, serverId, streamId, emails));
+  return recipients.filter((r) => suppressed.has(r.Email));
+}
 
 /** Each address once, in first-seen spelling; addresses compare without case. */
 function uniqueEmails(addresses: Address[]): string[] {

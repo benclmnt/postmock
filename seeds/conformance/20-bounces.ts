@@ -4,7 +4,7 @@ import { suppressionKey } from "../../src/state/store.ts";
 import type { Bounce, BounceType, OutboundMessage } from "../../src/state/types.ts";
 import { CONFORMANCE } from "../lib/conformance.ts";
 
-// Server 1 received two bounces: SDK suites read the first bounce, its dump, and activate an
+// The conformance server received two bounces: SDK suites read the first bounce, its dump, and activate an
 // inactive one (docs/08 §5.3). The messages carry the bounced addresses, never the recipient that
 // sending tests use. Bounce IDs come from the T2 range (docs/11 §5).
 
@@ -74,6 +74,7 @@ const bounced = (
     rawSource: "",
     bulkRequestId: null,
     templateId: null,
+    suppressedRecipients: [],
   };
   const bounce: Bounce = {
     ID: id,

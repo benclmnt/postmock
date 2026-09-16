@@ -147,6 +147,8 @@ export interface OutboundMessage {
   rawSource: string;
   bulkRequestId: string | null;
   templateId: number | null;
+  /** Recipients on the stream's suppression list at send time; Postmark skips them (docs/04 §3.3). */
+  suppressedRecipients: string[];
 }
 
 export type InboundStatus = "Blocked" | "Processed" | "Queued" | "Failed" | "Scheduled" | "Sent";

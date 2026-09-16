@@ -63,6 +63,7 @@ export async function recipientsKit() {
       rawSource: "",
       bulkRequestId: null,
       templateId: null,
+      suppressedRecipients: [],
     };
     runtime.store.state.outbound.set(message.MessageID, message);
     return message;
