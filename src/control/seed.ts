@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { importAll } from "../discover.ts";
+import { defaultFunction, importAll } from "../discover.ts";
 import type { Runtime } from "../runtime.ts";
 
 /** A seed builds state that real Postmark could hold, directly in the store (CONTROL-API.md). */
@@ -14,9 +14,7 @@ const SEEDS_DIR = new URL("../../seeds/", import.meta.url);
 export const seedFromDirectory =
   (dir: URL): Seed =>
   async (runtime) => {
-    for (const part of (await importAll(dir)) as Array<{ default: Seed }>) {
-      await part.default(runtime);
-    }
+    for (const part of await importAll(dir)) await defaultFunction<Seed>(part)(runtime);
   };
 
 export const seedNames = (): string[] =>
@@ -31,6 +29,5 @@ export async function applySeed(runtime: Runtime, name: string): Promise<void> {
   if (!/^[a-z0-9-]+$/.test(name) || !existsSync(file)) {
     throw new Error(`unknown seed '${name}'; seeds: ${seedNames().join(", ")}`);
   }
-  const module = (await import(file.href)) as { default: Seed };
-  await module.default(runtime);
+  await defaultFunction<Seed>({ url: file, module: await import(file.href) })(runtime);
 }
