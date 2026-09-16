@@ -432,7 +432,7 @@ This list merges sections 1–3. A mock that follows it serves every SDK. Items 
 | R2 | Match paths without regard to case. Ignore a trailing slash, also before `?`. | js, java, net, php (section 2.5) |
 | R3 | Match query keys without regard to case. Match `metadata_*` as a prefix. | all (section 1.4) |
 | R4 | Accept query booleans as `true`, `True` or `1` (and the false forms). Treat an empty `key=` as absent. | net, php, gem |
-| R5 | Accept query dates as `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, or `...0000000` with 7 digits and no zone. Accept a one-digit month or day (`2026-9-7`; `sdk/postmark.js/test/integration/MessageStatistics.test.ts:14-16`) | py, net, java, js |
+| R5 | Accept query dates as `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, or `...0000000` with 7 digits and no zone. Accept a one-digit month or day (`2026-9-7`; `sdk/postmark.js/test/integration/MessageStatistics.test.ts:13-15`) | py, net, java, js |
 | R6 | Accept `count`/`offset` on every list, including webhooks, message-streams and suppressions | gem, js, php |
 | R7 | Accept a body that is empty, `{}`, or the literal `null`, with or without `Content-Type`, on every method | java, js, net, mcp |
 | R8 | Match JSON body keys without regard to case (`HTMLBody`, `htmlBody`, `ContentId`, `MessageId`, `SourceServerId`) | net, php, java, js |

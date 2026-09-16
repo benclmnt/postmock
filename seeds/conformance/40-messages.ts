@@ -8,7 +8,7 @@ import { pastBounce, pastInbound, pastSend } from "../lib/history.ts";
 // ≥ 33 outbound messages in the retention window, some tagged `test_tag`, with deliveries,
 // bounces, opens and clicks; inbound messages in several statuses; and older sends that make the
 // stats windows of the dotnet live test decrease strictly
-// (sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:43-66).
+// (sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:40-62).
 // Recipients use their own addresses, so a bounce here suppresses nobody another suite sends to.
 
 const HOUR = 60 * 60 * 1000;

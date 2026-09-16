@@ -172,7 +172,7 @@ Rules:
 - The doc example shows `"MessageStream": "Outbound"` (capital O) on one click. `refs/api_messages-api.md:906` **DOC**. Treat as a doc typo. **INFERRED**
 - Single-message responses omit `RecordType` in the examples. `refs/api_messages-api.md:769-797`, `:978-1009` **DOC**
 - postmark.js treats a 422 whose `Message` contains `not found` as a missing message. `sdk/postmark.js/test/integration/Messages.test.ts:43-47` **SDK**. The 701 text `This message was not found.` is **INFERRED**.
-- The dotnet live test expects a `subject` search to return subjects that contain the value, without case. `sdk/postmark-dotnet/src/Postmark.Tests/ClientMessageSearchingTests.cs:42-44` **SDK**
+- The dotnet live test expects a `subject` search to return subjects that contain the value, without case. `sdk/postmark-dotnet/src/Postmark.Tests/ClientMessageSearchingTests.cs:38-41` **SDK**
 
 ## 2. Stats API
 
@@ -218,9 +218,9 @@ Disagreements:
 - Stats count a multi-recipient message once per recipient. The Messages API counts it once. `refs/api_messages-api.md:50` **DOC**
 - `Bounced` excludes SMTP API errors: the example gives 64 = 12 hard + 36 soft + 16 transient, with 25 SMTP API errors apart. `refs/api_stats-api.md:67-69`, `:229-232` **DOC**
 - Rates are percentages of `Sent` with 3 decimals: 64 / 615 = 10.406. `refs/api_stats-api.md:67-70` **DOC**
-- Totals carry every documented key, also when 0: the postmark.js live tests read `Sent`, `Tracked` and `Clicks` on any server. `sdk/postmark.js/test/integration/MessageStatistics.test.ts:26,41`, `ClickStatistics.test.ts:15` **SDK**
-- postmark.js sends `fromDate` with a one-digit month and day (`2026-9-7`). `sdk/postmark.js/test/integration/MessageStatistics.test.ts:14-16` **SDK**
-- The dotnet live test expects a `/stats/outbound/opens/readtimes` body `{Days: [{Date, <bucket>: n}], <bucket>: n}` with at least one bucket. `sdk/postmark-dotnet/src/Postmark/PostmarkClient.cs:670-705`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:135-142` **SDK**. The bucket names are unknown, so postmock answers 501.
+- Totals carry every documented key, also when 0: the postmark.js live tests read `Sent`, `Tracked` and `Clicks` on any server. `sdk/postmark.js/test/integration/MessageStatistics.test.ts:24,39`, `ClickStatistics.test.ts:15` **SDK**
+- postmark.js sends `fromDate` with a one-digit month and day (`2026-9-7`). `sdk/postmark.js/test/integration/MessageStatistics.test.ts:13-15` **SDK**
+- The dotnet live test expects a `/stats/outbound/opens/readtimes` body `{Days: [{Date, <bucket>: n}], <bucket>: n}` with at least one bucket. `sdk/postmark-dotnet/src/Postmark/PostmarkClient.cs:670-706`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:136-142` **SDK**. The bucket names are unknown, so postmock answers 501.
 
 ## 3. Templates API
 

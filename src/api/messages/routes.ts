@@ -41,7 +41,7 @@ const filter = (query: Query, name: string, matches: (value: string) => boolean)
 };
 
 // Subject matches as a substring without case: the dotnet live test asserts that shape
-// (sdk/postmark-dotnet/src/Postmark.Tests/ClientMessageSearchingTests.cs:44). INFERRED otherwise.
+// (sdk/postmark-dotnet/src/Postmark.Tests/ClientMessageSearchingTests.cs:38-41). INFERRED otherwise.
 const subjectMatches = (subject: string | null, wanted: string) =>
   (subject ?? "").toLowerCase().includes(wanted.toLowerCase());
 

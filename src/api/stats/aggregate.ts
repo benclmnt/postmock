@@ -5,7 +5,7 @@ import { formatEasternDate } from "../../time.ts";
 // (refs/api_stats-api.md:4). A day with no count is left out, and so is a zero key inside a day
 // (:121, :216-218). Totals always carry the documented keys, 0 included: the postmark.js live tests
 // read `Sent`, `Tracked` and `Clicks` on an empty server
-// (sdk/postmark.js/test/integration/MessageStatistics.test.ts:26, ClickStatistics.test.ts:15).
+// (sdk/postmark.js/test/integration/MessageStatistics.test.ts:24, :39; ClickStatistics.test.ts:15).
 
 type Fact<K extends StatsFact["kind"]> = Extract<StatsFact, { kind: K }>;
 export type Count = { at: Date; key: string };
