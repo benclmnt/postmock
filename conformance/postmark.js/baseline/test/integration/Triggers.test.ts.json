@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "Client - Triggers createInboundRuleTrigger",
+    "Client - Triggers getInboundRuleTriggers",
+    "Client - Triggers deleteInboundRuleTrigger"
+  ]
+}

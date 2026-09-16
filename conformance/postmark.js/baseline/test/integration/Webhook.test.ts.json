@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "Client - Webhooks getWebhooks",
+    "Client - Webhooks getWebhook",
+    "Client - Webhooks createWebhook",
+    "Client - Webhooks editWebhook",
+    "Client - Webhooks deleteWebhook"
+  ]
+}
