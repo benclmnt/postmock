@@ -43,7 +43,7 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 | `conformance/run.ts` | Finds each `conformance/<sdk>/run.ts` and writes its results | yes |
 | `conformance/<sdk>/run.ts` | Prepares the suite, starts postmock with the `conformance` seed, runs the suite, maps each test to pass, fail or skip | yes |
 | `conformance/<sdk>/testing_keys.json` | Tokens and addresses the suite reads; they match `seeds/lib/conformance.ts` (a unit test checks) | yes |
-| `conformance/<sdk>/skips/<test file>.json` | `{"skipped": [{title, reason, source}]}`: tests of that file that cannot pass. The runner reports them as `skip`, whatever their outcome. A listed test the suite lacks stops the run. | yes |
+| `conformance/<sdk>/skips/<test file>.json` | `{"skipped": [{title, reason, source}]}`: tests of that file that cannot pass. The runner reports them as `skip`, whatever their outcome. A listed test the suite lacks fails the runner after the suite, and it writes no results. | yes |
 | `conformance/<sdk>/baseline/<test file>.json` | `{"passing": [full titles]}`: tests of that file that must keep passing. One file per test file, so tracks never co-edit one. | yes |
 | `conformance/results/<sdk>.json` | `{sdk, sdkCommit, postmock: {commit, sourceHash}, finishedAt, totals, tests: [{id, state, error?}]}` | no (git-ignored) |
 | `conformance/<sdk>/.work/` | The suite copy and its install | no (git-ignored) |
@@ -52,7 +52,7 @@ A test id is `<file> > <full title>`, e.g. `test/integration/Server.test.ts > Se
 The results list every test in the suite, also the tests a failed hook stopped (`error: "not run: …"`).
 
 Ratchet rules:
-- `conformance:check` fails when a results file is stale: its `sdkCommit` differs from `sdk/<sdk>`, or its `sourceHash` differs. The hash covers the content of `src/`, `seeds/`, `conformance/*.ts`, `tools/test-ca.sh`, the runner folder without `baseline/` and `skips/`, `package.json`, `pnpm-lock.yaml`, `flake.nix` and `flake.lock`. A commit of the tested files or a docs edit keeps results fresh.
+- `conformance:check` fails when a results file is stale: its `sdkCommit` differs from `sdk/<sdk>`, or its `sourceHash` differs. The hash covers the content of `src/`, `seeds/`, `conformance/*.ts`, `tools/test-ca.sh`, the runner folder without `baseline/` (skips decide skip states, so a skip edit needs a new run), `package.json`, `pnpm-lock.yaml`, `flake.nix` and `flake.lock`. A commit of the tested files or a docs edit keeps results fresh.
 - It fails when a test is in both a baseline file and a skip file.
 - It fails when a baseline test fails, skips or is missing. It prints tests that pass but are not in the baseline.
 - Add newly passing tests to the baseline file of their test file. Only add; never remove a test to make the check pass.
@@ -100,7 +100,7 @@ Notes per runner:
 - postmark-php: `PostmarkClientBounceTest` sleeps 180 s once sending works; allow it.
 - postmark-java: the maven run needs `unit.PostmarkTest` online first. Surefire fetches its JUnit 5 provider only when a test runs.
 - postmark-mcp: the runner writes `.env` from `testing_keys.json`, copies `smoke-test.example.mjs`, and sets `SENDER` and `RECIPIENT` in the mutating copy, as the file headers ask. Each `PASS`/`FAIL` line is a test; `<file> > finishes` fails when the script stops before its summary. A check named `skipped` is a skip.
-- postmark-python: the SDK has no live suite (`docs/08` §5.1). A test is `examples/<path>.py > exits 0`. The examples run in file order on one postmock, async before sync, so an example sees what an earlier one created. An example whose placeholder ID, name or date no account holds is a skip (`docs/08` §5.2a).
+- postmark-python: the SDK has no live suite (`docs/08` §5.1). A test is `examples/<path>.py > exits 0`. The examples run in file order on one postmock, async before sync, so an example sees what an earlier one created. The async `get_webhook.py` reads webhook ID 1, which the async `create_webhook.py` creates just before it on a seed without webhooks. An example whose placeholder ID, name or date no account holds is a skip (`docs/08` §5.2a).
 - Every runner that runs mocha drops the suite's `--retries`.
 
 ### Add a runner
@@ -122,7 +122,7 @@ Notes per runner:
 | A failed `before all` hook stops the tests after it; mocha's report does not list them. | The runner lists tests with `mocha --dry-run` first and marks the unreported ones as failures with the hook error. |
 | `flake.nix` that git does not track is invisible to `nix develop` in a git repo. | `git add flake.nix` before the first `nix develop`. The first run downloads every toolchain and takes minutes. |
 | `defineRoute` registers into a module-level table. A duplicate method and path throws at import. | Vitest isolates modules per test file, so a test file can register test-only routes. |
-| `conformance:check` says `stale` after you edit a stamped file or check out another SDK commit. | Run `pnpm conformance <sdk>` again. Baseline, skip and docs edits keep results fresh. |
+| `conformance:check` says `stale` after you edit a stamped file or check out another SDK commit. | Run `pnpm conformance <sdk>` again. Baseline and docs edits keep results fresh; a skip edit does not. |
 | A seed part that calls `createServer` without `ID` throws `needs a fixed ID while seeding`. | Pass a fixed ID from the track's range (`docs/11` §5). |
 | `clock.reset()` throws during an advance. | Await `clock.idle()` first; `POST /control/reset` does. |
 | A file in `src/api/<group>/`, `src/control/endpoints/`, `src/plugins/` or `seeds/conformance/` loads without any import. A stray file there registers too. A group folder without `routes.ts` throws. | Keep only real route, endpoint, plugin and seed-part files there; tests end in `.test.ts`; names starting with `.` are skipped. |

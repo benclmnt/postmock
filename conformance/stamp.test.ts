@@ -11,6 +11,7 @@ describe("stampedFiles", () => {
       "conformance/check.ts",
       "conformance/postmark.js/run.ts",
       "conformance/postmark.js/fetch-shim.cjs",
+      "conformance/postmark.js/skips/test/integration/MessageStreams.test.ts.json",
       "tools/test-ca.sh",
       "flake.lock",
       "package.json",
@@ -20,11 +21,9 @@ describe("stampedFiles", () => {
     }
   });
 
-  it("leaves out docs, other runners, baselines and skips", () => {
+  it("leaves out docs, other runners and baselines", () => {
     expect(
-      files.filter((f) =>
-        /^(README|docs\/|ARCHITECTURE|conformance\/[^/]+\/(baseline|skips)\/)/.test(f),
-      ),
+      files.filter((f) => /^(README|docs\/|ARCHITECTURE|conformance\/[^/]+\/baseline\/)/.test(f)),
     ).toEqual([]);
     expect(files.every((f) => !f.includes("/.work/"))).toBe(true);
   });

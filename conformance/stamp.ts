@@ -15,7 +15,7 @@ const git = (...args: string[]) =>
 
 /**
  * Files whose content decides a run's outcome: the server, the seeds, the shared runner code and the
- * test CA script, this SDK's runner folder without its baselines and skips, the dependency
+ * test CA script, this SDK's runner folder without its baselines (the skips decide skip states), the dependency
  * manifests, and the toolchain flake.
  * Tracked and untracked files count; git-ignored files (`.work/`, results) do not.
  */
@@ -40,7 +40,7 @@ export function stampedFiles(sdk: string): string[] {
   const runner = `conformance/${sdk}/`;
   return [...new Set(listed.split("\0"))]
     .filter(Boolean)
-    .filter((f) => !f.startsWith(`${runner}baseline/`) && !f.startsWith(`${runner}skips/`))
+    .filter((f) => !f.startsWith(`${runner}baseline/`))
     .filter((f) => existsSync(`${root}/${f}`))
     .sort();
 }
