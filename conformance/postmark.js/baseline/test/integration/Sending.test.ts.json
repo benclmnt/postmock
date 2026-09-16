@@ -1,0 +1,1 @@
+{ "passing": ["Sending sendEmail", "Sending sendEmailBatch", "Sending invalid sendEmail"] }

@@ -69,10 +69,11 @@ The handler cannot choose another success status.
 | `src/discover.ts` | Imports route, control and seed-part files from disk in filename order | built |
 | `src/api/index.ts` | Loads every `src/api/<group>/routes.ts` | built |
 | `src/api/server/` | `GET /server`; `serverJson` for the Servers API | built (`PUT /server`: T5) |
-| `src/api/<group>/` | Other API groups | design (T1–T5, T7) |
+| `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
+| `src/api/<group>/` | Other API groups | design (T2–T5, T7) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
-| `src/pipeline/submit.ts` | `submitOutbound` | contract + stub (body: T1) |
+| `src/pipeline/` | `submitOutbound`: validation, stream, account approval, suppression check, store, `sent`; address lists; 406 wording | built (T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer | design (T3) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
@@ -111,6 +112,10 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | --- | --- | --- |
 | Unknown route | 404, plain text | `docs/02` §9 Q9 |
 | `POSTMARK_API_TEST` on a route that does not accept it yet | 501, plain text | `docs/02` §9 Q8 |
+| A send `From` that no sender signature or domain covers | accepted: postmock does not check senders | `docs/03` §8 Q3 |
+| A message over 10 MB, a body part over 5 MB, a batch over 50 MB (HTTP 413) | 501, plain text | `docs/02` §9 Q10 |
+| A send to an archived stream | 501, plain text | `docs/04` Q15 |
+| An `/email` body that is not a JSON object; a batch body that is not an array | 501, plain text | `docs/02` §9 Q16 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | A bug in postmock | 500, plain text with the stack | — |
@@ -132,4 +137,5 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A route pattern with a literal wins over a param at the same position (`PUT /templates/push` before `/templates/:idOrAlias`). | `docs/08` §2.5 |
 | `614` and `1226` appear under several families; `501` and `1408` use several statuses; `1406` appears only inside 200 bodies. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
 | Many docs/02 §4.4 rows summarize several messages (300, 700, 1000, 1122, …). Those rows are marked `summary`; the caller passes the exact wire text. | `src/errors.ts` |
+| A batch item 406 has its own wording ("a recipient that has been", trailing space). A send route builds its response with `sendResponse` or `batchItem` (`src/api/email/json.ts`), never from `SubmitResult` by hand. | `docs/03` §3.2 |
 | `setTimeout` fires at once for a delay above 2^31−1 ms. The clock arms no real timer past that limit. | Node timers |

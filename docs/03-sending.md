@@ -247,6 +247,18 @@ The fetched code table has no 400, 401, or 409 entries. `refs/api_overview.md` *
 
 "Table text" means the one-line code description. The real `Message` may be longer. **INFERRED**
 
+postmock `Message` texts for the undocumented 300 cases (`src/pipeline/submit.ts`). All **INFERRED** until Q4:
+
+| Case | postmock `Message` |
+| --- | --- |
+| `From` absent, malformed, or more than one address | `Invalid 'From' address: '<value>'.` (form of the documented `To` text) |
+| `Cc`, `Bcc`, `ReplyTo` malformed | `Invalid '<field>' address: '<value>'.` |
+| No recipient in `To`, `Cc`, `Bcc` | `Zero recipients specified` |
+| More than 50 recipients | `Exceeded the maximum of 50 recipients per message.` |
+| No `TextBody` and no `HtmlBody` | `Provide either email TextBody or HtmlBody or both.` |
+| `From` > 255, `Subject` > 2000, `Tag` > 1000 | `The '<field>' field exceeds the maximum length of <n> characters.` |
+| Metadata: > 10 fields, key > 20, value > 80, duplicate key without case | `Metadata may contain at most 10 fields.` and similar, naming the key |
+
 ### 3.2 ErrorCode 406 — inactive recipients
 
 | Case | HTTP | ErrorCode | Message | Source |
@@ -268,6 +280,8 @@ Notes:
 ### 3.3 Check order
 
 No source gives the order. Proposed mock order: token (401) → headers (415) → size (413) → JSON (402) → unknown fields (403) → batch count (410) → per-message: stream (1235/1236) → From signature → address syntax (300) → recipient count (300) → body present (300) → metadata/tag/subject limits (300) → attachments (411, 300) → template (11xx) → suppression (406). **INFERRED**
+
+postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → test token stops here → account approval (413, 412) → suppression (406). postmock does not check `From` against sender signatures (Q3). **INFERRED**
 
 ## 4. Test token and sandbox
 
