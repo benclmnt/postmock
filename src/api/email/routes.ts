@@ -3,8 +3,10 @@ import { Unsupported } from "../../http/respond.ts";
 import { defineRoute } from "../../http/routes.ts";
 import {
   acceptOutbound,
+  acceptOutbounds,
   draftFromJson,
   type Submission,
+  type SubmitResult,
   type Validation,
   validateOutbound,
 } from "../../pipeline/submit.ts";
@@ -27,6 +29,8 @@ const validateJson = (
     channel: "rest",
     draft: draftFromJson(body),
     request: body,
+    // REST sends generate no MIME source yet.
+    rawSource: "",
     bulkRequestId: null,
     templateId: null,
   });
@@ -67,14 +71,15 @@ defineRoute({
     if (validations.some((v) => v.outcome === "rejected" && v.error.ErrorCode === 1235)) {
       throw new Unsupported("an unknown MessageStream in a batch (docs/03 §8 Q14)");
     }
-    const items = [];
-    for (const validation of validations) {
-      items.push(
-        validation.outcome === "rejected"
-          ? batchItem(validation, "")
-          : batchItem(await acceptOutbound(ctx, validation.outbound), validation.outbound.draft.To),
-      );
-    }
+    const accepted = await acceptOutbounds(
+      ctx,
+      validations.flatMap((v) => (v.outcome === "valid" ? [v.outbound] : [])),
+    );
+    let next = 0;
+    const items = validations.map((validation) => {
+      if (validation.outcome === "rejected") return batchItem(validation, "");
+      return batchItem(accepted[next++] as SubmitResult, validation.outbound.draft.To);
+    });
     return items;
   },
 });

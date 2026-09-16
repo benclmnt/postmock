@@ -153,6 +153,18 @@ describe("POST /email/batch", () => {
     expect(runtime.store.state.outbound.size).toBe(0);
   });
 
+  it("stores every accepted item before any sent listener runs", async () => {
+    const { runtime, post } = setup();
+    const storedWhenSent: number[] = [];
+    runtime.events.on("sent", () => {
+      storedWhenSent.push(runtime.store.state.outbound.size);
+      runtime.store.state.streams.delete("1/broadcast");
+    });
+    const res = await post("/email/batch", [message(), message({ MessageStream: "broadcast" })]);
+    expect(res.status).toBe(200);
+    expect(storedWhenSent).toEqual([2, 2]);
+  });
+
   it("refuses to guess for an unknown stream in a batch (docs/03 §8 Q14)", async () => {
     const { runtime, post } = setup();
     const res = await post("/email/batch", [message(), message({ MessageStream: "nope" })]);
