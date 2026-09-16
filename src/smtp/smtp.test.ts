@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import nodemailer from "nodemailer";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
+import { suppressionKey } from "../state/store.ts";
 import type { Bounce, OutboundMessage } from "../state/types.ts";
 import { MAX_MESSAGE_BYTES } from "./listener.ts";
 import { plain, rawSmtp, startWithSmtp, testCertificate } from "./test-support.ts";
@@ -109,7 +110,11 @@ describe("authentication", () => {
         text: "Hi",
       });
       const message = only();
-      expect(message).toMatchObject({ channel: "smtp", MessageStream: "outbound", ServerID: 1 });
+      expect(message).toMatchObject({
+        channel: "smtp",
+        MessageStream: "outbound",
+        ServerID: CONFORMANCE.serverId,
+      });
       expect(info.response).toBe(`250 Ok: queued as ${message.MessageID}`);
     },
   );
@@ -126,7 +131,7 @@ describe("authentication", () => {
 
   it("routes an SMTP token to its stream, and fails AUTH once it is revoked", async () => {
     const created = await mock.control("POST", "/control/smtp/tokens", {
-      serverId: 1,
+      serverId: CONFORMANCE.serverId,
       messageStream: "broadcast",
     });
     expect(created.status).toBe(200);
@@ -148,7 +153,7 @@ describe("authentication", () => {
 
   it("answers an SMTP token with a header naming another stream as not captured (Q13)", async () => {
     const { body } = await mock.control("POST", "/control/smtp/tokens", {
-      serverId: 1,
+      serverId: CONFORMANCE.serverId,
       messageStream: "outbound",
     });
     const auth = { user: body.AccessKey, pass: body.SecretKey };
@@ -164,7 +169,7 @@ describe("authentication", () => {
 
   it("refuses SMTP tokens the UI refuses", async () => {
     const inbound = await mock.control("POST", "/control/smtp/tokens", {
-      serverId: 1,
+      serverId: CONFORMANCE.serverId,
       messageStream: "inbound",
     });
     expect(inbound).toEqual({
@@ -187,7 +192,7 @@ describe("authentication", () => {
     "fails AUTH with 535 for a wrong SMTP secret over %s",
     async (authMethod) => {
       const { body } = await mock.control("POST", "/control/smtp/tokens", {
-        serverId: 1,
+        serverId: CONFORMANCE.serverId,
         messageStream: "outbound",
       });
       const auth = { user: body.AccessKey, pass: `${body.SecretKey}x` };
@@ -198,8 +203,9 @@ describe("authentication", () => {
   );
 
   it("fails AUTH with 535 when SMTP is off for the server", async () => {
-    (mock.runtime.store.state.servers.get(1) as { SmtpApiActivated: boolean }).SmtpApiActivated =
-      false;
+    (
+      mock.runtime.store.state.servers.get(CONFORMANCE.serverId) as { SmtpApiActivated: boolean }
+    ).SmtpApiActivated = false;
     await expect(transport().sendMail({ from: FROM, to: TO })).rejects.toMatchObject({
       responseCode: 535,
     });
@@ -427,8 +433,8 @@ describe("content", () => {
       Headers: [{ Name: "X-Custom", Value: "kept" }],
     });
     expect(message.rawSource).not.toMatch(/^X-Pm-(Metadata|TrackOpens|TrackLinks)/im);
-    expect(message.rawSource).toContain(`X-PM-Message-Id: ${message.MessageID}`);
-    expect(message.rawSource).toContain(`Message-ID: <${message.MessageID}@mtasv.net>`);
+    expect(message.rawSource).toContain("X-PM-Tag: welcome");
+    expect(message.rawSource).toMatch(/^Message-ID: <[0-9a-f-]{36}@mtasv\.net>\r$/m);
     expect(message.rawSource).not.toContain(info.messageId);
   });
 
@@ -493,6 +499,47 @@ describe("content", () => {
 });
 
 describe("results", () => {
+  // No suppressions control endpoint exists yet; this is the state a hard bounce leaves.
+  const suppress = (email: string) =>
+    mock.runtime.store.state.suppressions.set(
+      suppressionKey(CONFORMANCE.serverId, "outbound", email),
+      {
+        ServerID: CONFORMANCE.serverId,
+        MessageStream: "outbound",
+        EmailAddress: email,
+        SuppressionReason: "HardBounce",
+        Origin: "Recipient",
+        CreatedAt: mock.runtime.clock.now(),
+      },
+    );
+
+  it("delivers to active recipients and bounces a suppressed one with the message's MessageID", async () => {
+    suppress("gone@example.com");
+    const info = await transport().sendMail({
+      from: FROM,
+      to: TO,
+      cc: "Gone@example.com",
+      text: "Hi",
+    });
+    const message = only();
+    expect(info.response).toBe(`250 Ok: queued as ${message.MessageID}`);
+    expect(bounces()).toMatchObject([
+      { Email: "Gone@example.com", MessageID: message.MessageID, Type: "SMTPApiError" },
+    ]);
+    expect(bounces()[0]?.Description).toContain("Found inactive addresses: Gone@example.com.");
+  });
+
+  it("bounces every recipient when all are suppressed, and stores no message", async () => {
+    suppress(TO);
+    const info = await transport().sendMail({ from: FROM, to: TO, text: "Hi" });
+    expect(messages()).toEqual([]);
+    const [bounce] = bounces() as [Bounce];
+    expect(bounces()).toHaveLength(1);
+    expect(bounce).toMatchObject({ Email: TO, Type: "SMTPApiError" });
+    expect(bounce.Content).toMatch(/^ErrorCode: 406\r\n/);
+    expect(info.response).toBe(`250 Ok: queued as ${bounce.MessageID}`);
+  });
+
   it("accepts a message the pipeline rejects and records an SMTPApiError bounce per recipient", async () => {
     const emitted: Bounce[] = [];
     mock.runtime.events.on("smtpApiError", ({ bounce }) => {
@@ -514,7 +561,7 @@ describe("results", () => {
     const [first] = recorded as [Bounce];
     expect(first).toMatchObject({
       Type: "SMTPApiError",
-      ServerID: 1,
+      ServerID: CONFORMANCE.serverId,
       MessageStream: "outbound",
       Tag: "t",
       Subject: "Bad",

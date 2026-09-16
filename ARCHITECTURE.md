@@ -139,7 +139,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | SMTP EHLO | no `8BITMIME`, so clients encode 8-bit bodies; raw 8-bit bytes that are not UTF-8 are not kept byte for byte in `Request` and `rawSource` | `docs/07` Q2 |
 | SMTP postmock bug | 554 with the message | — |
 | SMTP recipients | `RCPT TO` only; `To`/`Cc` headers sort and name them; a header address outside the envelope is dropped | `docs/07` §1.1 |
-| SMTP delivered copy (`rawSource`) | set after the `sent` event; incoming `X-PM-*` removed; `X-PM-Tag`, `X-PM-Message-Id` added; `Message-ID: <MessageID@mtasv.net>` unless `X-PM-KeepID: true` | `docs/07` Q8 |
+| SMTP delivered copy (`rawSource`) | passed to `submitOutbound`; incoming `X-PM-*` removed; `X-PM-Tag` added; `Message-ID: <uuid@mtasv.net>` unless `X-PM-KeepID: true`; no `X-PM-Message-Id` (the pipeline mints the MessageID later) | `docs/07` Q8 |
 | `SMTPApiError` bounce | one per affected recipient; `Content` = `ErrorCode`, `Message`, raw MIME | `docs/07` Q9 |
 
 ## Traps

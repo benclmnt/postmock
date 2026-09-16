@@ -4,7 +4,7 @@ import { submitOutbound } from "../pipeline/submit.ts";
 import type { Runtime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
 import { suppressionKey } from "../state/store.ts";
-import { BOUNCE_TYPES, type Bounce, type OutboundMessage } from "../state/types.ts";
+import { BOUNCE_TYPES, type Bounce } from "../state/types.ts";
 import type { SmtpSender } from "./auth.ts";
 import { deliveredSource, draftFromMime, PARSE_OPTIONS } from "./mime.ts";
 
@@ -28,6 +28,7 @@ export async function receive(
     channel: "smtp",
     draft,
     request: source,
+    rawSource: deliveredSource(source, draft.Tag, keepId),
     bulkRequestId: null,
     templateId: null,
   });
@@ -42,10 +43,8 @@ export async function receive(
   };
   switch (result.outcome) {
     case "accepted":
-      deliver(result.message, source, keepId);
       return result.message.MessageID;
     case "partiallySuppressed": {
-      deliver(result.message, source, keepId);
       const { message } = result;
       const suppressed = [...message.To, ...message.Cc, ...message.Bcc]
         .map((a) => a.Email)
@@ -65,11 +64,6 @@ export async function receive(
     case "validated":
       throw new Error("SMTP never authenticates with the test token");
   }
-}
-
-// The raw source the dump serves is the delivered copy, not the request.
-function deliver(message: OutboundMessage, source: string, keepId: boolean): void {
-  message.rawSource = deliveredSource(source, message, keepId);
 }
 
 interface Failure {

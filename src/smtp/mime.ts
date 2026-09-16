@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import libmime from "libmime";
 import type { AddressObject, EmailAddress, ParsedMail } from "mailparser";
 import { Unsupported } from "../http/respond.ts";
@@ -192,16 +193,13 @@ function addMetadata(metadata: Record<string, string>, key: string, value: strin
 
 /**
  * The copy Postmark delivers and serves as the raw source: incoming `X-PM-*` headers removed
- * (docs/07 §1.3), `X-PM-Message-Id` and `X-PM-Tag` added as in the dump example
- * (refs/api_messages-api.md:276), and every `Message-ID` replaced unless `X-PM-KeepID: true`
- * (refs/user-guide_send-email-with-smtp.md:101). The replacement form `<MessageID@mtasv.net>`
- * is INFERRED. The body bytes stay unchanged.
+ * (docs/07 §1.3), `X-PM-Tag` added as in the dump example (refs/api_messages-api.md:276), and
+ * every `Message-ID` replaced unless `X-PM-KeepID: true`
+ * (refs/user-guide_send-email-with-smtp.md:101). The replacement `<uuid@mtasv.net>` is INFERRED.
+ * The dump example's `X-PM-Message-Id` is left out: the pipeline mints the MessageID after this
+ * source is built. The body bytes stay unchanged.
  */
-export function deliveredSource(
-  raw: string,
-  message: { MessageID: string; Tag: string | null },
-  keepId: boolean,
-): string {
+export function deliveredSource(raw: string, tag: string | undefined, keepId: boolean): string {
   const split = /\r?\n\r?\n/.exec(raw);
   const head = split === null ? raw : raw.slice(0, split.index);
   const body = split === null ? "" : raw.slice(split.index);
@@ -212,11 +210,10 @@ export function deliveredSource(
     return !name.startsWith("x-pm-") && (keepId || name !== "message-id");
   });
   const added = [
-    ...(message.Tag === null ? [] : [`X-PM-Tag: ${message.Tag}`]),
-    `X-PM-Message-Id: ${message.MessageID}`,
+    ...(tag === undefined ? [] : [`X-PM-Tag: ${tag}`]),
     ...(keepId && kept.some((l) => /^message-id\s*:/i.test(l))
       ? []
-      : [`Message-ID: <${message.MessageID}@mtasv.net>`]),
+      : [`Message-ID: <${randomUUID()}@mtasv.net>`]),
   ];
   return [...kept, ...added].join(eol) + body;
 }
