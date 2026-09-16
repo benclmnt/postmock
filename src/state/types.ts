@@ -327,6 +327,37 @@ export interface ClickEvent {
   Geo: Geo | null;
 }
 
+// docs/06 §2. One countable fact for the Stats API. The stats plugin writes it from events; facts
+// never expire (refs/api_stats-api.md:4), unlike messages, opens and clicks. A multi-recipient
+// message is one `sent` fact per recipient (refs/api_messages-api.md:50).
+export type StatsFact = {
+  ServerID: number;
+  MessageStream: string;
+  Tag: string | null;
+  at: Date;
+} & (
+  | { kind: "sent"; openTracking: boolean; linkTracking: boolean; trackedLinks: number }
+  | { kind: "bounce"; type: "HardBounce" | "SoftBounce" | "Transient" | "SMTPApiError" }
+  | { kind: "spamComplaint" }
+  | {
+      kind: "open";
+      MessageID: string;
+      Recipient: string;
+      platform: OpenEvent["Platform"];
+      client: string | null;
+      readSeconds: number;
+    }
+  | {
+      kind: "click";
+      MessageID: string;
+      Recipient: string;
+      link: string;
+      location: ClickEvent["ClickLocation"];
+      platform: ClickEvent["Platform"];
+      browser: string | null;
+    }
+);
+
 // docs/06 §3.2. A deleted template stays readable with Active false.
 export interface Template {
   TemplateId: number;

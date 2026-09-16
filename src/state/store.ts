@@ -15,6 +15,7 @@ import type {
   Server,
   SmtpFault,
   SmtpToken,
+  StatsFact,
   Suppression,
   Template,
   Webhook,
@@ -51,6 +52,8 @@ export interface State {
   suppressions: Map<string, Suppression>;
   opens: OpenEvent[];
   clicks: ClickEvent[];
+  /** Stats API facts, in event order. */
+  stats: StatsFact[];
   templates: Map<number, Template>;
   bulkRequests: Map<string, BulkRequest>;
   webhooks: Map<number, Webhook>;
@@ -88,6 +91,7 @@ function emptyState(): State {
     suppressions: new Map(),
     opens: [],
     clicks: [],
+    stats: [],
     templates: new Map(),
     bulkRequests: new Map(),
     webhooks: new Map(),
