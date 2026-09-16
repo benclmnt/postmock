@@ -527,7 +527,7 @@ Data removals:
 
 - [ ] Require `X-Postmark-Account-Token`; answer a missing or wrong token per `docs/02`.
 - [ ] `POST /data-removals`: empty body → 422/1300; return `{ID, Status: "Pending"}`.
-- [ ] `GET /data-removals/{id}`: unknown or bad id → 422/1301; return `{ID, Status}`; move to `Done` on the mock clock.
+- [ ] `GET /data-removals/{id}`: unknown or bad id → 422/1301; return `{ID, Status}`. Move to `Done` on the mock clock once Q16 gives the time and the erased data; until then the request stays `Pending`.
 - [ ] An account-level switch returns 422/1302 for accounts without data removal access.
 
 ## Open questions for live capture

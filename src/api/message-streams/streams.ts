@@ -1,4 +1,5 @@
 import { apiError } from "../../errors.ts";
+import type { Runtime } from "../../runtime.ts";
 import type { State } from "../../state/store.ts";
 import { streamKey } from "../../state/store.ts";
 import type { MessageStream } from "../../state/types.ts";
@@ -8,16 +9,28 @@ import { formatTimestamp } from "../../time.ts";
 export const PURGE_DELAY_MS = 45 * 24 * 60 * 60 * 1000;
 
 /**
- * A purged stream stays in the store so unarchive can answer 1232; every other call treats it as
- * absent (INFERRED).
+ * Deletes an archived stream with its suppressions and bounces at its purge date, unless it was
+ * unarchived before. "deleted (alongside associated data)":
+ * sdk/postmark-dotnet/src/Postmark/PostmarkClient.cs:1242. Messages of the stream stay (INFERRED).
  */
-export const isPurged = (stream: MessageStream, now: Date): boolean =>
-  stream.ExpectedPurgeDate !== null && now.getTime() >= stream.ExpectedPurgeDate.getTime();
+export function schedulePurge(runtime: Runtime, stream: MessageStream, due: Date): void {
+  const key = streamKey(stream.ServerID, stream.ID);
+  runtime.clock.schedule(due.getTime() - runtime.clock.now().getTime(), () => {
+    const state = runtime.store.state;
+    if (state.streams.get(key)?.ExpectedPurgeDate?.getTime() !== due.getTime()) return;
+    state.streams.delete(key);
+    state.purgedStreams.add(key);
+    const inStream = (row: { ServerID: number; MessageStream: string }) =>
+      row.ServerID === stream.ServerID && row.MessageStream === stream.ID;
+    for (const [k, row] of state.suppressions) if (inStream(row)) state.suppressions.delete(k);
+    for (const [id, bounce] of state.bounces) if (inStream(bounce)) state.bounces.delete(id);
+  });
+}
 
-/** A stream of the server that is not purged, or 422 / 1226. Stream IDs match with case kept (INFERRED). */
-export function liveStream(state: State, serverId: number, id: string, now: Date): MessageStream {
+/** A stream of the server, or 422 / 1226. IDs match with case kept (INFERRED). */
+export function liveStream(state: State, serverId: number, id: string): MessageStream {
   const stream = state.streams.get(streamKey(serverId, id));
-  if (stream === undefined || isPurged(stream, now)) throw apiError(1226, { family: "streams" });
+  if (stream === undefined) throw apiError(1226, { family: "streams" });
   return stream;
 }
 

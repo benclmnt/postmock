@@ -75,10 +75,7 @@ const DEACTIVATES: Partial<Record<BounceType, boolean>> = {
   SoftBounce: false,
   VirusNotification: false,
   ChallengeVerification: false,
-  SMTPApiError: false,
 };
-
-export const hasKnownEffect = (type: BounceType): boolean => DEACTIVATES[type] !== undefined;
 
 export const recipientsOf = (message: OutboundMessage): string[] =>
   [...message.To, ...message.Cc, ...message.Bcc].map((a) => a.Email);
@@ -156,12 +153,7 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
     Metadata: message.Metadata,
   };
   store.state.bounces.set(bounce.ID, bounce);
-  const event =
-    type === "SpamComplaint"
-      ? "spamComplaint"
-      : type === "SMTPApiError"
-        ? "smtpApiError"
-        : "bounced";
+  const event = type === "SpamComplaint" ? "spamComplaint" : "bounced";
   await events.emit(event, { bounce });
   if (deactivates && existing === undefined) {
     await addSuppression(runtime, {
@@ -178,15 +170,27 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
 
 /**
  * The recipient unsubscribes through Postmark's link on a Broadcasts stream with
- * `UnsubscribeHandlingType: Postmark` (T5). Returns false when the address already has a row.
+ * `UnsubscribeHandlingType: Postmark` (T5). Returns false when the address is already unsubscribed;
+ * an unsubscribe over another row is not captured.
  */
 export async function recordUnsubscribe(
   runtime: Runtime,
   message: OutboundMessage,
   email: string,
 ): Promise<boolean> {
-  if (findSuppression(runtime.store.state, message.ServerID, message.MessageStream, email)) {
-    return false;
+  const existing = findSuppression(
+    runtime.store.state,
+    message.ServerID,
+    message.MessageStream,
+    email,
+  );
+  if (existing !== undefined) {
+    if (existing.SuppressionReason === "ManualSuppression" && existing.Origin === "Recipient") {
+      return false;
+    }
+    throw new Unsupported(
+      `unsubscribe over a ${existing.SuppressionReason}/${existing.Origin} row is not captured`,
+    );
   }
   await addSuppression(runtime, {
     serverId: message.ServerID,
@@ -289,10 +293,8 @@ export async function activateBounce(runtime: Runtime, bounce: Bounce): Promise<
     bounce.MessageStream,
     bounce.Email,
   );
-  if (row === undefined) {
-    bounce.Inactive = false;
-    return;
-  }
+  // Every path that removes a row also turns its bounces active.
+  if (row === undefined) throw new Error(`inactive bounce ${bounce.ID} has no suppression row`);
   if (row.SuppressionReason !== "HardBounce") {
     throw new Unsupported(
       `activate with a ${row.SuppressionReason}/${row.Origin} row is not captured`,

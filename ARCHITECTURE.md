@@ -73,7 +73,7 @@ The handler cannot choose another success status.
 | `src/api/account/` | Account-token API: servers, domains, sender signatures, template push | built (T7) |
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
 | `src/api/bounces/`, `src/api/suppressions/`, `src/api/message-streams/`, `src/api/data-removals/` | Bounce, Suppressions, Message Streams and Data Removals APIs (`docs/04`) | built (T2) |
-| `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events | built (T2) |
+| `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events. `MessageEvents` on the message come from listeners of those events (T4). | built (T2) |
 | `src/api/<group>/` | Other API groups | design (T3–T5) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
@@ -124,8 +124,10 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | An unknown `MessageStream` in a batch | 501, plain text; the batch sends nothing | `docs/03` §8 Q14 |
 | Suppressions API or Bounce API state with an unknown effect: delete or re-suppress of an unsubscribe or `Admin` row, a bounce over a row of another reason, activate of an active bounce, any call on an archived stream's suppressions | 501, plain text | `docs/04` Q4, Q9, Q15 |
 | Stream handling type `Postmark` or `Custom` on a Transactional stream; archive of an archived stream; unarchive of an active stream | 501, plain text | `docs/04` §4 |
-| Data removal with a malformed body or an invalid `RequestedFor`; a request stays `Pending` | 501, plain text | `docs/04` Q16 |
-| A purged stream: absent for every call, but unarchive answers 1232 and create may reuse its ID | INFERRED | `docs/04` §4.3 |
+| Data removal with a malformed body or an invalid `RequestedFor` | 501, plain text | `docs/04` Q16 |
+| Data removal status: a request stays `Pending`, and erases nothing | 200, `Pending` | `docs/04` Q16 |
+| A purged stream (a clock task at `ExpectedPurgeDate`): the stream, its suppressions and bounces are deleted; unarchive answers 1232; create may reuse its ID | INFERRED | `docs/04` §4.3 |
+| Suppressions of an inbound stream; edit of an archived stream | 501, plain text | `docs/04` §2, §4 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | An unknown server ID on `/servers/{id}`: no servers ErrorCode names it | 501, plain text | capture |

@@ -16,16 +16,14 @@ import { liveStream } from "../message-streams/streams.ts";
 
 type Ctx = RequestContext & { auth: ServerAuth };
 
-/** The path stream, or 1226. Effects of archiving on its suppressions are not captured (Q15). */
+/** The path stream, or 1226. Archived and inbound streams are not captured (Q15). */
 function streamOf(ctx: Ctx): MessageStream {
-  const stream = liveStream(
-    ctx.store.state,
-    ctx.auth.server.ID,
-    ctx.params.stream as string,
-    ctx.clock.now(),
-  );
+  const stream = liveStream(ctx.store.state, ctx.auth.server.ID, ctx.params.stream as string);
   if (stream.ArchivedAt !== null) {
     throw new Unsupported("suppressions of an archived stream: not captured (docs/04 Q15)");
+  }
+  if (stream.MessageStreamType === "Inbound") {
+    throw new Unsupported("suppressions of an inbound stream: not captured");
   }
   return stream;
 }

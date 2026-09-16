@@ -73,6 +73,39 @@ describe("message streams", () => {
     expect((await call("POST", "/message-streams/test-a/unarchive")).body.ErrorCode).toBe(1232);
   });
 
+  it("purges a stream with its suppressions; a new stream with the same ID starts empty", async () => {
+    const { call, runtime } = await recipientsKit();
+    await call("POST", "/message-streams", create("promo", "Broadcasts"));
+    const rows = "/message-streams/promo/suppressions";
+    await call("POST", rows, { Suppressions: [{ EmailAddress: "a@example.com" }] });
+    await call("POST", "/message-streams/promo/archive");
+    await runtime.clock.advance(45 * DAY);
+    expect(runtime.store.state.suppressions.size).toBe(1); // the seeded outbound row
+    expect((await call("POST", "/message-streams", create("promo", "Broadcasts"))).status).toBe(
+      200,
+    );
+    expect((await call("GET", `${rows}/dump`)).body.Suppressions).toEqual([]);
+  });
+
+  it("keeps a stream unarchived before its purge date", async () => {
+    const { call, runtime } = await recipientsKit();
+    await call("POST", "/message-streams", create("keep"));
+    await call("POST", "/message-streams/keep/archive");
+    await call("POST", "/message-streams/keep/unarchive");
+    await runtime.clock.advance(46 * DAY);
+    expect((await call("GET", "/message-streams/keep")).body.ArchivedAt).toBeNull();
+  });
+
+  it("refuses an empty Name on edit and answers 501 for editing an archived stream", async () => {
+    const { call } = await recipientsKit();
+    expect((await call("PATCH", "/message-streams/outbound", { Name: "" })).body.ErrorCode).toBe(
+      1223,
+    );
+    expect((await call("PATCH", "/message-streams/outbound", { Name: null })).status).toBe(200);
+    await call("POST", "/message-streams/broadcast/archive");
+    expect((await call("PATCH", "/message-streams/broadcast", { Name: "x" })).status).toBe(501);
+  });
+
   it.each([
     [create(""), 1222],
     [create("pm-stream"), 1233],

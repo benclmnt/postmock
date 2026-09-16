@@ -26,7 +26,9 @@ export async function recipientsKit() {
       headers: { "X-Postmark-Server-Token": token, "X-Postmark-Account-Token": token },
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
-    return { status: res.status, body: (await res.json()) as Loose };
+    const text = await res.text();
+    const json = res.headers.get("Content-Type")?.startsWith("application/json");
+    return { status: res.status, body: (json ? JSON.parse(text) : text) as Loose };
   };
   const controlPost = async (path: string, body: unknown) => {
     const res = await control.request(path, { method: "POST", body: JSON.stringify(body) });

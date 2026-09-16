@@ -43,9 +43,34 @@ const bounced = (
     Status: "Sent",
     Sandboxed: false,
     ReceivedAt: sentAt,
-    MessageEvents: [],
+    // docs/06 §1.6; a hard bounce also suppresses the address.
+    MessageEvents: [
+      {
+        Recipient: email,
+        Type: "Bounced",
+        ReceivedAt: bouncedAt,
+        Details: { Summary: details, BounceID: String(id) },
+      },
+      ...(type === "HardBounce"
+        ? [
+            {
+              Recipient: email,
+              Type: "SubscriptionChanged" as const,
+              ReceivedAt: bouncedAt,
+              Details: { Origin: "Recipient", SuppressSending: "True" },
+            },
+          ]
+        : []),
+    ],
     channel: "rest",
-    request: null,
+    request: {
+      From: CONFORMANCE.senderEmail,
+      To: email,
+      Subject: subject,
+      TextBody: "Hello",
+      Tag: "postmock-bounce",
+      MessageStream: "outbound",
+    },
     rawSource: "",
     bulkRequestId: null,
     templateId: null,

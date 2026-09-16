@@ -2,6 +2,7 @@ import { z } from "zod";
 import { Unsupported } from "../../http/respond.ts";
 import { recipientsOf, recordBounce, recordUnsubscribe } from "../../recipients/transitions.ts";
 import { streamKey } from "../../state/store.ts";
+import { findSuppression } from "../../state/suppressions.ts";
 import type { BounceType, OutboundMessage } from "../../state/types.ts";
 import { type ControlContext, ControlError, controlInput, defineControl } from "../registry.ts";
 
@@ -38,7 +39,29 @@ function delivered(ctx: ControlContext, input: z.output<typeof target>) {
   if (email === undefined) {
     throw new ControlError(`${input.recipient} is not a recipient of ${message.MessageID}`);
   }
+  if (message.Status === "Queued") {
+    throw new ControlError(`message ${message.MessageID} is queued, not delivered`);
+  }
+  // A send skips an address suppressed at send time (docs/04 §3.3).
+  const row = findSuppression(ctx.store.state, message.ServerID, message.MessageStream, email);
+  if (row !== undefined && row.CreatedAt.getTime() <= message.ReceivedAt.getTime()) {
+    throw new ControlError(`${email} was suppressed when ${message.MessageID} was sent`);
+  }
   return { message, email };
+}
+
+/** One message reaches one recipient once, so it bounces with a given type at most once. */
+function refuseRepeat(
+  ctx: ControlContext,
+  message: OutboundMessage,
+  email: string,
+  type: BounceType,
+) {
+  for (const bounce of ctx.store.state.bounces.values()) {
+    if (bounce.MessageID === message.MessageID && bounce.Email === email && bounce.Type === type) {
+      throw new ControlError(`${message.MessageID} already has a ${type} for ${email}`);
+    }
+  }
 }
 
 /** Behavior postmock does not know is a bad control request, not a crash. */
@@ -78,6 +101,7 @@ defineControl({
       ctx.body,
     );
     const { message, email } = delivered(ctx, input);
+    refuseRepeat(ctx, message, email, input.type);
     const bounce = await known(() =>
       recordBounce(ctx, {
         message,
@@ -97,6 +121,7 @@ defineControl({
   handler: async (ctx) => {
     const input = controlInput(target.extend({ dump: z.string().optional() }), ctx.body);
     const { message, email } = delivered(ctx, input);
+    refuseRepeat(ctx, message, email, "SpamComplaint");
     const bounce = await known(() =>
       recordBounce(ctx, {
         message,
@@ -127,6 +152,6 @@ defineControl({
         `stream ${message.MessageStream} has no Postmark unsubscribe handling`,
       );
     }
-    return { suppressed: await recordUnsubscribe(ctx, message, email) };
+    return { suppressed: await known(() => recordUnsubscribe(ctx, message, email)) };
   },
 });

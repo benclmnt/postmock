@@ -10,7 +10,7 @@ import type {
   UnsubscribeHandlingType,
 } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
-import { isPurged, liveStream, PURGE_DELAY_MS, streamJson } from "./streams.ts";
+import { liveStream, PURGE_DELAY_MS, schedulePurge, streamJson } from "./streams.ts";
 
 // Message Streams API: docs/04 §4. Error texts come from the docs/02 §4.4 table.
 
@@ -23,15 +23,12 @@ type Ctx = RequestContext & { auth: ServerAuth };
 /** 1220 when the account has no Message Streams API access (docs/04 §4.4). */
 function streamsOf(ctx: Ctx): MessageStream[] {
   if (!ctx.store.state.account.messageStreamsApiEnabled) throw apiError(1220);
-  const now = ctx.clock.now();
-  return [...ctx.store.state.streams.values()].filter(
-    (s) => s.ServerID === ctx.auth.server.ID && !isPurged(s, now),
-  );
+  return [...ctx.store.state.streams.values()].filter((s) => s.ServerID === ctx.auth.server.ID);
 }
 
 function streamOf(ctx: Ctx): MessageStream {
   streamsOf(ctx);
-  return liveStream(ctx.store.state, ctx.auth.server.ID, ctx.params.id as string, ctx.clock.now());
+  return liveStream(ctx.store.state, ctx.auth.server.ID, ctx.params.id as string);
 }
 
 /** Enum text matched without case, stored in doc case (INFERRED, like query keys: docs/08 R3). */
@@ -128,6 +125,7 @@ defineRoute({
     const type = oneOf(STREAM_TYPES, body.MessageStreamType ?? "");
     if (type === "Inbound") throw apiError(1228); // every server has its inbound stream
     if (type === undefined) throw apiError(1221);
+    // IDs clash without case (INFERRED); lookups keep case.
     if (streams.some((s) => s.ID.toLowerCase() === id.toLowerCase())) throw apiError(1230);
     if (streams.length >= MAX_STREAMS) throw apiError(1225);
     const handling = handlingType(
@@ -147,14 +145,16 @@ defineRoute({
       ExpectedPurgeDate: null,
       SubscriptionManagementConfiguration: { UnsubscribeHandlingType: handling },
     };
-    // A purged stream with this ID is replaced (INFERRED).
+    // The ID of a purged stream is free again (INFERRED).
+    ctx.store.state.purgedStreams.delete(streamKey(stream.ServerID, id));
     ctx.store.state.streams.set(streamKey(stream.ServerID, id), stream);
     return streamJson(stream);
   },
 });
 
+// dotnet sends `Name: null` to keep the name (R9); an empty string is no valid name (INFERRED).
 const editSchema = z.object({
-  Name: absent(z.string()),
+  Name: z.string().nullable().optional(),
   Description: absent(z.string()),
   SubscriptionManagementConfiguration: handlingSchema,
 });
@@ -166,6 +166,8 @@ defineRoute({
   auth: "server",
   handler: (ctx) => {
     const stream = streamOf(ctx);
+    if (stream.ArchivedAt !== null)
+      throw new Unsupported("edit of an archived stream: not captured");
     const parsed = parseBody(editSchema, ctx.body ?? {});
     if (!parsed.success) throw new Unsupported("malformed stream body: error not captured");
     const body = parsed.data;
@@ -175,7 +177,8 @@ defineRoute({
       text === undefined
         ? stream.SubscriptionManagementConfiguration.UnsubscribeHandlingType
         : handlingType(ctx, stream.MessageStreamType, text);
-    if (body.Name !== undefined) stream.Name = body.Name;
+    if (body.Name === "") throw apiError(1223);
+    if (body.Name !== undefined && body.Name !== null) stream.Name = body.Name;
     if (body.Description !== undefined) stream.Description = body.Description;
     stream.SubscriptionManagementConfiguration = { UnsubscribeHandlingType: handling };
     stream.UpdatedAt = ctx.clock.now();
@@ -196,6 +199,7 @@ defineRoute({
     const now = ctx.clock.now();
     stream.ArchivedAt = now;
     stream.ExpectedPurgeDate = new Date(now.getTime() + PURGE_DELAY_MS);
+    schedulePurge(ctx, stream, stream.ExpectedPurgeDate);
     // ID string and ServerID integer (docs/04 §4.2 disagreements; dotnet reads int ServerID).
     return {
       ID: stream.ID,
@@ -211,11 +215,9 @@ defineRoute({
   auth: "server",
   handler: (ctx) => {
     streamsOf(ctx);
-    const stream = ctx.store.state.streams.get(
-      streamKey(ctx.auth.server.ID, ctx.params.id as string),
-    );
-    if (stream === undefined) throw apiError(1226, { family: "streams" });
-    if (isPurged(stream, ctx.clock.now())) throw apiError(1232);
+    const key = streamKey(ctx.auth.server.ID, ctx.params.id as string);
+    if (ctx.store.state.purgedStreams.has(key)) throw apiError(1232);
+    const stream = streamOf(ctx);
     if (stream.ArchivedAt === null)
       throw new Unsupported("unarchive of an active stream: not captured");
     stream.ArchivedAt = null;

@@ -191,3 +191,62 @@ describe("T14: retention", () => {
     expect(suppressed("old@example.com")).toBe(true);
   });
 });
+
+describe("control refusals: only states a real recipient event can produce", () => {
+  it("refuses an address suppressed at send time, a repeated bounce type, and a queued message", async () => {
+    const { deliver, controlPost } = await kit();
+    const skipped = deliver("hardbounce@example.com");
+    const bounce = (messageId: string, recipient: string) =>
+      controlPost("/control/bounces", { messageId, recipient, type: "HardBounce" });
+    expect((await bounce(skipped.MessageID, "hardbounce@example.com")).status).toBe(400);
+    const message = deliver("twice@example.com");
+    expect((await bounce(message.MessageID, "twice@example.com")).status).toBe(200);
+    expect((await bounce(message.MessageID, "twice@example.com")).status).toBe(400);
+    const queued = deliver("queued@example.com");
+    queued.Status = "Queued";
+    expect((await bounce(queued.MessageID, "queued@example.com")).status).toBe(400);
+  });
+});
+
+describe("T13: bounce after reactivation", () => {
+  it("adds a new inactive bounce and a new row", async () => {
+    const { deliver, controlPost, call, suppressed, runtime } = await kit();
+    const first = deliver("again@example.com");
+    const one = await controlPost("/control/bounces", {
+      messageId: first.MessageID,
+      recipient: "again@example.com",
+      type: "HardBounce",
+    });
+    await call("PUT", `/bounces/${one.body.ID}/activate`);
+    await runtime.clock.advance(1000);
+    const second = deliver("again@example.com");
+    const two = await controlPost("/control/bounces", {
+      messageId: second.MessageID,
+      recipient: "again@example.com",
+      type: "HardBounce",
+    });
+    expect(two.body.ID).toBeGreaterThan(one.body.ID);
+    expect(suppressed("again@example.com")).toBe(true);
+    expect((await call("GET", `/bounces/${one.body.ID}`)).body.Inactive).toBe(false);
+    expect((await call("GET", `/bounces/${two.body.ID}`)).body.Inactive).toBe(true);
+  });
+});
+
+describe("uncaptured effects answer 501", () => {
+  it("T10: delete of an unsubscribe row; activate of an active bounce; archived or inbound suppressions", async () => {
+    const { deliver, controlPost, call } = await kit();
+    const broadcast = deliver("u@example.com", "broadcast");
+    await controlPost("/control/events/unsubscribe", {
+      messageId: broadcast.MessageID,
+      recipient: "u@example.com",
+    });
+    const item = { Suppressions: [{ EmailAddress: "u@example.com" }] };
+    expect(
+      (await call("POST", "/message-streams/broadcast/suppressions/delete", item)).status,
+    ).toBe(501);
+    expect((await call("PUT", "/bounces/2002/activate")).status).toBe(501);
+    expect((await call("GET", "/message-streams/inbound/suppressions/dump")).status).toBe(501);
+    await call("POST", "/message-streams/broadcast/archive");
+    expect((await call("GET", "/message-streams/broadcast/suppressions/dump")).status).toBe(501);
+  });
+});
