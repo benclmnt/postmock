@@ -1,3 +1,5 @@
+import type { PostmockStamp } from "./stamp.ts";
+
 /** One test of an SDK suite. `id` is `<file> > <full title>` and stays stable across runs. */
 export interface TestResult {
   id: string;
@@ -5,8 +7,6 @@ export interface TestResult {
   /** First line of the failure, for triage. */
   error?: string;
 }
-
-import type { PostmockStamp } from "./stamp.ts";
 
 /** `conformance/results/<sdk>.json`. */
 export interface ResultsFile {
@@ -36,11 +36,21 @@ export function totals(tests: TestResult[]): ResultsFile["totals"] {
   return { pass: count("pass"), fail: count("fail"), skip: count("skip") };
 }
 
-/** A reason to distrust a results file: it came from other postmock source than the current one. */
-export function staleReason(results: ResultsFile, current: PostmockStamp): string | undefined {
-  if (results.postmock.sourceHash === current.sourceHash) return undefined;
-  const describe = (s: PostmockStamp) => `${s.commit.slice(0, 7)}${s.dirty ? "+changes" : ""}`;
-  return `results come from postmock ${describe(results.postmock)}, source is now ${describe(current)}`;
+/**
+ * A reason to distrust a results file: it came from other postmock source or another SDK commit.
+ * A commit of the same source, or a docs edit, keeps it fresh.
+ */
+export function staleReason(
+  results: ResultsFile,
+  current: { postmock: PostmockStamp; sdkCommit: string },
+): string | undefined {
+  if (results.sdkCommit !== current.sdkCommit) {
+    return `results come from SDK commit ${results.sdkCommit}; sdk/ is now at ${current.sdkCommit}`;
+  }
+  if (results.postmock.sourceHash !== current.postmock.sourceHash) {
+    return `results come from other postmock source (${results.postmock.commit.slice(0, 7)}); source is now ${current.postmock.commit.slice(0, 7)}`;
+  }
+  return undefined;
 }
 
 /**

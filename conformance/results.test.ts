@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { readBaseline } from "./baseline.ts";
+import { readBaseline, skippedAndBaselined } from "./baseline.ts";
 import { compare, type ResultsFile, staleReason, type TestResult, totals } from "./results.ts";
 
 const file = (tests: TestResult[]): ResultsFile => ({
   sdk: "x",
   sdkCommit: "c",
-  postmock: { commit: "a".repeat(40), dirty: false, sourceHash: "h1" },
+  postmock: { commit: "a".repeat(40), sourceHash: "h1" },
   finishedAt: "t",
   totals: totals(tests),
   tests,
@@ -44,16 +44,30 @@ describe("compare", () => {
 });
 
 describe("staleReason", () => {
-  it("accepts results from the same source", () => {
-    expect(
-      staleReason(file([]), { commit: "a".repeat(40), dirty: false, sourceHash: "h1" }),
-    ).toBeUndefined();
+  const current = { postmock: { commit: "b".repeat(40), sourceHash: "h1" }, sdkCommit: "c" };
+
+  it("accepts results from the same source and SDK commit, whatever the postmock commit", () => {
+    expect(staleReason(file([]), current)).toBeUndefined();
   });
 
-  it("refuses results from other source", () => {
-    expect(staleReason(file([]), { commit: "b".repeat(40), dirty: true, sourceHash: "h2" })).toBe(
-      "results come from postmock aaaaaaa, source is now bbbbbbb+changes",
+  it("refuses results from other postmock source", () => {
+    expect(
+      staleReason(file([]), { ...current, postmock: { commit: "b".repeat(40), sourceHash: "h2" } }),
+    ).toBe("results come from other postmock source (aaaaaaa); source is now bbbbbbb");
+  });
+
+  it("refuses results from another SDK commit", () => {
+    expect(staleReason(file([]), { ...current, sdkCommit: "d" })).toBe(
+      "results come from SDK commit c; sdk/ is now at d",
     );
+  });
+});
+
+describe("skippedAndBaselined", () => {
+  it("lists tests in both a baseline and a skip file", () => {
+    expect(skippedAndBaselined({ passing: ["f > a", "f > b"] }, ["f > b", "f > c"])).toEqual([
+      "f > b",
+    ]);
   });
 });
 

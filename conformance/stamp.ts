@@ -1,30 +1,63 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** The postmock source a results file came from. */
+/** The postmock source a results file came from. `commit` is for people; `sourceHash` decides. */
 export interface PostmockStamp {
   commit: string;
-  dirty: boolean;
-  /** Hash of the commit plus uncommitted changes. Baseline files do not count: they record results. */
   sourceHash: string;
 }
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const NOT_BASELINE = ":(glob,exclude)conformance/*/baseline/**";
 const git = (...args: string[]) =>
-  execFileSync("git", ["-C", root, ...args], { encoding: "buffer", maxBuffer: 1 << 30 });
+  execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 1 << 30 });
 
-export function currentStamp(): PostmockStamp {
-  const commit = git("rev-parse", "HEAD").toString().trim();
-  const diff = git("diff", "HEAD", "--binary", "--", ".", NOT_BASELINE);
-  const untracked = git("ls-files", "--others", "--exclude-standard", "-z", "--", ".", NOT_BASELINE)
-    .toString()
-    .split("\0")
+/**
+ * Files whose content decides a run's outcome: the server, the seeds, the shared runner code, this
+ * SDK's runner folder without its baselines and skips, and the dependency manifests.
+ * Tracked and untracked files count; git-ignored files (`.work/`, results) do not.
+ */
+export function stampedFiles(sdk: string): string[] {
+  const listed = git(
+    "ls-files",
+    "--cached",
+    "--others",
+    "--exclude-standard",
+    "-z",
+    "--",
+    "src",
+    "seeds",
+    ":(glob)conformance/*.ts",
+    `conformance/${sdk}`,
+    "package.json",
+    "pnpm-lock.yaml",
+  );
+  const runner = `conformance/${sdk}/`;
+  return [...new Set(listed.split("\0"))]
     .filter(Boolean)
+    .filter((f) => !f.startsWith(`${runner}baseline/`) && !f.startsWith(`${runner}skips/`))
+    .filter((f) => existsSync(`${root}/${f}`))
     .sort();
-  const hash = createHash("sha256").update(commit).update(diff);
-  for (const file of untracked) hash.update(file).update(readFileSync(`${root}/${file}`));
-  return { commit, dirty: diff.length > 0 || untracked.length > 0, sourceHash: hash.digest("hex") };
+}
+
+export function currentStamp(sdk: string): PostmockStamp {
+  const hash = createHash("sha256");
+  for (const file of stampedFiles(sdk)) {
+    hash
+      .update(file)
+      .update("\0")
+      .update(readFileSync(`${root}/${file}`))
+      .update("\0");
+  }
+  return { commit: git("rev-parse", "HEAD").trim(), sourceHash: hash.digest("hex") };
+}
+
+/** The checked-out commit of `sdk/<sdk>`. A runner folder has the name of its `sdk/` folder. */
+export function sdkCommit(sdk: string): string {
+  const dir = `${root}/sdk/${sdk}`;
+  if (!existsSync(dir)) throw new Error(`sdk/${sdk} is missing; run tools/fetch-sources.sh`);
+  return execFileSync("git", ["-C", dir, "rev-parse", "--short", "HEAD"], {
+    encoding: "utf8",
+  }).trim();
 }

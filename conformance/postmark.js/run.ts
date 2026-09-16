@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startPostmock } from "../../src/server.ts";
 import { type ResultsFile, type TestResult, totals } from "../results.ts";
-import { currentStamp } from "../stamp.ts";
+import { currentStamp, sdkCommit } from "../stamp.ts";
 
 // Runs the postmark.js live integration suite, unmodified, against postmock (docs/08 §5.2).
 // A copy under `.work/` holds the install, so `sdk/` stays untouched.
@@ -27,12 +27,7 @@ interface MochaReport {
   failures: MochaTest[];
 }
 
-function prepare(): string {
-  if (!existsSync(sdkDir))
-    throw new Error("sdk/postmark.js is missing; run tools/fetch-sources.sh");
-  const commit = execFileSync("git", ["-C", sdkDir, "rev-parse", "--short", "HEAD"], {
-    encoding: "utf8",
-  }).trim();
+function prepare(): void {
   execFileSync("rsync", [
     "-a",
     "--delete",
@@ -55,7 +50,6 @@ function prepare(): string {
     });
     writeFileSync(stampFile, stamp);
   }
-  return commit;
 }
 
 function mocha(args: string[], env: NodeJS.ProcessEnv, output: string): Promise<MochaReport> {
@@ -92,8 +86,9 @@ const firstLine = (t: MochaTest) =>
   ("message" in t.err ? (t.err.message ?? "") : "").split("\n")[0];
 
 export async function run(): Promise<ResultsFile> {
-  const postmock = currentStamp();
-  const sdkCommit = prepare();
+  const commit = sdkCommit("postmark.js");
+  const postmock = currentStamp("postmark.js");
+  prepare();
   const mock = await startPostmock({
     host: "127.0.0.1",
     apiPort: 0,
@@ -130,7 +125,7 @@ export async function run(): Promise<ResultsFile> {
     });
     return {
       sdk: "postmark.js",
-      sdkCommit,
+      sdkCommit: commit,
       postmock,
       finishedAt: new Date().toISOString(),
       totals: totals(tests),
