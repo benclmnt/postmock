@@ -69,6 +69,12 @@ export async function run(): Promise<ResultsFile> {
     };
     // Every fetch happens in the MCP server the smoke tests spawn, so the probe spawns a child the
     // way the MCP stdio transport does: cross-spawn with the filtered default environment.
+    const transport = `${suite}/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js`;
+    if (!readFileSync(transport, "utf8").includes("from 'cross-spawn'")) {
+      throw new Error(
+        `${transport} no longer spawns with cross-spawn; update the probe and the shim`,
+      );
+    }
     await sandbox.assertGuarded(/postmock fetch shim: refusing/, () =>
       exec("node", ["--input-type=module", "-e", SPAWN_PROBE], { cwd: suite, env, quiet: true }),
     );

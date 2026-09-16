@@ -1,5 +1,3 @@
 {
-  "passing": [
-    "Email send template command not valid no arguments"
-  ]
+  "passing": ["Email send template command not valid no arguments"]
 }

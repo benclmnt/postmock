@@ -285,6 +285,10 @@ export function completeResults(
   ran: readonly TestResult[],
   whyNotRun: (id: string) => string,
 ): TestResult[] {
+  const repeated = listed.filter((id, i) => listed.indexOf(id) !== i);
+  if (repeated.length > 0) {
+    throw new Error(`two listed tests share an id: ${[...new Set(repeated)].join(", ")}`);
+  }
   const byId = new Map(ran.map((t) => [t.id, t]));
   const unlisted = ran.filter((t) => !listed.includes(t.id));
   if (unlisted.length > 0) {

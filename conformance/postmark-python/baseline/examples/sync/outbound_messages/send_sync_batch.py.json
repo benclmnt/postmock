@@ -1,5 +1,3 @@
 {
-  "passing": [
-    "exits 0"
-  ]
+  "passing": ["exits 0"]
 }

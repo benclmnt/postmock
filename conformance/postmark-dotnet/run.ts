@@ -58,11 +58,15 @@ export async function run(): Promise<ResultsFile> {
       quiet: true,
     },
   );
+  const header = listing.indexOf("The following Tests are available:");
   const listed = listing
-    .slice(listing.indexOf("The following Tests are available:"))
+    .slice(header)
     .split("\n")
     .filter((line) => line.startsWith("    "))
     .map((line) => idOf(line.trim()));
+  if (header === -1 || listed.length === 0) {
+    throw new Error(`dotnet test --list-tests found no test:\n${listing.slice(-4000)}`);
+  }
 
   const sandbox = await startSandbox();
   try {

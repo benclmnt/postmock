@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { IMAGES, PUBLIC_IP, runContainer, withContainerSandbox } from "../docker.ts";
 import {
+  completeResults,
   copySuite,
   mustExec,
   readKeys,
@@ -26,13 +27,21 @@ const MAVEN_ENV = { MAVEN_CONFIG: "/tmp/.m2" };
 // Surefire's default includes (maven-surefire-plugin 2.22.2).
 const TEST_CLASS = /^(Test\w*|\w*Test|\w*Tests|\w*TestCase)\.java$/;
 
-/** Test classes surefire runs: default includes with at least one `@Test`, as `<package>.<Class>`. */
-function testClasses(suite: string): string[] {
+/**
+ * Test ids from the sources: `@Test` methods in the classes surefire's default includes match.
+ * JUnit 5 reports each by method name. The suite has no nested, parameterized or repeated tests.
+ */
+function listTests(suite: string): string[] {
   const root = `${suite}/src/test/java`;
   return readdirSync(root, { recursive: true, encoding: "utf8" })
     .filter((f) => TEST_CLASS.test(f.split("/").pop() ?? ""))
-    .filter((f) => /@Test\b/.test(readFileSync(`${root}/${f}`, "utf8")))
-    .map((f) => f.slice(0, -".java".length).replaceAll("/", "."));
+    .flatMap((f) => {
+      const className = (f.split("/").pop() ?? "").slice(0, -".java".length);
+      const source = readFileSync(`${root}/${f}`, "utf8");
+      return [...source.matchAll(/@Test\b[\s\S]*?\bvoid\s+(\w+)\s*\(/g)].map(
+        (m) => `src/test/java/${f} > ${className}.${m[1]}`,
+      );
+    });
 }
 
 const fileOf = (qualified: string) => `src/test/java/${qualified.replaceAll(".", "/")}.java`;
@@ -114,30 +123,20 @@ export async function run(): Promise<ResultsFile> {
       }
       sandbox.assertRouted();
 
-      const cases = readdirSync(reports)
+      const ran = readdirSync(reports)
         .filter((f) => f.startsWith("TEST-") && f.endsWith(".xml"))
-        .flatMap((f) => parseJUnit(readFileSync(`${reports}/${f}`, "utf8")));
-      const tests = cases.map((c) => {
-        const qualified = c.attrs.classname ?? "";
-        const className = qualified.split(".").pop() ?? "";
-        return result(
-          `${fileOf(qualified)} > ${className}.${c.attrs.name ?? ""}`,
-          c.state,
-          c.error,
-        );
-      });
-      // A crashed fork or a failed class setup leaves a class without any reported test.
-      const reported = new Set(cases.map((c) => c.attrs.classname));
-      for (const qualified of testClasses(suite).filter((q) => !reported.has(q))) {
-        const className = qualified.split(".").pop() ?? "";
-        tests.push(
-          result(
-            `${fileOf(qualified)} > ${className}`,
-            "fail",
-            "not run: surefire reported no test of this class",
-          ),
-        );
-      }
+        .flatMap((f) => parseJUnit(readFileSync(`${reports}/${f}`, "utf8")))
+        .map((c) => {
+          const qualified = c.attrs.classname ?? "";
+          const className = qualified.split(".").pop() ?? "";
+          return result(
+            `${fileOf(qualified)} > ${className}.${c.attrs.name ?? ""}`,
+            c.state,
+            c.error,
+          );
+        });
+      // A crashed fork or a failed class setup leaves tests without a report.
+      const tests = completeResults(listTests(suite), ran, () => "surefire reported no result");
       return results(tests);
     },
   );

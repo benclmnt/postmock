@@ -1,5 +1,3 @@
 {
-  "passing": [
-    "TemplatePushTest.invalidSourceDestinationTest"
-  ]
+  "passing": ["TemplatePushTest.invalidSourceDestinationTest"]
 }

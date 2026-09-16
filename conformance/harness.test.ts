@@ -75,3 +75,9 @@ describe("completeResults", () => {
     expect(() => completeResults(["a > one"], ran, () => "")).toThrow(/a > two/);
   });
 });
+
+describe("completeResults with a repeated listed id", () => {
+  it("refuses the listing: one result cannot stand for two tests", () => {
+    expect(() => completeResults(["a > one", "a > one"], [], () => "")).toThrow(/share an id/);
+  });
+});

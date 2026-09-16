@@ -129,16 +129,18 @@ export async function runRspec(
         { cwd: suite, env: routed, quiet: true },
       );
       const json = existsSync(report) ? readFileSync(report, "utf8") : "";
-      // A spec file that fails to load drops all its examples from both reports.
-      const parsed = json === "" ? undefined : (JSON.parse(json) as RspecReport);
-      if (parsed === undefined || parsed.summary.errors_outside_of_examples_count > 0) {
-        throw new Error(`rspec could not load the suite:\n${run.output.slice(0, 4000)}`);
-      }
-      return parsed;
+      if (json === "") throw new Error(`rspec wrote no report:\n${run.output.slice(0, 4000)}`);
+      return JSON.parse(json) as RspecReport;
     };
     const idOf = (e: RspecReport["examples"][number]) =>
       `${e.file_path.replace(/^\.\//, "")} > ${e.full_description}`;
-    const listed = (await rspec(["--dry-run"], `${work}/rspec-list.json`)).examples.map(idOf);
+    const listing = await rspec(["--dry-run"], `${work}/rspec-list.json`);
+    // A spec file that fails to load drops all its examples. Only the listing checks this: in the
+    // real run the count also includes an after(:context) hook that hits an unbuilt route.
+    if (listing.summary.errors_outside_of_examples_count > 0) {
+      throw new Error("rspec could not load the suite; run it by hand to see the load error");
+    }
+    const listed = listing.examples.map(idOf);
     const { examples } = await rspec([], `${work}/rspec.json`);
     sandbox.assertRouted();
 

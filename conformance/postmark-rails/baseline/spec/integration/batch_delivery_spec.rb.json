@@ -1,5 +1,3 @@
 {
-  "passing": [
-    "Delivering emails in batches delivers messages in batches"
-  ]
+  "passing": ["Delivering emails in batches delivers messages in batches"]
 }

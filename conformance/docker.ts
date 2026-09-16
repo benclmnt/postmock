@@ -97,7 +97,14 @@ export async function withContainerSandbox<T>(
   const gateway = `${name}-gateway`;
   const sandbox = await startSandbox(options.tls ? { tls: options.tls } : {});
   const removeDocker = async () => {
+    // A suite container ignores the signal its `docker run` client forwards (PID 1 has no handler),
+    // so remove every container on the network, not only the gateway.
+    const attached = await exec("docker", ["ps", "-aq", "--filter", `network=${name}`], {
+      quiet: true,
+    });
+    const containers = attached.output.split("\n").filter((id) => /^[0-9a-f]+$/.test(id));
     for (const args of [
+      ...(containers.length > 0 ? [["rm", "-f", ...containers]] : []),
       ["rm", "-f", gateway],
       ["network", "rm", name],
     ]) {

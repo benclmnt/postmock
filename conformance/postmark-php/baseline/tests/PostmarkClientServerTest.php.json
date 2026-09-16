@@ -1,5 +1,3 @@
 {
-  "passing": [
-    "PostmarkClientServerTest::testClientCanGetServerInformation"
-  ]
+  "passing": ["PostmarkClientServerTest::testClientCanGetServerInformation"]
 }
