@@ -24,7 +24,15 @@ const isHttpUrl = (value: string): boolean => {
     return false;
   }
 };
-const hookUrl = absent(z.string().refine(isHttpUrl));
+// `null` keeps a hook URL; `""` clears it (the dotnet server test resets hooks to "",
+// sdk/postmark-dotnet/src/Postmark.Tests/ClientServerInformationTests.cs:87-91).
+const hookUrl = z.preprocess(
+  (v) => (v === null ? undefined : v),
+  z
+    .string()
+    .refine((v) => v === "" || isHttpUrl(v))
+    .optional(),
+);
 const flag = absent(z.boolean());
 
 // refs/api_servers-api.md:121-137 (create body); edit takes the same fields but DeliveryType (:256-271).

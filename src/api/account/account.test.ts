@@ -43,6 +43,19 @@ describe("servers", () => {
     ).toBe(607);
   });
 
+  it("an empty hook URL clears it; null keeps it", async () => {
+    const { call } = await setup();
+    const created = await call("POST", "/servers/", {
+      Name: "a",
+      BounceHookUrl: "https://h.example.com/b",
+    });
+    const path = `/servers/${created.json.ID}`;
+    expect((await call("PUT", path, { BounceHookUrl: null })).json.BounceHookUrl).toBe(
+      "https://h.example.com/b",
+    );
+    expect((await call("PUT", path, { BounceHookUrl: "" })).json.BounceHookUrl).toBe("");
+  });
+
   it("keeps a name unique and a DeliveryType fixed", async () => {
     const { call } = await setup();
     expect(
