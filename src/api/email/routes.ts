@@ -1,7 +1,13 @@
 import { apiError } from "../../errors.ts";
 import { Unsupported } from "../../http/respond.ts";
 import { defineRoute } from "../../http/routes.ts";
-import { draftFromJson, type Submission, submitOutbound } from "../../pipeline/submit.ts";
+import {
+  acceptOutbound,
+  draftFromJson,
+  type Submission,
+  type Validation,
+  validateOutbound,
+} from "../../pipeline/submit.ts";
 import type { Runtime } from "../../runtime.ts";
 import { batchItem, sendResponse } from "./json.ts";
 
@@ -11,23 +17,19 @@ const MAX_BATCH_BYTES = 50 * 1024 * 1024;
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** Submits one `/email` JSON object and returns its result and the `To` echo. */
-async function submitJson(
+const validateJson = (
   runtime: Runtime,
   auth: Submission["auth"],
   body: Record<string, unknown>,
-) {
-  const draft = draftFromJson(body);
-  const result = await submitOutbound(runtime, {
+): Validation =>
+  validateOutbound(runtime, {
     auth,
     channel: "rest",
-    draft,
+    draft: draftFromJson(body),
     request: body,
     bulkRequestId: null,
     templateId: null,
   });
-  return { result, to: typeof draft.To === "string" ? draft.To : "" };
-}
 
 // refs/api_email-api.md (docs/03 §1.2).
 defineRoute({
@@ -37,8 +39,10 @@ defineRoute({
   handler: async (ctx) => {
     // An empty or non-object body is not captured (docs/02 Q16).
     if (!isObject(ctx.body)) throw new Unsupported("an /email body that is not a JSON object");
-    const { result, to } = await submitJson(ctx, ctx.auth, ctx.body);
-    return sendResponse(result, to);
+    const validation = validateJson(ctx, ctx.auth, ctx.body);
+    if (validation.outcome === "rejected") return sendResponse(validation, "");
+    const { outbound } = validation;
+    return sendResponse(await acceptOutbound(ctx, outbound), outbound.draft.To);
   },
 });
 
@@ -57,10 +61,19 @@ defineRoute({
     if (Buffer.byteLength(JSON.stringify(ctx.body)) > MAX_BATCH_BYTES) {
       throw new Unsupported("HTTP 413 for an oversized batch: body not captured (docs/02 Q10)");
     }
+    // Every item is validated before any is stored, so a 501 leaves no partial batch behind.
+    const validations = ctx.body.map((body) => validateJson(ctx, ctx.auth, body));
+    // Whether 1235 is per item or for the whole request is not captured (docs/03 §8 Q14).
+    if (validations.some((v) => v.outcome === "rejected" && v.error.ErrorCode === 1235)) {
+      throw new Unsupported("an unknown MessageStream in a batch (docs/03 §8 Q14)");
+    }
     const items = [];
-    for (const body of ctx.body) {
-      const { result, to } = await submitJson(ctx, ctx.auth, body);
-      items.push(batchItem(result, to));
+    for (const validation of validations) {
+      items.push(
+        validation.outcome === "rejected"
+          ? batchItem(validation, "")
+          : batchItem(await acceptOutbound(ctx, validation.outbound), validation.outbound.draft.To),
+      );
     }
     return items;
   },

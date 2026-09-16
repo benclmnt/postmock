@@ -121,20 +121,17 @@ describe("POST /email/batch", () => {
     const res = await post("/email/batch", [
       message(),
       message({ To: "gone@example.com" }),
-      message({ MessageStream: "nope" }),
+      message({ To: "test" }),
     ]);
     expect(res.status).toBe(200);
-    const [ok, inactive, stream] = await items(res);
+    const [ok, inactive, invalid] = await items(res);
     expect(ok).toMatchObject({ To: "Ann <a@example.com>", ErrorCode: 0, Message: "OK" });
     expect(inactive).toEqual({
       ErrorCode: 406,
       Message:
         "You tried to send to a recipient that has been marked as inactive. Found inactive addresses: gone@example.com. Inactive recipients are ones that have generated a hard bounce, a spam complaint, or a manual suppression. ",
     });
-    expect(stream).toEqual({
-      ErrorCode: 1235,
-      Message: "The stream provided: 'nope' does not exist on this server.",
-    });
+    expect(invalid).toEqual({ ErrorCode: 300, Message: "Invalid 'To' address: 'test'." });
     expect([...runtime.store.state.outbound.keys()]).toEqual([ok?.MessageID]);
   });
 
@@ -144,6 +141,23 @@ describe("POST /email/batch", () => {
       "Test job accepted",
       "Test job accepted",
     ]);
+  });
+
+  it("validates every item before it sends any (an uncaptured item sends nothing)", async () => {
+    const { runtime, post } = setup();
+    const stream = runtime.store.state.streams.get("1/broadcast");
+    if (stream === undefined) throw new Error("no broadcast stream");
+    stream.ArchivedAt = runtime.clock.now();
+    const res = await post("/email/batch", [message(), message({ MessageStream: "broadcast" })]);
+    expect(res.status).toBe(501);
+    expect(runtime.store.state.outbound.size).toBe(0);
+  });
+
+  it("refuses to guess for an unknown stream in a batch (docs/03 §8 Q14)", async () => {
+    const { runtime, post } = setup();
+    const res = await post("/email/batch", [message(), message({ MessageStream: "nope" })]);
+    expect(res.status).toBe(501);
+    expect(runtime.store.state.outbound.size).toBe(0);
   });
 
   it("refuses to guess for a non-object item, and sends none of the batch", async () => {

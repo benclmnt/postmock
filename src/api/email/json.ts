@@ -3,6 +3,9 @@ import { batchItemError } from "../../pipeline/inactive.ts";
 import type { SubmitResult } from "../../pipeline/submit.ts";
 import { formatTimestamp } from "../../time.ts";
 
+// Every send route (email, templates, bulk) builds its reply here, never from a `SubmitResult` by
+// hand: a batch item 406 has its own wording (docs/03 §3.2).
+
 type Success = Extract<SubmitResult, { outcome: "accepted" | "validated" }>;
 
 /**
