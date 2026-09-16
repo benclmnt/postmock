@@ -15,7 +15,7 @@ Each allowed exception is listed in `conformance/<sdk>/skips/<test file>.json` w
 | B5 | Stack: TypeScript strict, ESM, Node 24, pnpm, hono, smtp-server, mailparser, zod, vitest, biome. | `docs/09` §3 |
 
 Toolchain versions come from `nix eval nixpkgs#<pkg>.version` on 2026-09-16: dotnet-sdk_8 8.0.424, php83 8.3.33, jdk17 17.0.19, maven 3.9.16, ruby_3_3 3.3.10, python312 3.12.14.
-SDK requirements: .NET tests target `netcoreapp3.1` (run with `DOTNET_ROLL_FORWARD=Major`); Java 1.8 source; PHP ~8.1–8.4; Ruby 3.2; Python ≥3.10; Node ≥18.
+SDK requirements: .NET tests target `netcoreapp3.1`, but their xUnit adapter has no build for it, so the runner builds them for `net8.0` (`TESTING.md` traps); Java 1.8 source; PHP ~8.1–8.4; Ruby 3.2; Python ≥3.10; Node ≥18.
 
 ## 2. Repo layout
 

@@ -23,8 +23,6 @@
             poetry
             openssl
           ];
-          # The dotnet suite targets netcoreapp3.1 (docs/11 §1).
-          DOTNET_ROLL_FORWARD = "Major";
         };
       });
     };

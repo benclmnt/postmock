@@ -1,7 +1,7 @@
 # Architecture
 
 Status: W0 (foundation) is built. T3 adds templates, the Mustachio renderer and bulk sends.
-Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the postmark.js conformance runner.
+Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the conformance runners for every official SDK suite.
 Built by T6: the SMTP listener (`src/smtp/`, plugin `src/plugins/smtp.ts`).
 Design: the other endpoints, REST TLS, the webhook emitter and inbound processing.
 Tracks T1–T8 build the design parts (`docs/11` §3.2).
@@ -24,11 +24,12 @@ The client code never changes (`AGENTS.md` rule 3). Details: `docs/01` §3.3, `d
 | Route | Covers | How | Status |
 | --- | --- | --- | --- |
 | A. Base-URL option | REST; SMTP host and port | Set the SDK host option to the mock (postmark.js `requestHost` + `useHttps: false`; dotnet and php `BASE_URL`) | built (plain http) |
-| B. DNS + test CA | REST and SMTP | A DNS answer sends `api.postmarkapp.com` and `smtp.postmarkapp.com` to the mock; the client trusts a test CA | design (W3) |
-| D. Preload | REST in Node | `mocha -r` or `NODE_OPTIONS=--require` replaces `globalThis.fetch` | built for the postmark.js runner only |
+| B. DNS + test CA | REST and SMTP | A DNS answer sends `api.postmarkapp.com` and `smtp.postmarkapp.com` to the mock; the client trusts a test CA (`tools/test-ca.sh`) | built for the java and cli runners: a Docker network alias and a TLS front in the runner (`conformance/docker.ts`); postmock's own https listener and Compose are design (W3) |
+| D. Preload | REST in Node and Ruby | `mocha -r` or `NODE_OPTIONS=--import` replaces `globalThis.fetch`; `rspec --require` sets the `Postmark::HttpClient` host | built for the postmark.js, mcp, gem and rails runners |
 
 Real-send guard: the seeds use tokens that only postmock knows.
 A misrouted request gets 401 from real Postmark and sends nothing.
+The conformance runners also prove their route before and after each suite (`TESTING.md` "Routing proof").
 
 ## Listeners
 
@@ -93,7 +94,7 @@ The handler cannot choose another success status.
 | `src/plugins/webhooks.ts` | Subscribes the emitter to every domain event | built |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants, `read-server.ts` and `history.ts` past traffic in `seeds/lib/`) | built (more parts: tracks) |
-| `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
+| `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for every SDK suite |
 
 ## Shared contracts
 

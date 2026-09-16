@@ -8,7 +8,7 @@ Tests then read what was sent, seed suppressions and bounces, inject faults, and
 
 ## Status
 
-The foundation (W0) is built: REST listener, auth, ErrorCode table, `GET /server`, control API skeleton, postmark.js conformance runner.
+The foundation (W0) is built: REST listener, auth, ErrorCode table, `GET /server`, control API skeleton, conformance runners for every official SDK.
 The other endpoints, SMTP and webhooks are in progress. `docs/11` is the build plan; `ARCHITECTURE.md` marks what is built.
 The docs record Postmark's behavior from its public docs, its Swagger specs, and the official SDKs.
 Nothing is CAPTURED from real Postmark yet; `docs/10` is a later fidelity pass.
