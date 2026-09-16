@@ -12,7 +12,7 @@ A test drives it through a separate control port.
 
 ```
 SDK or app ──── REST  http :8080 (built), https :443 (design) ──┐
-SMTP client ─── SMTP  :25 :587 :2525, STARTTLS (built) ─────────┤
+SMTP client ─── SMTP  POSTMOCK_SMTP_PORTS, STARTTLS (built) ─────┤
                                                                 ├── postmock ── webhook emitter (design) ──► customer URLs
 test runner ─── control API  http :8025 (built) ────────────────┘
 ```
@@ -61,9 +61,9 @@ The handler cannot choose another success status.
 | Path | Holds | Status |
 | --- | --- | --- |
 | `src/main.ts` | Reads env, starts postmock | built |
-| `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (SMTP, TLS: design) |
+| `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (REST TLS: design; SMTP starts as a plugin) |
 | `src/runtime.ts` | `Runtime`: store, events, clock; `createRuntime()` installs every plugin | built |
-| `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (no plugin yet) |
+| `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (`smtp.ts`) |
 | `src/errors.ts` | ErrorCode table (`docs/02` §4.4), `apiError`, `errorBody` | built |
 | `src/time.ts` | Eastern-time parse and the timestamp formats of `docs/02` §7.1 | built |
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
@@ -135,8 +135,11 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | SMTP bad credentials, SMTP disabled, revoked token | 535 at AUTH (and at MAIL/DATA on an open connection) | `docs/07` Q3 |
 | SMTP message over 10 MB | 552 at `MAIL FROM SIZE=` or at DATA | `docs/07` Q3 |
 | SMTP DATA reply | `250 Ok: queued as <MessageID>`; for a rejected message, the MessageID of its `SMTPApiError` bounces | `docs/07` Q1 |
-| SMTP idle connection | never closed; a control fault sends 421 | `docs/07` Q11 |
-| SMTP delivered copy (`rawSource`) | incoming `X-PM-*` removed; `X-PM-Tag`, `X-PM-Message-Id` added; `Message-ID: <MessageID@mtasv.net>` unless `X-PM-KeepID: true` | `docs/07` Q8 |
+| SMTP idle connection | never closed; a control fault answers the next command with 421 | `docs/07` Q11 |
+| SMTP EHLO | no `8BITMIME`, so clients encode 8-bit bodies; raw 8-bit bytes that are not UTF-8 are not kept byte for byte in `Request` and `rawSource` | `docs/07` Q2 |
+| SMTP postmock bug | 554 with the message | — |
+| SMTP recipients | `RCPT TO` only; `To`/`Cc` headers sort and name them; a header address outside the envelope is dropped | `docs/07` §1.1 |
+| SMTP delivered copy (`rawSource`) | set after the `sent` event; incoming `X-PM-*` removed; `X-PM-Tag`, `X-PM-Message-Id` added; `Message-ID: <MessageID@mtasv.net>` unless `X-PM-KeepID: true` | `docs/07` Q8 |
 | `SMTPApiError` bounce | one per affected recipient; `Content` = `ErrorCode`, `Message`, raw MIME | `docs/07` Q9 |
 
 ## Traps
@@ -156,7 +159,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | `614` and `1226` appear under several families; `501` and `1408` use several statuses; `1406` appears only inside 200 bodies. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
 | Many docs/02 §4.4 rows summarize several messages (300, 700, 1000, 1122, …). Those rows are marked `summary`; the caller passes the exact wire text. | `src/errors.ts` |
 | `setTimeout` fires at once for a delay above 2^31−1 ms. The clock arms no real timer past that limit. | Node timers |
-| `smtp-server` reads `socketTimeout: 0` and `closeTimeout: 0` as its defaults (60 s, 30 s). The SMTP listener passes 2^31−1 ms (never idle-close) and 1 ms. | `smtp-server` `lib/smtp-connection.js:585` |
-| nodemailer writes header names in title case (`X-PM-Metadata-client-id` → `X-Pm-Metadata-Client-ID`). Metadata keys keep the wire case, so a nodemailer send gets `Client-ID`. | `src/smtp/smtp.test.ts` |
+| `smtp-server` reads `socketTimeout: 0` and `closeTimeout: 0` as its defaults (60 s, 30 s). The SMTP listener passes 2^31−1 ms (never idle-close) and 1 ms. | `smtp-server@3.19.13` `lib/smtp-connection.js:585`, `lib/smtp-server.js:174` |
+| nodemailer writes header names in title case (`X-PM-Metadata-client-id` → `X-Pm-Metadata-Client-ID`). Metadata keys keep the wire case, so a nodemailer send gets `Client-ID`. | **LIB** nodemailer 9.1.1 `lib/mime-node/index.js:344`, `:1220`; `src/smtp/smtp.test.ts` |
 | The CRLF before the terminating `.` ends the last body line: a single-part SMTP `TextBody` ends in `\n`. | RFC 5321 §4.1.1.4 |
 | An SMTP message problem is never an SMTP reject: SMTP answers 250 and records `SMTPApiError` bounces (`smtpApiError` event). | `docs/07` §1.4 |

@@ -26,7 +26,7 @@ curl -s localhost:8080/server -H 'X-Postmark-Server-Token: postmock-server-token
 curl -s -X POST localhost:8025/control/reset
 ```
 
-Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SEED` (`ARCHITECTURE.md` "Listeners").
+Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SEED`, `POSTMOCK_SMTP_PORTS`, `POSTMOCK_SMTP_TLS_KEY`, `POSTMOCK_SMTP_TLS_CERT` (`ARCHITECTURE.md` "Listeners").
 
 ## The gates
 

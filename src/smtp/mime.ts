@@ -1,3 +1,4 @@
+import libmime from "libmime";
 import type { AddressObject, EmailAddress, ParsedMail } from "mailparser";
 import { Unsupported } from "../http/respond.ts";
 import type { OutboundDraft } from "../pipeline/submit.ts";
@@ -52,16 +53,21 @@ interface RawHeader {
   value: string;
 }
 
-/** Header lines in order, unfolded, values undecoded. */
+/**
+ * Header lines in order, unfolded, RFC 2047 encoded-words decoded (nodemailer encodes every
+ * non-ASCII header value, docs/07 §1.7). Empty values are absent.
+ */
 function rawHeaders(mail: ParsedMail): RawHeader[] {
   return mail.headerLines.map(({ line }) => {
     const colon = line.indexOf(":");
     return {
       name: line.slice(0, colon).trim(),
-      value: line
-        .slice(colon + 1)
-        .replace(/\r?\n(?=[ \t])/g, "")
-        .trim(),
+      value: libmime.decodeWords(
+        line
+          .slice(colon + 1)
+          .replace(/\r?\n(?=[ \t])/g, "")
+          .trim(),
+      ),
     };
   });
 }
@@ -89,16 +95,28 @@ const addressText = (list: EmailAddress[]): string | undefined =>
 
 /**
  * Maps one parsed SMTP transaction to a raw draft. `submitOutbound` checks every value
- * (docs/11 §2). Recipients come from the envelope: an `RCPT TO` address that no `To` or `Cc`
- * header names is a Bcc, since clients strip the `Bcc` header (docs/07 §1.1).
+ * (docs/11 §2). Recipients come from the envelope (docs/07 Mock must). The `To` and `Cc` headers
+ * only sort them and name them; an `RCPT TO` address neither header names is a Bcc, since clients
+ * strip the `Bcc` header (docs/07 §1.1). A header address outside the envelope is dropped (INFERRED).
  */
 export function draftFromMime(mail: ParsedMail, rcptTo: string[], sender: SmtpSender): SmtpDraft {
   const headers = rawHeaders(mail);
-  const first = (name: string) => headers.find((h) => h.name.toLowerCase() === name)?.value;
-  const to = addresses(mail.to);
-  const cc = addresses(mail.cc);
-  const named = new Set([...to, ...cc].map((a) => a.address?.toLowerCase()));
-  const bcc = rcptTo.filter((r) => !named.has(r.toLowerCase()));
+  const first = (name: string) =>
+    headers.find((h) => h.name.toLowerCase() === name && h.value !== "")?.value;
+  const envelope = new Set(rcptTo.map((r) => r.toLowerCase()));
+  const claimed = new Set<string>();
+  // A malformed entry (no address) stays, so the pipeline rejects it.
+  const sort = (list: EmailAddress[]) =>
+    list.filter((a) => {
+      if (!a.address) return true;
+      const key = a.address.toLowerCase();
+      if (!envelope.has(key) || claimed.has(key)) return false;
+      claimed.add(key);
+      return true;
+    });
+  const to = sort(addresses(mail.to));
+  const cc = sort(addresses(mail.cc));
+  const bcc = rcptTo.filter((r) => !claimed.has(r.toLowerCase()));
 
   const streamHeader = first("x-pm-message-stream");
   let stream = streamHeader ?? "outbound";
@@ -138,10 +156,13 @@ export function draftFromMime(mail: ParsedMail, rcptTo: string[], sender: SmtpSe
     Tag: first("x-pm-tag"),
     MessageStream: stream,
     Headers: custom.map((h) => ({ Name: h.name, Value: h.value })),
-    // A part with neither a file name nor a disposition is a body alternative (for example
+    // A part with no file name, disposition or Content-ID is a body alternative (for example
     // `text/calendar; method=REQUEST`), not an attachment; it stays in the raw source.
     Attachments: mail.attachments
-      .filter((a) => a.filename !== undefined || a.contentDisposition !== undefined)
+      .filter(
+        (a) =>
+          a.filename !== undefined || a.contentDisposition !== undefined || a.cid !== undefined,
+      )
       .map((a) => ({
         Name: a.filename ?? "",
         Content: a.content.toString("base64"),
@@ -158,7 +179,8 @@ export function draftFromMime(mail: ParsedMail, rcptTo: string[], sender: SmtpSe
 /**
  * "When sending with SMTP, if you add duplicate keys, we will append the additional keys with an
  * incremental number" (refs/support_article_1125-custom-metadata-faq.md:70). Duplicates compare
- * without case, as on the API (`:68-69`). The suffix form `key1`, `key2` is INFERRED.
+ * without case as on the API (`:68-69`); that SMTP uses the API rule and the suffix form
+ * `key1`, `key2` are INFERRED.
  */
 function addMetadata(metadata: Record<string, string>, key: string, value: string): void {
   const taken = (k: string) =>

@@ -37,7 +37,7 @@ A test that passes against postmock then tests code paths that real Postmark can
 | `POST /control/senders/:id/confirm` | — | the signature | The recipient clicks the confirmation link. 400 when already confirmed. | built (T7) |
 | `POST /control/smtp/tokens` | `{serverId, messageStream}` | `{AccessKey, SecretKey, ServerID, MessageStream}` | A user creates an SMTP token for a stream in the UI. Refused (400) for an inbound or archived stream and a server with SMTP off, as ErrorCodes 1457, 1459, 1460. | built (T6) |
 | `DELETE /control/smtp/tokens/:accessKey` | — | `{AccessKey}` | A user revokes the token; the next AUTH or transaction on an open connection gets 535. | built (T6) |
-| `POST /control/smtp/faults` | `{stage: connect\|mail\|rcpt\|data, times?, reply: {code, message}}` | `{faults}` | A Postmark SMTP outage or idle close. `code` is 400–599; 421 also closes the connection. | built (T6) |
+| `POST /control/smtp/faults` | `{stage: connect\|mail\|rcpt\|data, times?, reply: {code, message}}` | `{faults}` | A Postmark SMTP outage: the reply to the client's next command at that stage. `code` is 400–599; 421 also closes the connection. It cannot send an unprompted idle close. | built (T6) |
 | `POST /control/servers` | `{token, streams}` | — | Create a server and its token | design |
 | `POST /control/suppressions` | `{stream, email, reason, origin}` | — | A hard bounce, a complaint, an unsubscribe (`docs/04`) | design (T2) |
 | `POST /control/bounces` | `{messageId, type}` | — | The recipient server bounces | design (T2) |

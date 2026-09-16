@@ -22,13 +22,13 @@ export interface SmtpOptions {
   tls: { key: string; cert: string } | null;
 }
 
-/** An `smtp-server` callback error: an `SmtpReply`, a 502 for `Unsupported`, else a crash (451). */
+/** An `smtp-server` callback error: an `SmtpReply`, a 502 for `Unsupported`, else a crash (554). */
 function toReply(error: unknown): SmtpReply {
   if (error instanceof SmtpReply) return error;
   if (error instanceof Unsupported)
     return new SmtpReply(UNSUPPORTED_CODE, `postmock: ${error.message}`);
   console.error(error);
-  return new SmtpReply(451, `postmock crashed: ${(error as Error).message}`);
+  return new SmtpReply(554, `postmock crashed: ${(error as Error).message}`);
 }
 
 const settle = <T>(
@@ -62,6 +62,9 @@ function createServer(runtime: Runtime, options: SmtpOptions): SMTPServer {
     disableReverseLookup: true,
     socketTimeout: NEVER_MS,
     closeTimeout: 1,
+    // Without 8BITMIME a client encodes 8-bit bodies, so the stored source keeps every byte as
+    // UTF-8 text. Postmark's EHLO list is not captured (docs/07 Q2).
+    hide8BITMIME: true,
     ...(options.tls === null ? { hideSTARTTLS: true } : options.tls),
     onConnect: (_session, callback) => settle(() => takeFault(runtime.store, "connect"), callback),
     onAuth: (auth, session, callback) =>

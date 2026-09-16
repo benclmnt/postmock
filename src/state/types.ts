@@ -454,7 +454,7 @@ export interface SmtpToken {
   messageStream: string;
 }
 
-// docs/07 Mock must "Session": a Postmark SMTP outage or idle close. 421 closes the connection.
+// docs/07 Mock must "Session": a Postmark SMTP outage, answered at the next command. 421 closes the connection.
 export interface SmtpFault {
   stage: "connect" | "mail" | "rcpt" | "data";
   remaining: number;

@@ -50,6 +50,7 @@ describe("transport and EHLO", () => {
     expect(ehlo).toContain(`SIZE ${MAX_MESSAGE_BYTES}`);
     expect(ehlo).not.toContain("STARTTLS");
     expect(ehlo).not.toContain("DIGEST-MD5");
+    expect(ehlo).not.toContain("8BITMIME");
     client.close();
   });
 
@@ -175,13 +176,26 @@ describe("authentication", () => {
   it.each([
     ["an account token", CONFORMANCE.accountToken, CONFORMANCE.accountToken],
     ["an unknown token", "nope", "nope"],
-    ["a wrong SMTP secret", "nope", TOKEN],
     ["a server token with another password", TOKEN, "other"],
   ])("fails AUTH with 535 for %s", async (_case, user, pass) => {
     await expect(
       transport({ auth: { user, pass } }).sendMail({ from: FROM, to: TO }),
     ).rejects.toMatchObject({ code: "EAUTH", responseCode: 535 });
   });
+
+  it.each(["PLAIN", "CRAM-MD5"])(
+    "fails AUTH with 535 for a wrong SMTP secret over %s",
+    async (authMethod) => {
+      const { body } = await mock.control("POST", "/control/smtp/tokens", {
+        serverId: 1,
+        messageStream: "outbound",
+      });
+      const auth = { user: body.AccessKey, pass: `${body.SecretKey}x` };
+      await expect(
+        transport({ auth, authMethod }).sendMail({ from: FROM, to: TO }),
+      ).rejects.toMatchObject({ code: "EAUTH", responseCode: 535 });
+    },
+  );
 
   it("fails AUTH with 535 when SMTP is off for the server", async () => {
     (mock.runtime.store.state.servers.get(1) as { SmtpApiActivated: boolean }).SmtpApiActivated =
@@ -254,6 +268,30 @@ describe("session", () => {
     expect(message.To).toEqual([{ Email: "to@example.com", Name: "To Person" }]);
     expect(message.Cc).toEqual([{ Email: "cc@example.com", Name: null }]);
     expect(message.Bcc).toEqual([{ Email: "hidden@example.com", Name: null }]);
+  });
+
+  it("takes recipients from RCPT TO only; a header address outside the envelope is dropped", async () => {
+    await transport().sendMail({
+      from: FROM,
+      to: "Header Only <header-only@example.com>, Both <both@example.com>",
+      envelope: { from: FROM, to: ["both@example.com", "envelope-only@example.com"] },
+      text: "Hi",
+    });
+    const message = only();
+    expect(message.To).toEqual([{ Email: "both@example.com", Name: "Both" }]);
+    expect(message.Bcc).toEqual([{ Email: "envelope-only@example.com", Name: null }]);
+  });
+
+  it("routes a blank X-PM-Message-Stream to outbound", async () => {
+    const client = await rawSmtp(mock.port);
+    await client.command("EHLO client.example.com");
+    await client.command(`AUTH PLAIN ${plain(TOKEN, TOKEN)}`);
+    await client.command(`MAIL FROM:<${FROM}>`);
+    await client.command(`RCPT TO:<${TO}>`);
+    await client.command("DATA");
+    await client.data(`From: ${FROM}\r\nTo: ${TO}\r\nX-PM-Message-Stream:\r\n\r\nHi`);
+    client.close();
+    expect(only().MessageStream).toBe("outbound");
   });
 
   it.each([
@@ -392,6 +430,52 @@ describe("content", () => {
     expect(message.rawSource).toContain(`X-PM-Message-Id: ${message.MessageID}`);
     expect(message.rawSource).toContain(`Message-ID: <${message.MessageID}@mtasv.net>`);
     expect(message.rawSource).not.toContain(info.messageId);
+  });
+
+  it("decodes non-ASCII X-PM-Tag, metadata and custom header values", async () => {
+    await transport().sendMail({
+      from: FROM,
+      to: TO,
+      text: "Hi",
+      headers: { "X-PM-Tag": "Grüße", "X-PM-Metadata-name": "Jörg", "X-Custom": "【x】" },
+    });
+    expect(only()).toMatchObject({
+      Tag: "Grüße",
+      Metadata: { Name: "Jörg" },
+      Headers: [{ Name: "X-Custom", Value: "【x】" }],
+    });
+    expect(only().request).toContain("=?UTF-8?Q?Gr=C3=BC=C3=9Fe?=");
+  });
+
+  it("keeps an inline image that has only a Content-ID as an attachment", async () => {
+    const client = await rawSmtp(mock.port);
+    await client.command("EHLO client.example.com");
+    await client.command(`AUTH PLAIN ${plain(TOKEN, TOKEN)}`);
+    await client.command(`MAIL FROM:<${FROM}>`);
+    await client.command(`RCPT TO:<${TO}>`);
+    await client.command("DATA");
+    const raw = [
+      `From: ${FROM}`,
+      `To: ${TO}`,
+      'Content-Type: multipart/related; boundary="r"',
+      "",
+      "--r",
+      "Content-Type: text/html",
+      "",
+      '<img src="cid:logo">',
+      "--r",
+      "Content-Type: image/png",
+      "Content-ID: <logo>",
+      "Content-Transfer-Encoding: base64",
+      "",
+      "AQID",
+      "--r--",
+    ].join("\r\n");
+    expect(await client.data(raw)).toMatch(/^250 /);
+    client.close();
+    expect(only().Attachments).toMatchObject([
+      { Name: "", ContentType: "image/png", ContentID: "cid:logo", Content: "AQID" },
+    ]);
   });
 
   it("keeps the client Message-ID with X-PM-KeepID: true", async () => {

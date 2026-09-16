@@ -14,6 +14,9 @@ importers:
       hono:
         specifier: ^4.13.8
         version: 4.13.8
+      libmime:
+        specifier: 5.4.4
+        version: 5.4.4
       mailparser:
         specifier: ^3.9.28
         version: 3.9.28
@@ -27,6 +30,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.13
         version: 2.5.13
+      '@types/libmime':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@types/mailparser':
         specifier: ^3.4.6
         version: 3.4.6
@@ -239,6 +245,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/libmime@5.3.0':
+    resolution: {integrity: sha512-B61MJ9j2P1iCtUFD2x8NwjKLGjFyLEc7G00rQ3nBxt9q3XrEQy5/YI7k8m6oM7X1uB1HwQdsZes3qfW1LSVhjg==}
 
   '@types/mailparser@3.4.6':
     resolution: {integrity: sha512-wVV3cnIKzxTffaPH8iRnddX1zahbYB1ZEoAxyhoBo3TBCBuK6nZ8M8JYO/RhsCuuBVOw/DEN/t/ENbruwlxn6Q==}
@@ -874,6 +883,10 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/libmime@5.3.0':
+    dependencies:
+      '@types/node': 24.13.4
 
   '@types/mailparser@3.4.6':
     dependencies:

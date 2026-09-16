@@ -1,4 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
 import { Unsupported } from "../http/respond.ts";
 import { TEST_TOKEN } from "../state/servers.ts";
 import type { State } from "../state/store.ts";
@@ -32,9 +31,7 @@ const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 function passwordMatches(attempt: AuthAttempt, expected: string, ignoreCase: boolean): boolean {
   if ("validatePassword" in attempt) return attempt.validatePassword(expected);
-  if (ignoreCase) return same(attempt.password, expected);
-  const [a, b] = [Buffer.from(attempt.password), Buffer.from(expected)];
-  return a.length === b.length && timingSafeEqual(a, b);
+  return ignoreCase ? same(attempt.password, expected) : attempt.password === expected;
 }
 
 /**
