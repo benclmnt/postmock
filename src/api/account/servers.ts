@@ -25,7 +25,7 @@ const isHttpUrl = (value: string): boolean => {
   }
 };
 // `null` keeps a hook URL; `""` clears it (the dotnet server test resets hooks to "",
-// sdk/postmark-dotnet/src/Postmark.Tests/ClientServerInformationTests.cs:87-91).
+// sdk/postmark-dotnet/src/Postmark.Tests/ClientServerInformationTests.cs:87-94).
 const hookUrl = z.preprocess(
   (v) => (v === null ? undefined : v),
   z

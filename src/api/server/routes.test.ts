@@ -45,7 +45,7 @@ describe("PUT /server", () => {
     expect(server.BounceHookUrl).toBe("https://hooks.example.com/bounce");
   });
 
-  // The dotnet server test resets hook URLs to "" (ClientServerInformationTests.cs:87-93).
+  // The dotnet server test resets hook URLs to "" (ClientServerInformationTests.cs:87-94).
   it("clears a hook URL with an empty string", async () => {
     const { server, put } = setup();
     await put({ OpenHookUrl: "http://hooks.example.com/open" });
