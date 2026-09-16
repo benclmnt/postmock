@@ -540,6 +540,7 @@ T8 owns the runner folders. W2 writes these skips into `conformance/<sdk>/skips/
   - bounces, one inactive and one with a dump
   - opens and clicks
   - ≥1 domain and ≥1 confirmed sender
+  - a server with ≥1 template before any test creates one (postmark-cli), apart from the server whose templates dotnet counts
   - 4 stats periods whose counts decrease strictly
 - Count-sensitive dotnet tests need a fresh mock per test class, or a serial xUnit run.
 - Before trusting a green run, compare each suite's exact-string assertions with a capture.

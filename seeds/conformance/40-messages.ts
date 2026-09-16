@@ -7,10 +7,13 @@ import { pastBounce, pastInbound, pastSend, pastSmtpApiError } from "../lib/hist
 import { READ_SERVER } from "../lib/read-server.ts";
 
 // Message history on the read server for the read suites (docs/08 §5.3; T4 ID range 4000–4999):
-// ≥ 33 outbound messages in the retention window, some tagged `test_tag`, with deliveries,
-// bounces, opens and clicks; inbound messages in several statuses; and older sends that make the
-// stats windows of the dotnet live test decrease strictly
+// ≥ 51 outbound messages in the retention window, some tagged `test_tag`, with deliveries,
+// bounces, opens and clicks; ≥ 10 processed inbound messages among several statuses; and older
+// sends that make the stats windows of the dotnet live test decrease strictly
 // (sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:40-62).
+// php reads outbound message 51 and ten processed inbound messages
+// (sdk/postmark-php/tests/PostmarkClientOutboundMessageTest.php:31;
+// sdk/postmark-php/tests/PostmarkClientInboundMessageTest.php:21-24).
 // Bounces 4000–4003: hard (suppresses reader-4), soft, transient, SMTP API error.
 // The core conformance server gets one processed inbound message only: postmark.js reads inbound
 // details there (sdk/postmark.js/test/integration/Messages.test.ts:119-133).
@@ -76,6 +79,15 @@ const messages: Seed = async (runtime) => {
       }),
     );
   }
+  // 26–29 days ago: after the recent sends and inside the last month, so only all-time stats grow.
+  for (let i = 0; i < 8; i++) {
+    await send(runtime, ago(26 * DAY + i * 9 * HOUR), {
+      to: [`reader-${i % 5}@example.com`],
+      subject: `Monthly digest ${i}`,
+      tag: null,
+      tracked: false,
+    });
+  }
   // Older sends: the stats windows [35 days ago, 30 days ago] and before (see header).
   for (const [days, tag] of [
     [32, "test_tag"],
@@ -128,7 +140,12 @@ const messages: Seed = async (runtime) => {
     );
   }
 
-  const statuses: InboundStatus[] = ["Processed", "Processed", "Processed", "Blocked", "Failed"];
+  const statuses: InboundStatus[] = [
+    ...Array<InboundStatus>(3).fill("Processed"),
+    "Blocked",
+    "Failed",
+    ...Array<InboundStatus>(7).fill("Processed"),
+  ];
   for (const [n, Status] of statuses.entries()) {
     pastInbound(runtime, {
       ServerID: READ_SERVER.id,

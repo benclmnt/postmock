@@ -113,6 +113,7 @@ Notes per runner:
 - The images and every package registry need network access on the first run. The suite run itself needs none.
 - Composer (php), and bundler without a lock file (gem, rails), resolve dependencies at run time. The stamp does not cover what they resolve.
 - The results list every test: a runner lists the tests first (`mocha --dry-run`, `dotnet test --list-tests`, `phpunit --list-tests-xml`, `rspec --dry-run`) and fails a listed test that the run never reported with `not run: <why>`. java lists the `@Test` methods from the sources. mcp and python have no listing: see their notes.
+- postmark-cli: `SERVER_TOKEN` is the template server token (`seeds/lib/template-server.ts`). `email.template.test.ts` sends with the first listed template before any test creates one; the dotnet suite counts the templates of the core server.
 - postmark-dotnet: the fixture finds `testing_keys.json` in a folder above the test assembly, so the runner copies it into the suite root.
 - postmark-php: `PostmarkClientBounceTest` sleeps 180 s once sending works; allow it.
 - postmark-java: the maven run needs `unit.PostmarkTest` online first. Surefire fetches its JUnit 5 provider only when a test runs.
