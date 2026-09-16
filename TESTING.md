@@ -78,6 +78,9 @@ Ratchet rules:
 
 | Trap | Fix |
 | --- | --- |
+| A webhook test against a receiver on a public host gets no request: the emitter reaches only loopback hosts. | Bind the receiver to `127.0.0.1` (`src/webhooks/test-receiver.ts`), or set `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` for the host. |
+| A clock test on real time flakes: `advance` computes its target from `now()`, so a task falls due early by the real ms elapsed. | Pass `createRuntime(plugins, new Clock(() => fixedMs))` and assert due times to the millisecond. |
+| The dotnet server edit test leaves `InboundSpamThreshold` 10 on the shared conformance server (its reset passes a literal 10, `ClientServerInformationTests.cs:93`). A later test that reads the threshold sees 10, not 0. | Reset postmock between suites, or expect 10 after that test. |
 | Node 24 strips TypeScript types by itself. It then loads the postmark.js suite before ts-node sees it, and warns `MODULE_TYPELESS_PACKAGE_JSON`. | The runner sets `NODE_OPTIONS=--no-experimental-strip-types` for mocha. |
 | `npm ci` inside `sdk/` modifies third-party sources. | Install only in `conformance/<sdk>/.work/`. |
 | A failed `before all` hook stops the tests after it; mocha's report does not list them. | The runner lists tests with `mocha --dry-run` first and marks the unreported ones as failures with the hook error. |

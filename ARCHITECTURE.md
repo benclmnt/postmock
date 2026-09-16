@@ -38,7 +38,7 @@ A misrouted request gets 401 from real Postmark and sends nothing.
 | REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
 | SMTP | `127.0.0.1:0` (a free port) | `POSTMOCK_SMTP_PORTS` (comma list; every port serves the same endpoint), `POSTMOCK_SMTP_TLS_KEY` + `POSTMOCK_SMTP_TLS_CERT` (PEM files; offers STARTTLS) | Postmark SMTP (`docs/07`). For Postmark's ports set `2525` and map 25 and 587 to it (`-p 25:2525 -p 587:2525 -p 2525:2525`). | built |
-| Webhook emitter | outbound | — | Every RecordType, retries on the clock (`docs/05`); POSTs with `fetch` to the configured URLs | built (`src/plugins/webhooks.ts`) |
+| Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` (comma-separated hostnames, `*` for all; default: none) | Every RecordType, retries on the clock (`docs/05`). Reaches only loopback hosts (`localhost`, `127.0.0.0/8`, `::1`) and the listed hosts, also for redirects; a refused host opens no socket and is logged as an `egress refused` attempt with no retry (`docs/05` D3) | built (`src/plugins/webhooks.ts`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
@@ -154,7 +154,9 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A bulk send on a non-broadcast stream; `GET /email/bulk` without `count` 1–500 | 501, plain text | `docs/03` Q20 |
 | A bulk message that reaches uncaptured behavior on the clock (a stream archived after accept) | the request stops releasing and never completes; the reason goes to stderr and `GET /control/bulk/:id` | `docs/03` §1.6 |
 | A bug in postmock | 500, plain text with the stack | — |
-| Webhook create or edit with `Verify: true`; `POST /webhooks/{id}/verify`; `GET /webhooks/{id}/statistics` | 501, plain text. Without `Verify`, a webhook saves `verified` with no probe (SDK live tests) | `docs/05` Q13, Q19 |
+| Webhook create or edit without `Verify: false` | saved `verified`; no probe (INFERRED, `docs/05` conflict V1) | `docs/05` Q13 |
+| `POST /webhooks/{id}/verify`; `GET /webhooks/{id}/statistics` | 501, plain text | `docs/05` Q13, Q19 |
+| A webhook or hook URL at a host that is not loopback | no request; an `egress refused` attempt | `docs/05` D3 |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 | SMTP behavior nobody captured: `POSTMARK_API_TEST` as AUTH, an SMTP token with `X-PM-Message-Stream` naming another stream | SMTP 502 with the reason | `docs/07` Q4, Q13 |
 | SMTP bad credentials, SMTP disabled, revoked token | 535 at AUTH (and at MAIL/DATA on an open connection) | `docs/07` Q3 |

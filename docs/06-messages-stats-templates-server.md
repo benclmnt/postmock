@@ -524,7 +524,7 @@ Templates (§3):
 - [ ] `PUT /templates/push` (account token): match by alias, skip templates without alias, honor `PerformChanges: false`. Errors 601, 1124, 1125.
 
 Server and Servers (§4.1–§4.2):
-- [ ] `GET/PUT /server` with the §4.1 field set. Reject writes to read-only fields. `InboundSpamThreshold` 0–30. Colors match without case; responses use lowercase (§4.1).
+- [x] `GET/PUT /server` with the §4.1 field set. Reject writes to read-only fields. `InboundSpamThreshold` 0–30. Colors match without case; responses use lowercase (§4.1).
 - [ ] Hook URL and tracking fields drive `docs/05` §1.5 and §5.
 - [ ] `DeliveryType` is fixed at create. `Sandbox` servers accept mail but deliver nothing (`docs/07`).
 - [ ] `/servers` CRUD with the account token. `name` filter is a substring match. Create issues a new server token. Errors 600–615.

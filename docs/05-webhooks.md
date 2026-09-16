@@ -111,8 +111,17 @@ Verify failure body:
 Source: `refs/api_webhooks-api.md:381-393` **DOC**
 Conflict: the 1364 error text says "send `?verify=false`" (query string). `refs/api_overview.md:221` **DOC**
 Conflict: the webhooks page says `Verify` is a body field. `refs/api_webhooks-api.md:306` **DOC**
-Conflict V1: SDK live tests create webhooks with no `Verify` field and every trigger on, at hosts that answer no probe with 200. `sdk/postmark.js/test/integration/Webhook.test.ts:17`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientWebhookTests.cs:33`, `sdk/postmark-java/src/test/java/integration/WebhookTest.java:38` **SDK** vs `refs/api_webhooks-api.md:360` **DOC**
-postmock follows the live tests (`docs/11` B3): without `Verify`, a webhook saves as `verified` and gets no probe. `Verify: true` answers 501 until Q13 gives the probe body. `Verify: false` saves `unverified`.
+Conflict V1: `Verify` defaults to true (`refs/api_webhooks-api.md:358,593` **DOC**). SDK live tests create webhooks with no `Verify` field at hosts that likely answer no probe with 200. **SDK**
+
+| Live test | Hooks | Triggers on | Source |
+| --- | --- | --- | --- |
+| postmark.js | `https://example.com/postmark-js-ci/…` | Open only; edit adds SpamComplaint | `sdk/postmark.js/test/integration/Webhook.test.ts:17-18,68` |
+| dotnet | `http://www.test.com/webhook` and others | all six in one test | `sdk/postmark-dotnet/src/Postmark.Tests/ClientWebhookTests.cs:33-45` |
+| java | `http://example.com/<id>` | none (no `Triggers`) | `sdk/postmark-java/src/test/java/integration/WebhookTest.java:38,43` |
+| php | `http://www.postmark.com/test-php-url` | — | `sdk/postmark-php/tests/PostmarkClientWebhooksTest.php:119` |
+
+postmock answer (**INFERRED** until Q13): `Verify` absent or `true` saves the webhook `verified` with no probe. `Verify: false` saves it `unverified`.
+Whether those hosts answer a probe with 200 is not known.
 
 ### 1.4 Errors
 
@@ -772,7 +781,7 @@ Config API (`/webhooks`, §1.1–1.4):
 - [x] Default `MessageStream` to `outbound` on create. Reject an inbound stream (1351), an archived stream (1350), a missing or bad `Url` (1354).
 - [x] Reject `ID` on create (1356), `ID` or `MessageStream` change on edit (1357), `Status` on create or edit (1363), a bad header `Name` (1358), an unknown `ID` (1352).
 - [x] Edit with a partial `Triggers` object changes only the given triggers.
-- [ ] Verify on create and edit when `Verify: true`: one probe per enabled trigger; any non-200 → HTTP 422, 1364, nothing saved. Q6, Q13, Q16. Until Q13: 501 (conflict V1).
+- [ ] Verify on create and edit unless `Verify: false`: one probe per enabled trigger; any non-200 → HTTP 422, 1364, nothing saved. Q6, Q13, Q16. Until Q13: no probe, saved `verified` (conflict V1, INFERRED).
 - [x] Save `Verify: false` rows as `unverified`. Send no events to an unverified row.
 - [ ] `POST /webhooks/{Id}/verify` answers HTTP 200 with the §1.3 body, also on failure.
 - [ ] `GET /webhooks/{Id}/statistics` counts attempts from the attempt log over the last 24 virtual hours. Slow thresholds: Q19.
@@ -826,10 +835,10 @@ Responses and retries:
 - [x] Outbound: 2xx success; 408, 429, 5xx, timeout, connect error retry; other 4xx drop.
 - [x] Outbound retry delays 1, 5, 10, 10, 10, 15 min. Then drop. Q7 may add a slower tier.
 - [x] Inbound: 200 success; 403 stop; other codes retry. Q6 may change 2xx handling.
-- [x] Inbound retry delays 1, 5, 10, 10, 10, 15, 30, 60, 120, 360 min. Then mark the message `Failed` (§3.6).
+- [x] Inbound retry delays 1, 5, 10, 10, 10, 15, 30, 60, 120, 360 min. Then mark the message `Failed` (§3.6). Open decision D2.
 - [x] `PUT /messages/inbound/{id}/retry` sends the inbound event again.
 - [x] Follow up to 10 redirects. Treat an 11th as a failure.
-- [x] Timeout: inbound 120 s. Outbound: 120 s until the Q5 capture result (INFERRED).
+- [x] Timeout: inbound 120 s. Outbound: 120 s until the Q5 capture result (INFERRED). Open decision D1.
 - [ ] Pause one trigger type after persistent failure. Threshold: Q11; crash until known.
 - [x] Log every attempt (URL, headers, body, status, virtual time) for test assertions through the control API.
 
@@ -838,6 +847,15 @@ Test sends (§3.8):
 - [ ] A sandbox server fires Delivery for every message.
 
 ---
+
+### 6.1 Open decisions in postmock
+
+| # | Decision | Instead of | Revisit when |
+| --- | --- | --- | --- |
+| D1 | Outbound timeout is 120 s, the inbound value. **INFERRED** | This checklist said: crash until Q5 | Q5 is captured |
+| D2 | After the last inbound retry the message `Status` is `Failed`. postmock records no `InboundError` bounce (TypeCode 100008, `refs/api_bounce-api.md:416`). **INFERRED** | An `InboundError` bounce row | Bounces API (T2) and a capture of a failed inbound hook |
+| D3 | The emitter reaches only loopback hosts unless `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` lists the host. A refused host is logged as an attempt with an `egress refused` error and gets no retry. | Real Postmark reaches every public host | Never: SDK suites point hooks at real hosts (conflict V1 table), and a test run must not reach them (`AGENTS.md` rule 7) |
+| D4 | A pending retry stops when its webhook row or server is deleted. **INFERRED** | — | A capture |
 
 ## 7. Open questions for live capture
 
