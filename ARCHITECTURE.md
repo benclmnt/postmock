@@ -63,7 +63,7 @@ The handler cannot choose another success status.
 | `src/main.ts` | Reads env, starts postmock | built |
 | `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (REST TLS: design; SMTP starts as a plugin) |
 | `src/runtime.ts` | `Runtime`: store, events, clock; `createRuntime()` installs every plugin | built |
-| `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (`smtp.ts`) |
+| `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (`smtp.ts`, `stats.ts`, `message-events.ts`) |
 | `src/errors.ts` | ErrorCode table (`docs/02` §4.4), `apiError`, `errorBody` | built |
 | `src/time.ts` | Eastern-time parse and the timestamp formats of `docs/02` §7.1 | built |
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
@@ -76,15 +76,19 @@ The handler cannot choose another success status.
 | `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events. `MessageEvents` on the message come from listeners of those events (T4). | built (T2) |
 | `src/api/templates/` | Templates CRUD, `/templates/validate`, `/email/withTemplate`, `/email/batchWithTemplates` (replies from `src/api/email/json.ts`) | built (T3; push: T7) |
 | `src/api/bulk/` | `/email/bulk` send, status, list; processing on the clock | built (T3) |
-| `src/api/<group>/` | Other API groups | design (T4, T5) |
-| `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
+| `src/api/messages/` | Messages API: outbound and inbound search and details, dump, opens, clicks; paging caps (inbound bypass and retry: T5) | built (T4) |
+| `src/api/stats/` | Stats API from recorded facts; `readtimes` answers 501 | built (T4) |
+| `src/api/<group>/` | Other API groups | design (T5) |
+| `src/state/` | Entity types, `Store` (incl. `stats` facts), ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer: parse errors, render, suggested model | built (T3) |
+| `src/tracking.ts` | Recipient actions: delivery (writes the `Delivered` event), open, click; refuses what a real recipient could not do | built (T4) |
+| `src/plugins/stats.ts`, `src/plugins/message-events.ts` | Stats facts from events; `MessageEvents` for bounces, complaints, subscription changes, first opens and first clicks | built (T4) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
-| `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants in `seeds/lib/`) | built (more parts: tracks) |
+| `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants, `read-server.ts` and `history.ts` past traffic in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
 
 ## Shared contracts
