@@ -30,7 +30,7 @@ function setup() {
 }
 
 describe("templates CRUD (docs/06 §3.1–§3.2)", () => {
-  it("creates, reads, deletes; a deleted template reads inactive and leaves the list", async () => {
+  it("creates with a generated alias, reads, deletes; a deleted template reads inactive and leaves the list", async () => {
     const { call } = setup();
     const created = await call("POST", "/templates", {
       Name: "welcome",
@@ -42,7 +42,7 @@ describe("templates CRUD (docs/06 §3.1–§3.2)", () => {
       TemplateId: 1,
       Name: "welcome",
       Active: true,
-      Alias: null,
+      Alias: "standard-1",
       TemplateType: "Standard",
       LayoutTemplate: null,
     });

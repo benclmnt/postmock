@@ -175,12 +175,16 @@ export function checkLayoutChange(state: State, before: Template, after: Templat
 }
 
 /**
- * A new layout without an alias gets one: the dotnet and php live tests read a layout alias they
- * never set (sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-57). The format is INFERRED.
+ * A new template without an alias gets one. The dotnet and php live tests read a layout alias they
+ * never set (sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-57). The postmark-cli pull
+ * test creates a standard template without an alias and expects every template pulled: pull stops
+ * at the first template without one (sdk/postmark-cli/test/integration/templates.pull.test.ts:47-50,
+ * sdk/postmark-cli/src/commands/templates/pull.ts:142-151). The format is INFERRED.
  */
-export function generatedLayoutAlias(state: State, template: Template): string {
+export function generatedAlias(state: State, template: Template): string {
+  const prefix = `${template.TemplateType.toLowerCase()}-${template.TemplateId}`;
   for (let n = 0; ; n += 1) {
-    const alias = n === 0 ? `layout-${template.TemplateId}` : `layout-${template.TemplateId}-${n}`;
+    const alias = n === 0 ? prefix : `${prefix}-${n}`;
     if (findTemplate(state, template.ServerID, alias)?.Active !== true) return alias;
   }
 }
