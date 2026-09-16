@@ -36,4 +36,5 @@ COPY --from=build /src/dist dist
 ENV POSTMOCK_HOST=0.0.0.0 \
     POSTMOCK_SMTP_PORTS=2525
 EXPOSE 8080 8025 2525
-CMD ["dist/src/main.js"]
+# Arguments after the image name are postmock flags.
+ENTRYPOINT ["/nodejs/bin/node", "dist/src/main.js"]
