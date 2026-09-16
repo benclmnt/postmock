@@ -146,6 +146,12 @@ describe("POST /email/batch", () => {
     ]);
   });
 
+  it("refuses to guess for a non-object item, and sends none of the batch", async () => {
+    const { runtime, post } = setup();
+    expect((await post("/email/batch", [message(), "x"])).status).toBe(501);
+    expect(runtime.store.state.outbound.size).toBe(0);
+  });
+
   it("answers an empty array for an empty batch", async () => {
     expect(await (await setup().post("/email/batch", [])).json()).toEqual([]);
   });

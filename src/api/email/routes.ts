@@ -12,9 +12,11 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** Submits one `/email` JSON object and returns its result and the `To` echo. */
-async function submitJson(runtime: Runtime, auth: Submission["auth"], body: unknown) {
-  // An empty or non-object body is not captured (docs/02 Q16).
-  if (!isObject(body)) throw new Unsupported("an /email body that is not a JSON object");
+async function submitJson(
+  runtime: Runtime,
+  auth: Submission["auth"],
+  body: Record<string, unknown>,
+) {
   const draft = draftFromJson(body);
   const result = await submitOutbound(runtime, {
     auth,
@@ -33,6 +35,8 @@ defineRoute({
   path: "/email",
   auth: "serverOrTest",
   handler: async (ctx) => {
+    // An empty or non-object body is not captured (docs/02 Q16).
+    if (!isObject(ctx.body)) throw new Unsupported("an /email body that is not a JSON object");
     const { result, to } = await submitJson(ctx, ctx.auth, ctx.body);
     return sendResponse(result, to);
   },
@@ -44,7 +48,10 @@ defineRoute({
   path: "/email/batch",
   auth: "serverOrTest",
   handler: async (ctx) => {
-    if (!Array.isArray(ctx.body)) throw new Unsupported("a batch body that is not a JSON array");
+    // An empty body, a non-array, or a non-object item is not captured (docs/02 Q16).
+    if (!Array.isArray(ctx.body) || !ctx.body.every(isObject)) {
+      throw new Unsupported("a batch body that is not a JSON array of objects");
+    }
     if (ctx.body.length > MAX_BATCH_MESSAGES) throw apiError(410);
     // HTTP 413 above 50 MB (refs/api_overview.md:30); its body is not captured (docs/02 Q10).
     if (Buffer.byteLength(JSON.stringify(ctx.body)) > MAX_BATCH_BYTES) {
