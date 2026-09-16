@@ -343,6 +343,8 @@ export type StatsFact = {
       kind: "open";
       MessageID: string;
       Recipient: string;
+      /** The recipient's first open of the message ever. */
+      first: boolean;
       platform: OpenEvent["Platform"];
       client: string | null;
       readSeconds: number;
@@ -351,6 +353,8 @@ export type StatsFact = {
       kind: "click";
       MessageID: string;
       Recipient: string;
+      /** The recipient's first click on this link of the message ever. */
+      first: boolean;
       link: string;
       location: ClickEvent["ClickLocation"];
       platform: ClickEvent["Platform"];
