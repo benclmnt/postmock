@@ -25,6 +25,7 @@ function setup() {
 describe("PUT /server", () => {
   it("changes the given fields, keeps null and absent ones, and answers the server", async () => {
     const { server, put } = setup();
+    server.InboundHookUrl = "https://hooks.example.com/inbound";
     const res = await put({
       name: "renamed",
       Color: "Purple",
@@ -38,7 +39,7 @@ describe("PUT /server", () => {
       Name: "renamed",
       Color: "purple",
       BounceHookUrl: "https://hooks.example.com/bounce",
-      InboundHookUrl: "",
+      InboundHookUrl: "https://hooks.example.com/inbound",
       InboundSpamThreshold: 9,
       TrackLinks: "HtmlOnly",
     });
