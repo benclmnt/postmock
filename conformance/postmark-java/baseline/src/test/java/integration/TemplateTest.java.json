@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "TemplateTest.createTemplate",
+    "TemplateTest.createTemplateWithUTFContent",
+    "TemplateTest.deleteTemplate",
+    "TemplateTest.list",
+    "TemplateTest.validateHtmlBody",
+    "TemplateTest.validateTextBody"
+  ]
+}

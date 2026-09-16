@@ -1,3 +1,5 @@
 {
-  "passing": ["BounceTest.bouncesData"]
+  "passing": [
+    "BounceTest.bouncesData"
+  ]
 }

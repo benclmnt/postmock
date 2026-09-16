@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Templates command Push Layouts console out",
+    "Templates command Push Layouts file content",
+    "Templates command Push Templates console out",
+    "Templates command Push Templates file content"
+  ]
+}

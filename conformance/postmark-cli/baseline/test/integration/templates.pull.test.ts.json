@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "Templates command Pull Layouts layouts",
+    "Templates command Pull Layouts single layout - file names",
+    "Templates command Pull Layouts single layout files - none empty",
+    "Templates command Pull Templates single template - file names",
+    "Templates command Pull Templates single template files - none empty",
+    "Templates command Pull Templates templates",
+    "Templates command Pull console out"
+  ]
+}
