@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import webhooksPlugin from "../plugins/webhooks.ts";
 import { createRuntime, type Runtime } from "../runtime.ts";
 import { Clock } from "../state/clock.ts";
@@ -16,6 +16,8 @@ import { startReceiver } from "./test-receiver.ts";
 const MINUTE = 60_000;
 const closers: Array<() => Promise<void>> = [];
 afterEach(async () => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   for (const close of closers.splice(0)) await close();
 });
 
@@ -267,5 +269,69 @@ describe("webhook emitter", () => {
     await runtime.events.emit("opened", { open: { ...open, FirstOpen: true } });
     expect(receiver.received).toHaveLength(1);
     expect(JSON.parse(receiver.received[0]?.body ?? "")).not.toHaveProperty("Client");
+  });
+
+  it("refuses a host that is not loopback: no socket, an egress-refused attempt, no retry", async () => {
+    const { runtime, server } = await setup();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    server.DeliveryHookUrl = "https://www.example.com/hook";
+    await deliver(runtime, server.ID);
+    await runtime.clock.advance(60 * MINUTE);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(runtime.store.state.webhookAttempts).toMatchObject([
+      {
+        outcome: { error: expect.stringMatching(/^egress refused: host www\.example\.com/) },
+        result: "stop",
+      },
+    ]);
+  });
+
+  it("refuses a redirect to a host that is not loopback", async () => {
+    const { runtime, server, receiver } = await setup(() => ({
+      redirect: "http://www.postmark.com/x",
+    }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    server.DeliveryHookUrl = receiver.url;
+    await deliver(runtime, server.ID);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(runtime.store.state.webhookAttempts[0]).toMatchObject({
+      outcome: { error: expect.stringMatching(/^egress refused: host www\.postmark\.com/) },
+      result: "stop",
+    });
+  });
+
+  it("reaches a host listed in POSTMOCK_WEBHOOKS_ALLOW_HOSTS", async () => {
+    vi.stubEnv("POSTMOCK_WEBHOOKS_ALLOW_HOSTS", " other.example , Hooks.Example.com");
+    const { runtime, server } = await setup();
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 200 }));
+    server.DeliveryHookUrl = "https://hooks.example.com/hook";
+    await deliver(runtime, server.ID);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe("https://hooks.example.com/hook");
+    expect(runtime.store.state.webhookAttempts[0]?.result).toBe("success");
+  });
+
+  it("stops retries once the webhook row is deleted", async () => {
+    const { runtime, server, receiver } = await setup(() => 500);
+    const webhook = addWebhook(
+      runtime,
+      server.ID,
+      { Url: receiver.url },
+      { Delivery: { Enabled: true } },
+    );
+    await deliver(runtime, server.ID);
+    runtime.store.state.webhooks.delete(webhook.ID);
+    await runtime.clock.advance(60 * MINUTE);
+    expect(receiver.received).toHaveLength(1);
+  });
+
+  it("stops retries once the server is deleted", async () => {
+    const { runtime, server, receiver } = await setup(() => 500);
+    server.DeliveryHookUrl = receiver.url;
+    await deliver(runtime, server.ID);
+    runtime.store.state.servers.delete(server.ID);
+    await runtime.clock.advance(60 * MINUTE);
+    expect(receiver.received).toHaveLength(1);
   });
 });

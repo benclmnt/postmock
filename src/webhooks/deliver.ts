@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Runtime } from "../runtime.ts";
 import type { Header, WebhookAttempt, WebhookRecordType } from "../state/types.ts";
+import { allows, type Egress, egressOf } from "./egress.ts";
 
 /** Where one event goes: a `/webhooks` row or a server hook URL. */
 export interface Target {
@@ -88,11 +89,14 @@ async function attempt(
   n: number,
 ): Promise<void> {
   const { target, policy } = event;
+  if (n > 1 && !targetExists(runtime, target)) return;
   const remaining = policy.delaysMin.length - (n - 1);
   const { url, headers } = request(target, traceId, policy.retriesHeader ? remaining : null);
   const at = runtime.clock.now();
-  const outcome = await post(url, headers, body, policy.timeoutMs);
-  const verdict = policy.classify(outcome);
+  const sent = await post(egressOf(runtime), url, headers, body, policy.timeoutMs);
+  const outcome = "refused" in sent ? { error: sent.refused } : sent;
+  // A refused target gets no retry: the configuration, not the receiver, decides it.
+  const verdict = "refused" in sent ? "stop" : policy.classify(outcome);
   const result: AttemptResult = verdict === "retry" && remaining === 0 ? "exhausted" : verdict;
   const delayMs = result === "retry" ? (policy.delaysMin[n - 1] as number) * 60_000 : null;
   runtime.store.state.webhookAttempts.push({
@@ -116,6 +120,13 @@ async function attempt(
     runtime.clock.schedule(wait, () => attempt(runtime, event, body, traceId, n + 1));
   }
   event.onResult?.(result);
+}
+
+/** A retry stops once its webhook row or its server is gone (INFERRED). */
+function targetExists(runtime: Runtime, target: Target): boolean {
+  const { servers, webhooks } = runtime.store.state;
+  if (!servers.has(target.serverId)) return false;
+  return target.webhookId === null || webhooks.get(target.webhookId)?.ServerID === target.serverId;
 }
 
 /**
@@ -143,10 +154,24 @@ function request(target: Target, traceId: string, retriesRemaining: number | nul
   return { url, headers };
 }
 
-/** POSTs and follows up to 10 redirects; the final answer decides (docs/05 §3.3). */
-async function post(url: URL, headers: Headers, body: string, timeoutMs: number): Promise<Outcome> {
+/**
+ * POSTs and follows up to 10 redirects; the final answer decides (docs/05 §3.3). A host the egress
+ * policy refuses, also as a redirect target, opens no socket.
+ */
+async function post(
+  egress: Egress,
+  url: URL,
+  headers: Headers,
+  body: string,
+  timeoutMs: number,
+): Promise<Outcome | { refused: string }> {
   let current = url;
   for (let hop = 0; ; hop++) {
+    if (!allows(egress, current)) {
+      return {
+        refused: `egress refused: host ${current.hostname} is not loopback and not in POSTMOCK_WEBHOOKS_ALLOW_HOSTS`,
+      };
+    }
     let response: Response;
     try {
       response = await fetch(current, {

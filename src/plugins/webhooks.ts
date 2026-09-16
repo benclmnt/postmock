@@ -1,6 +1,7 @@
 import { deliverInbound } from "../inbound/deliver.ts";
 import type { Plugin } from "../plugins.ts";
 import type { Bounce } from "../state/types.ts";
+import { egressEnv, setEgress } from "../webhooks/egress.ts";
 import { emitOutbound, type Hook } from "../webhooks/outbound.ts";
 import {
   bouncePayload,
@@ -18,6 +19,7 @@ const bounceContent = (hook: Hook, trigger: "Bounce" | "SpamComplaint") =>
 /** The webhook emitter: every domain event becomes a POST to the hooks that ask for it (docs/05 §5). */
 const webhooks: Plugin = {
   install(runtime) {
+    setEgress(runtime, egressEnv.parse(process.env));
     const { events } = runtime;
     events.on("delivered", (e) =>
       emitOutbound(runtime, {
