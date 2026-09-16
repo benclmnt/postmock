@@ -107,6 +107,9 @@ export async function pastSmtpApiError(
   ) {
     throw new Error(`${fields.email} is not suppressed on ${fields.stream}`);
   }
+  const message = `You tried to send to recipient(s) that have been marked as inactive. Found inactive addresses: ${fields.email}.`;
+  // The dump layout of a live SMTP API error bounce (src/smtp/receive.ts).
+  const source = `From: sender@example.com\r\nTo: ${fields.email}\r\nSubject: History\r\n\r\nHistory\r\n`;
   const bounce: Bounce = {
     ID: runtime.store.useId("bounce", fields.id),
     ServerID: fields.serverId,
@@ -115,14 +118,14 @@ export async function pastSmtpApiError(
     Type: "SMTPApiError",
     Tag: fields.tag,
     Description: "An error occurred while accepting your message through SMTP.",
-    Details: `You tried to send to recipient(s) that have been marked as inactive. Found inactive addresses: ${fields.email}.`,
+    Details: message,
     Email: fields.email,
     From: "sender@example.com",
     Subject: "History",
     BouncedAt: fields.at,
     Inactive: false,
     CanActivate: false,
-    Content: "",
+    Content: `ErrorCode: 406\r\nMessage: ${message}\r\n\r\n${source}`,
     Metadata: {},
   };
   runtime.store.state.bounces.set(bounce.ID, bounce);

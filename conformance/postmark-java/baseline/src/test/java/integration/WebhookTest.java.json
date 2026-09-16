@@ -1,7 +1,3 @@
 {
-  "passing": [
-    "WebhookTest.createWebhook",
-    "WebhookTest.deleteWebhook",
-    "WebhookTest.listWebhooks"
-  ]
+  "passing": ["WebhookTest.createWebhook", "WebhookTest.deleteWebhook", "WebhookTest.listWebhooks"]
 }
