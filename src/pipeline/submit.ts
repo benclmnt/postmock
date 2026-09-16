@@ -13,8 +13,8 @@ import { inactiveRecipientsError } from "./inactive.ts";
 
 /**
  * One message exactly as its channel received it: `/email` and batch JSON values (T1), templates
- * and bulk after render (T3), SMTP header text and MIME parts (T6). `submitOutbound` owns every
- * Postmark check (types, address syntax, required fields, limits, enums), so each ErrorCode has one
+ * and bulk after render (T3), SMTP header text and MIME parts (T6). `validateOutbound` owns every
+ * Postmark data check (types, address syntax, required fields, limits, enums), so each ErrorCode has one
  * source. `undefined` means the sender left the field out.
  */
 export type OutboundDraft = Record<keyof ReturnType<typeof draftSchema>["shape"], unknown>;
@@ -84,8 +84,8 @@ export interface Submission {
   draft: OutboundDraft;
   /** Request JSON (REST) or raw MIME (SMTP), kept for `GET /control/messages`. */
   request: unknown;
-  /** The MIME source the dump endpoint serves: SMTP sets it; REST sends leave it out for now. */
-  rawSource?: string;
+  /** The MIME source the dump endpoint serves. REST sends pass `""`: they generate no MIME yet. */
+  rawSource: string;
   bulkRequestId: string | null;
   templateId: number | null;
 }
@@ -119,12 +119,16 @@ const FORBIDDEN_EXTENSIONS = new Set(
   ),
 );
 
-const reject = (error: ErrorBody) => ({ outcome: "rejected" as const, error });
+const reject = (field: string, error: ErrorBody) => ({
+  outcome: "rejected" as const,
+  field,
+  error,
+});
 // ErrorCode 300 is documented for each case below (refs/api_overview.md:69). Only the address
 // texts are documented (refs/api_bulk-email.md:221-227); the other texts are INFERRED (docs/03 Q4).
-const invalid = (message: string) => reject(errorBody(300, { message }));
+const invalid = (field: string, message: string) => reject(field, errorBody(300, { message }));
 const invalidAddress = (field: string, raw: string) =>
-  invalid(`Invalid '${field}' address: '${raw}'.`);
+  invalid(field, `Invalid '${field}' address: '${raw}'.`);
 
 /** A draft that passed every data check, ready for `acceptOutbound`. */
 export interface ValidOutbound {
@@ -138,7 +142,11 @@ export interface ValidOutbound {
 
 export type Validation =
   | { outcome: "valid"; outbound: ValidOutbound }
-  | { outcome: "rejected"; error: ErrorBody };
+  /**
+   * `field` keys the bulk `Errors` map (refs/api_bulk-email.md:213-231). Which field Postmark
+   * names is documented for addresses only; the others are INFERRED.
+   */
+  | { outcome: "rejected"; field: string; error: ErrorBody };
 
 /**
  * The data checks of a send, with no state change: field types, size, stream, addresses,
@@ -151,15 +159,17 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
   // refs/api_overview.md:43-50. The first failing field is named.
   if (!parsed.success) {
     const field = String(parsed.error.issues[0]?.path[0]);
-    return reject(errorBody(403, { message: `Invalid request field(s): '${field}'.` }));
+    return reject(field, errorBody(403, { message: `Invalid request field(s): '${field}'.` }));
   }
   const draft = parsed.data;
   checkSize(draft);
 
   const streamId = draft.MessageStream ?? "outbound";
   const stream = findStream(runtime.store.state, submission.auth, streamId);
-  if (stream === undefined) return reject(errorBody(1235, { params: { stream: streamId } }));
-  if (stream.MessageStreamType === "Inbound") return reject(errorBody(1236));
+  if (stream === undefined) {
+    return reject("MessageStream", errorBody(1235, { params: { stream: streamId } }));
+  }
+  if (stream.MessageStreamType === "Inbound") return reject("MessageStream", errorBody(1236));
   if (stream.ArchivedAt !== null) {
     throw new Unsupported(`send to archived stream '${streamId}' is not captured (docs/04 Q15)`);
   }
@@ -182,17 +192,17 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
   if (draft.To === undefined || lists.To.length === 0) return invalidAddress("To", draft.To ?? "");
   const recipients = [...lists.To, ...lists.Cc, ...lists.Bcc];
   if (recipients.length > MAX_RECIPIENTS) {
-    return invalid(`Exceeded the maximum of ${MAX_RECIPIENTS} recipients per message.`);
+    return invalid("To", `Exceeded the maximum of ${MAX_RECIPIENTS} recipients per message.`);
   }
   if (draft.HtmlBody === undefined && draft.TextBody === undefined) {
-    return invalid("Provide either email TextBody or HtmlBody or both.");
+    return invalid("TextBody", "Provide either email TextBody or HtmlBody or both.");
   }
   const limitError = checkLimits(draft);
-  if (limitError !== undefined) return invalid(limitError);
+  if (limitError !== undefined) return invalid(limitError.field, limitError.message);
   for (const attachment of draft.Attachments ?? []) {
     const extension = /\.([^.]*)$/.exec(attachment.Name)?.[1]?.toLowerCase();
     if (extension !== undefined && FORBIDDEN_EXTENSIONS.has(extension)) {
-      return reject(errorBody(411));
+      return reject("Attachments", errorBody(411));
     }
   }
   return {
@@ -209,14 +219,11 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
 }
 
 /**
- * Account approval → suppression check → store → emit `sent` (docs/11 §2). The test token stops
+ * Account approval → suppression check → store (docs/11 §2), with no event. The test token stops
  * before them: it validates data only, and account state and suppressions are INFERRED not to
  * apply to it (docs/02 Q18).
  */
-export async function acceptOutbound(
-  runtime: Runtime,
-  outbound: ValidOutbound,
-): Promise<SubmitResult> {
+function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult {
   const { submission, draft, streamId, from, lists, recipients } = outbound;
   const { auth } = submission;
   const now = runtime.clock.now();
@@ -224,15 +231,15 @@ export async function acceptOutbound(
     return { outcome: "validated", messageId: newMessageId(), submittedAt: now };
   }
   const { account } = runtime.store.state;
-  if (account.approval === "unapproved") return reject(errorBody(413));
+  if (account.approval === "unapproved") return { outcome: "rejected", error: errorBody(413) };
   const fromDomain = domainOf(from);
   if (account.approval === "pending" && recipients.some((r) => domainOf(r) !== fromDomain)) {
-    return reject(errorBody(412));
+    return { outcome: "rejected", error: errorBody(412) };
   }
 
   const inactive = inactiveRecipients(runtime, auth.server.ID, streamId, recipients);
   if (inactive.length === recipients.length) {
-    return reject(inactiveRecipientsError(uniqueEmails(inactive)));
+    return { outcome: "rejected", error: inactiveRecipientsError(uniqueEmails(inactive)) };
   }
 
   const message: OutboundMessage = {
@@ -270,13 +277,11 @@ export async function acceptOutbound(
     MessageEvents: [],
     channel: submission.channel,
     request: submission.request,
-    // REST sends generate no MIME source yet.
-    rawSource: submission.rawSource ?? "",
+    rawSource: submission.rawSource,
     bulkRequestId: submission.bulkRequestId,
     templateId: submission.templateId,
   };
   runtime.store.state.outbound.set(message.MessageID, message);
-  await runtime.events.emit("sent", { message });
   return inactive.length === 0
     ? { outcome: "accepted", message }
     : {
@@ -286,13 +291,39 @@ export async function acceptOutbound(
       };
 }
 
+/**
+ * Stores every accepted message, then emits `sent` for each, in order. A `sent` listener that
+ * changes state (archives a stream, adds a suppression) cannot affect a later message of the
+ * same request.
+ */
+export async function acceptOutbounds(
+  runtime: Runtime,
+  outbounds: readonly ValidOutbound[],
+): Promise<SubmitResult[]> {
+  const results = outbounds.map((outbound) => storeOutbound(runtime, outbound));
+  for (const result of results) {
+    if ("message" in result) await runtime.events.emit("sent", { message: result.message });
+  }
+  return results;
+}
+
+export async function acceptOutbound(
+  runtime: Runtime,
+  outbound: ValidOutbound,
+): Promise<SubmitResult> {
+  const [result] = await acceptOutbounds(runtime, [outbound]);
+  return result as SubmitResult;
+}
+
 /** `validateOutbound`, then `acceptOutbound` for a valid draft. */
 export async function submitOutbound(
   runtime: Runtime,
   submission: Submission,
 ): Promise<SubmitResult> {
   const validation = validateOutbound(runtime, submission);
-  return validation.outcome === "valid" ? acceptOutbound(runtime, validation.outbound) : validation;
+  return validation.outcome === "valid"
+    ? acceptOutbound(runtime, validation.outbound)
+    : { outcome: "rejected", error: validation.error };
 }
 
 /**
@@ -312,29 +343,48 @@ function checkSize(draft: Draft): void {
 }
 
 /** The first limit the draft breaks, as a 300 message (texts INFERRED, docs/03 Q4). */
-function checkLimits(draft: Draft): string | undefined {
+function checkLimits(draft: Draft): { field: string; message: string } | undefined {
   if ((draft.From ?? "").length > MAX_FROM) {
-    return `The 'From' field exceeds the maximum length of ${MAX_FROM} characters.`;
+    return {
+      field: "From",
+      message: `The 'From' field exceeds the maximum length of ${MAX_FROM} characters.`,
+    };
   }
   if ((draft.Subject ?? "").length > MAX_SUBJECT) {
-    return `The 'Subject' field exceeds the maximum length of ${MAX_SUBJECT} characters.`;
+    return {
+      field: "Subject",
+      message: `The 'Subject' field exceeds the maximum length of ${MAX_SUBJECT} characters.`,
+    };
   }
   if ((draft.Tag ?? "").length > MAX_TAG) {
-    return `The 'Tag' field exceeds the maximum length of ${MAX_TAG} characters.`;
+    return {
+      field: "Tag",
+      message: `The 'Tag' field exceeds the maximum length of ${MAX_TAG} characters.`,
+    };
   }
   const metadata = Object.entries(draft.Metadata ?? {});
   if (metadata.length > MAX_METADATA_FIELDS) {
-    return `Metadata may contain at most ${MAX_METADATA_FIELDS} fields.`;
+    return {
+      field: "Metadata",
+      message: `Metadata may contain at most ${MAX_METADATA_FIELDS} fields.`,
+    };
   }
   const seen = new Set<string>();
   for (const [key, value] of metadata) {
     if (key.length > MAX_METADATA_KEY) {
-      return `Metadata field name '${key}' exceeds the maximum length of ${MAX_METADATA_KEY} characters.`;
+      return {
+        field: "Metadata",
+        message: `Metadata field name '${key}' exceeds the maximum length of ${MAX_METADATA_KEY} characters.`,
+      };
     }
     if (value.length > MAX_METADATA_VALUE) {
-      return `Metadata field '${key}' value exceeds the maximum length of ${MAX_METADATA_VALUE} characters.`;
+      return {
+        field: "Metadata",
+        message: `Metadata field '${key}' value exceeds the maximum length of ${MAX_METADATA_VALUE} characters.`,
+      };
     }
-    if (seen.has(key.toLowerCase())) return `Metadata field '${key}' appears more than once.`;
+    if (seen.has(key.toLowerCase()))
+      return { field: "Metadata", message: `Metadata field '${key}' appears more than once.` };
     seen.add(key.toLowerCase());
   }
   return undefined;

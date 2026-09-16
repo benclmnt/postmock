@@ -155,6 +155,7 @@ describe("GET /control/messages", () => {
       channel: "rest",
       draft,
       request: { To: "A@example.com" },
+      rawSource: "",
       bulkRequestId: null,
       templateId: null,
     });

@@ -51,6 +51,7 @@ function setup(settings: ServerSettings = {}) {
       channel,
       draft: draft(fields),
       request: {},
+      rawSource: "",
       bulkRequestId: null,
       templateId: null,
     });
@@ -88,6 +89,7 @@ describe("submitOutbound", () => {
         channel: "rest",
         draft: draft(fields),
         request: {},
+        rawSource: "",
         bulkRequestId: null,
         templateId: null,
       });
@@ -105,6 +107,7 @@ describe("submitOutbound", () => {
       channel: "rest" as const,
       draft: draft(fields),
       request: {},
+      rawSource: "",
       bulkRequestId: null,
       templateId: null,
     });
@@ -115,6 +118,29 @@ describe("submitOutbound", () => {
     });
     expect(runtime.store.state.outbound.size).toBe(0);
     expect(sent).toEqual([]);
+  });
+
+  it.each([
+    [{ Subject: 5 }, 403, "Subject"],
+    [{ MessageStream: "nope" }, 1235, "MessageStream"],
+    [{ From: "test" }, 300, "From"],
+    [{ Bcc: "nope" }, 300, "Bcc"],
+    [{ TextBody: undefined }, 300, "TextBody"],
+    [{ Tag: "x".repeat(1001) }, 300, "Tag"],
+    [{ Metadata: { ["k".repeat(21)]: "v" } }, 300, "Metadata"],
+    [{ Attachments: [{ Name: "a.exe", Content: "aGk=", ContentType: "x/y" }] }, 411, "Attachments"],
+  ])("a rejected validation names the field for the bulk Errors map: %j", (fields, code, field) => {
+    const { runtime, server } = setup();
+    const validation = validateOutbound(runtime, {
+      auth: { kind: "server", server },
+      channel: "rest",
+      draft: draft(fields),
+      request: {},
+      rawSource: "",
+      bulkRequestId: null,
+      templateId: null,
+    });
+    expect(validation).toMatchObject({ outcome: "rejected", field, error: { ErrorCode: code } });
   });
 
   it("stores the raw MIME source a channel gives", async () => {
