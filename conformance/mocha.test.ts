@@ -35,3 +35,17 @@ describe("mochaResults", () => {
     ]);
   });
 });
+
+describe("mochaResults with repeated titles", () => {
+  it("numbers the copies and passes them only when every copy passes", () => {
+    const listed = report({ tests: [test("A same"), test("A same")] });
+    expect(
+      mochaResults(listed, report({ passes: [test("A same"), test("A same")] }), "/suite"),
+    ).toEqual([
+      { id: "test/a.test.ts > A same", state: "pass" },
+      { id: "test/a.test.ts > A same (2)", state: "pass" },
+    ]);
+    const mixed = report({ passes: [test("A same")], failures: [test("A same", "404")] });
+    expect(mochaResults(listed, mixed, "/suite").map((t) => t.state)).toEqual(["fail", "fail"]);
+  });
+});

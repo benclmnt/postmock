@@ -10,11 +10,10 @@ cd "$out"
 
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 -sha256 \
   -keyout ca-key.pem -out ca.pem -subj "/CN=postmock test CA" \
-  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign" \
-  2>/dev/null
+  -addext "basicConstraints=critical,CA:TRUE" -addext "keyUsage=critical,keyCertSign,cRLSign"
 
 openssl req -newkey rsa:2048 -nodes -sha256 -keyout key.pem -out cert.csr \
-  -subj "/CN=api.postmarkapp.com" 2>/dev/null
+  -subj "/CN=api.postmarkapp.com"
 
 cat >cert.ext <<'EXT'
 basicConstraints=CA:FALSE
@@ -23,5 +22,5 @@ extendedKeyUsage=serverAuth
 subjectAltName=DNS:api.postmarkapp.com,DNS:smtp.postmarkapp.com,DNS:smtp-broadcasts.postmarkapp.com,DNS:localhost,IP:127.0.0.1
 EXT
 openssl x509 -req -in cert.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -days 30 -sha256 \
-  -extfile cert.ext -out cert.pem 2>/dev/null
+  -extfile cert.ext -out cert.pem
 rm -f cert.csr cert.ext ca.srl

@@ -1,6 +1,6 @@
 import { readFileSync, rmSync } from "node:fs";
-import { PUBLIC_IP, startDockerSandbox } from "../docker.ts";
-import { copySuite, mustExec, readKeys, stamp, startSandbox, testCa } from "../harness.ts";
+import { IMAGES, PUBLIC_IP, withContainerSandbox } from "../docker.ts";
+import { copySuite, mustExec, readKeys, stamp, testCa } from "../harness.ts";
 import { type MochaReport, mochaResults } from "../mocha.ts";
 import type { ResultsFile } from "../results.ts";
 
@@ -9,10 +9,9 @@ import type { ResultsFile } from "../results.ts";
 // (sdk/postmark-cli/test/integration/shared.ts:40-57). So the route is DNS plus TLS (docs/01 §3.3
 // option B): the suite runs in a container on an internal network where the gateway answers as
 // api.postmarkapp.com, and Node trusts the test CA through NODE_EXTRA_CA_CERTS.
+// The image is the newest Node in the suite's CI matrix (sdk/postmark-cli/.circleci/config.yml:18-20).
 
 const SDK = "postmark-cli";
-// The newest Node in the suite's CI matrix (sdk/postmark-cli/.circleci/config.yml:18-20).
-const IMAGE = "node:20-alpine";
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
@@ -21,61 +20,55 @@ export async function run(): Promise<ResultsFile> {
   await mustExec("npm", ["run", "build"], { cwd: suite, quiet: true });
 
   const ca = testCa(SDK);
-  const sandbox = await startSandbox({ tls: { cert: ca.cert, key: ca.key } });
-  const docker = await startDockerSandbox(sandbox, SDK, ["api.postmarkapp.com"]).catch(
-    async (error) => {
-      await sandbox.close();
-      throw error;
+  const tls = { cert: ca.cert, key: ca.key };
+  return withContainerSandbox(
+    { sdk: SDK, aliases: ["api.postmarkapp.com"], tls },
+    async ({ sandbox, run }) => {
+      const container = {
+        image: IMAGES.node20,
+        mounts: { [suite]: "/suite", [ca.dir]: "/ca" },
+        workdir: "/suite",
+        env: { ...readKeys(SDK), NODE_EXTRA_CA_CERTS: "/ca/ca.pem" },
+        quiet: true,
+      };
+      await sandbox.assertGuarded(/ENETUNREACH/, () =>
+        run({
+          ...container,
+          command: [
+            "node",
+            "-e",
+            `fetch("https://${PUBLIC_IP}/").catch((e) => { console.error(e.cause?.code); process.exit(1); })`,
+          ],
+        }),
+      );
+      const mocha = async (args: readonly string[], output: string): Promise<MochaReport> => {
+        rmSync(`${suite}/${output}`, { force: true });
+        const mochaRun = await run({
+          ...container,
+          command: [
+            "node_modules/.bin/mocha",
+            "--config",
+            ".mocharc.integration.json",
+            // postmock is deterministic: a test that passes only on a retry shows a postmock bug.
+            "--retries",
+            "0",
+            "--reporter",
+            "json",
+            "--reporter-option",
+            `output=${output}`,
+            ...args,
+          ],
+        });
+        try {
+          return JSON.parse(readFileSync(`${suite}/${output}`, "utf8")) as MochaReport;
+        } catch {
+          throw new Error(`mocha wrote no report:\n${mochaRun.output.slice(-4000)}`);
+        }
+      };
+      const listed = await mocha(["--dry-run"], ".postmock-list.json");
+      const report = await mocha([], ".postmock-report.json");
+      sandbox.assertRouted();
+      return results(mochaResults(listed, report, "/suite"));
     },
   );
-  try {
-    const container = {
-      image: IMAGE,
-      mounts: { [suite]: "/suite", [ca.dir]: "/ca" },
-      workdir: "/suite",
-      env: { ...readKeys(SDK), NODE_EXTRA_CA_CERTS: "/ca/ca.pem" },
-      quiet: true,
-    };
-    await sandbox.assertGuarded(/ENETUNREACH/, () =>
-      docker.run({
-        ...container,
-        command: [
-          "node",
-          "-e",
-          `fetch("https://${PUBLIC_IP}/").catch((e) => { console.error(e.cause?.code); process.exit(1); })`,
-        ],
-      }),
-    );
-    const mocha = async (args: readonly string[], output: string): Promise<MochaReport> => {
-      rmSync(`${suite}/${output}`, { force: true });
-      const run = await docker.run({
-        ...container,
-        command: [
-          "node_modules/.bin/mocha",
-          "--config",
-          ".mocharc.integration.json",
-          // postmock is deterministic: a test that passes only on a retry shows a postmock bug.
-          "--retries",
-          "0",
-          "--reporter",
-          "json",
-          "--reporter-option",
-          `output=${output}`,
-          ...args,
-        ],
-      });
-      try {
-        return JSON.parse(readFileSync(`${suite}/${output}`, "utf8")) as MochaReport;
-      } catch {
-        throw new Error(`mocha wrote no report:\n${run.output.slice(-4000)}`);
-      }
-    };
-    const listed = await mocha(["--dry-run"], ".postmock-list.json");
-    const report = await mocha([], ".postmock-report.json");
-    sandbox.assertRouted();
-    return results(mochaResults(listed, report, "/suite"));
-  } finally {
-    await docker.close();
-    await sandbox.close();
-  }
 }

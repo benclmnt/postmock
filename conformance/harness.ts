@@ -41,7 +41,8 @@ export function copySuite(sdk: string, keep: readonly string[] = []): string {
 export function testCa(sdk: string): { dir: string; ca: string; cert: string; key: string } {
   const dir = `${workDir(sdk)}/ca`;
   rmSync(dir, { recursive: true, force: true });
-  execFileSync(`${repoRoot}tools/test-ca.sh`, [dir]);
+  // openssl prints progress on stderr; a failure carries it in the error message.
+  execFileSync(`${repoRoot}tools/test-ca.sh`, [dir], { stdio: "pipe" });
   return { dir, ca: `${dir}/ca.pem`, cert: `${dir}/cert.pem`, key: `${dir}/key.pem` };
 }
 
@@ -197,6 +198,7 @@ export async function startSandbox(
   });
   trap.on("connect", (req, socket) => {
     trapped.push(`CONNECT ${req.url}`);
+    socket.on("error", () => socket.destroy());
     socket.end("HTTP/1.1 403 Forbidden\r\n\r\n");
   });
   const trapPort = await listen(trap, host);
@@ -249,18 +251,48 @@ export async function startSandbox(
   return sandbox;
 }
 
-/** Stamps the results. Call `stamp` before the run, so an edit during the run makes them stale. */
+/**
+ * Stamps the results and sorts the tests by id. Call `stamp` before the run, so an edit during the
+ * run makes the results stale.
+ */
 export function stamp(sdk: string): (tests: TestResult[]) => ResultsFile {
   const commit = sdkCommit(sdk);
   const postmock = currentStamp(sdk);
-  return (tests) => ({
-    sdk,
-    sdkCommit: commit,
-    postmock,
-    finishedAt: new Date().toISOString(),
-    totals: totals(tests),
-    tests,
-  });
+  return (tests) => {
+    const sorted = [...tests].sort((a, b) => a.id.localeCompare(b.id));
+    return {
+      sdk,
+      sdkCommit: commit,
+      postmock,
+      finishedAt: new Date().toISOString(),
+      totals: totals(sorted),
+      tests: sorted,
+    };
+  };
+}
+
+/** A test result; `error` only for a failure. */
+export const result = (id: string, state: TestResult["state"], error?: string): TestResult =>
+  error === undefined || state !== "fail" ? { id, state } : { id, state, error: firstLine(error) };
+
+/**
+ * Every listed test, from the run's results where it ran. A test the run never reported (a crash, a
+ * failed class hook) fails with `not run: <why>`. A reported test missing from the list is a
+ * harness bug.
+ */
+export function completeResults(
+  listed: readonly string[],
+  ran: readonly TestResult[],
+  whyNotRun: (id: string) => string,
+): TestResult[] {
+  const byId = new Map(ran.map((t) => [t.id, t]));
+  const unlisted = ran.filter((t) => !listed.includes(t.id));
+  if (unlisted.length > 0) {
+    throw new Error(
+      `the run reported tests the listing lacks: ${unlisted.map((t) => t.id).join(", ")}`,
+    );
+  }
+  return listed.map((id) => byId.get(id) ?? result(id, "fail", `not run: ${whyNotRun(id)}`));
 }
 
 /** First line of a failure message, for triage. */

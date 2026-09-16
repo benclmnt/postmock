@@ -11,6 +11,8 @@ describe("stampedFiles", () => {
       "conformance/check.ts",
       "conformance/postmark.js/run.ts",
       "conformance/postmark.js/fetch-shim.cjs",
+      "tools/test-ca.sh",
+      "flake.lock",
       "package.json",
       "pnpm-lock.yaml",
     ]) {

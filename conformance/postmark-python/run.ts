@@ -2,10 +2,10 @@ import { readdirSync } from "node:fs";
 import {
   copySuite,
   exec,
-  firstLine,
   mustExec,
   PROBE_HOST,
   readKeys,
+  result,
   runnerDir,
   stamp,
   startSandbox,
@@ -20,6 +20,14 @@ import type { ResultsFile, TestResult } from "../results.ts";
 
 const SDK = "postmark-python";
 const EXAMPLE_TIMEOUT_MS = 60_000;
+// The SDK's own client with a base URL outside the route: its HTTP stack must honor the trap.
+const SDK_PROBE = `
+import postmark
+with postmark.sync.ServerClient("postmock-server-token", retries=0, base_url="https://${PROBE_HOST}") as client:
+    client.server.get()
+`;
+// The exception line of a Python traceback: `module.Error: message`.
+const EXCEPTION_LINE = /^[A-Za-z_][\w.]*(Error|Exception)\b.*$/gm;
 
 const examples = (dir: string): string[] =>
   readdirSync(dir, { recursive: true, encoding: "utf8" })
@@ -54,7 +62,7 @@ export async function run(): Promise<ResultsFile> {
       POSTMOCK_API_URL: sandbox.httpUrl,
     };
     await sandbox.assertGuarded("trap", () =>
-      exec(python, ["-c", `import httpx; httpx.get("https://${PROBE_HOST}/")`], {
+      exec(python, ["-c", SDK_PROBE], {
         cwd: suite,
         env,
         quiet: true,
@@ -71,11 +79,12 @@ export async function run(): Promise<ResultsFile> {
       });
       const id = `${example} > exits 0`;
       if (run.code === 0) {
-        tests.push({ id, state: "pass" });
+        tests.push(result(id, "pass"));
         continue;
       }
+      const exceptions = run.output.match(EXCEPTION_LINE) ?? [];
       const lines = run.output.trim().split("\n");
-      tests.push({ id, state: "fail", error: firstLine(lines[lines.length - 1] ?? "") });
+      tests.push(result(id, "fail", exceptions.at(-1) ?? lines.at(-1) ?? ""));
     }
     sandbox.assertRouted();
     return results(tests);

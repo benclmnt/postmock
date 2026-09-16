@@ -2,17 +2,18 @@
 // `rspec --require`, and read RSpec's JSON report.
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import {
+  completeResults,
   copySuite,
   exec,
-  firstLine,
   mustExec,
   PROBE_HOST,
   readKeys,
+  result,
   stamp,
   startSandbox,
   workDir,
 } from "./harness.ts";
-import type { ResultsFile, TestResult } from "./results.ts";
+import type { ResultsFile } from "./results.ts";
 
 // Postmark::HttpClient takes the host, port and TLS flag as options (postmark-gem
 // lib/postmark/http_client.rb:15-29). The shim forces them to postmock and refuses every other
@@ -39,12 +40,12 @@ module PostmockRoute
       raise "postmock route: refusing a connection to #{host}:#{port}"
     end
 
-    def open(host, port, *rest, &block)
+    def open(host, port, *rest, **options, &block)
       RefuseOtherHosts.check(host, port)
       super
     end
 
-    def new(host, port, *rest)
+    def new(host, port, *rest, **options)
       RefuseOtherHosts.check(host, port)
       super
     end
@@ -56,6 +57,7 @@ TCPSocket.singleton_class.prepend(PostmockRoute::RefuseOtherHosts)
 `;
 
 interface RspecReport {
+  summary: { errors_outside_of_examples_count: number };
   examples: Array<{
     full_description: string;
     file_path: string;
@@ -108,27 +110,45 @@ export async function runRspec(
         { cwd: suite, env: routed, quiet: true },
       ),
     );
-    const report = `${work}/rspec.json`;
-    rmSync(report, { force: true });
-    const suiteRun = await exec(
-      "bundle",
-      ["exec", "rspec", "--require", shim, "--format", "json", "--out", report, ...specs],
-      { cwd: suite, env: routed, quiet: true },
-    );
-    if (!existsSync(report) || readFileSync(report, "utf8") === "") {
-      throw new Error(`rspec wrote no report:\n${suiteRun.output.slice(0, 4000)}`);
-    }
+    const rspec = async (args: readonly string[], report: string): Promise<RspecReport> => {
+      rmSync(report, { force: true });
+      const run = await exec(
+        "bundle",
+        [
+          "exec",
+          "rspec",
+          "--require",
+          shim,
+          "--format",
+          "json",
+          "--out",
+          report,
+          ...args,
+          ...specs,
+        ],
+        { cwd: suite, env: routed, quiet: true },
+      );
+      const json = existsSync(report) ? readFileSync(report, "utf8") : "";
+      // A spec file that fails to load drops all its examples from both reports.
+      const parsed = json === "" ? undefined : (JSON.parse(json) as RspecReport);
+      if (parsed === undefined || parsed.summary.errors_outside_of_examples_count > 0) {
+        throw new Error(`rspec could not load the suite:\n${run.output.slice(0, 4000)}`);
+      }
+      return parsed;
+    };
+    const idOf = (e: RspecReport["examples"][number]) =>
+      `${e.file_path.replace(/^\.\//, "")} > ${e.full_description}`;
+    const listed = (await rspec(["--dry-run"], `${work}/rspec-list.json`)).examples.map(idOf);
+    const { examples } = await rspec([], `${work}/rspec.json`);
     sandbox.assertRouted();
 
-    const { examples } = JSON.parse(readFileSync(report, "utf8")) as RspecReport;
-    const tests: TestResult[] = examples.map((e) => {
-      const id = `${e.file_path.replace(/^\.\//, "")} > ${e.full_description}`;
-      if (e.status === "passed") return { id, state: "pass" };
-      if (e.status === "pending") return { id, state: "skip" };
+    const ran = examples.map((e) => {
+      if (e.status === "passed") return result(idOf(e), "pass");
+      if (e.status === "pending") return result(idOf(e), "skip");
       const error = e.exception ? `${e.exception.class}: ${e.exception.message}` : "failed";
-      return { id, state: "fail", error: firstLine(error) };
+      return result(idOf(e), "fail", error);
     });
-    return results(tests.sort((a, b) => a.id.localeCompare(b.id)));
+    return results(completeResults(listed, ran, () => "rspec reported no result"));
   } finally {
     await sandbox.close();
   }

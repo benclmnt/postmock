@@ -1,18 +1,17 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { PUBLIC_IP, runOnline, startDockerSandbox } from "../docker.ts";
+import { IMAGES, PUBLIC_IP, runContainer, withContainerSandbox } from "../docker.ts";
 import {
   copySuite,
-  firstLine,
   mustExec,
   readKeys,
+  result,
   runnerDir,
   stamp,
-  startSandbox,
   testCa,
   workDir,
 } from "../harness.ts";
 import { parseJUnit } from "../reports.ts";
-import type { ResultsFile, TestResult } from "../results.ts";
+import type { ResultsFile } from "../results.ts";
 
 // Runs the postmark-java JUnit suite, unmodified, against postmock (docs/08 §5.2).
 // The client hard-codes api.postmarkapp.com (Postmark.java:21), so the route is DNS plus TLS
@@ -20,9 +19,23 @@ import type { ResultsFile, TestResult } from "../results.ts";
 // the gateway answers as api.postmarkapp.com, and the JVM trusts the test CA.
 
 const SDK = "postmark-java";
-const IMAGE = "maven:3.9-eclipse-temurin-17";
 const STORE_PASSWORD = "postmock";
 const MAVEN = ["-B", "-Dmaven.repo.local=/m2", "-Dgpg.skip", "-Dmaven.javadoc.skip"];
+// The maven image copies its settings to MAVEN_CONFIG; the container user cannot write /root.
+const MAVEN_ENV = { MAVEN_CONFIG: "/tmp/.m2" };
+// Surefire's default includes (maven-surefire-plugin 2.22.2).
+const TEST_CLASS = /^(Test\w*|\w*Test|\w*Tests|\w*TestCase)\.java$/;
+
+/** Test classes surefire runs: default includes with at least one `@Test`, as `<package>.<Class>`. */
+function testClasses(suite: string): string[] {
+  const root = `${suite}/src/test/java`;
+  return readdirSync(root, { recursive: true, encoding: "utf8" })
+    .filter((f) => TEST_CLASS.test(f.split("/").pop() ?? ""))
+    .filter((f) => /@Test\b/.test(readFileSync(`${root}/${f}`, "utf8")))
+    .map((f) => f.slice(0, -".java".length).replaceAll("/", "."));
+}
+
+const fileOf = (qualified: string) => `src/test/java/${qualified.replaceAll(".", "/")}.java`;
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
@@ -33,13 +46,17 @@ export async function run(): Promise<ResultsFile> {
 
   // Online, before the sandbox: compile and resolve every plugin, including the surefire JUnit 5
   // provider, which Maven fetches only when a test runs. PostmarkTest only builds clients.
-  const resolve = await runOnline({
-    image: IMAGE,
-    mounts,
-    workdir: "/suite",
-    command: ["mvn", ...MAVEN, "test", "-Dtest=unit.PostmarkTest"],
-    quiet: true,
-  });
+  const resolve = await runContainer(
+    {
+      image: IMAGES.maven,
+      mounts,
+      workdir: "/suite",
+      env: MAVEN_ENV,
+      command: ["mvn", ...MAVEN, "test", "-Dtest=unit.PostmarkTest"],
+      quiet: true,
+    },
+    "bridge",
+  );
   if (resolve.code !== 0) throw new Error(`maven resolve failed:\n${resolve.output.slice(-4000)}`);
 
   const ca = testCa(SDK);
@@ -61,61 +78,67 @@ export async function run(): Promise<ResultsFile> {
     ],
     { quiet: true },
   );
-  rmSync(`${suite}/target/surefire-reports`, { recursive: true, force: true });
+  const reports = `${suite}/target/surefire-reports`;
+  rmSync(reports, { recursive: true, force: true });
 
-  const sandbox = await startSandbox({ tls: { cert: ca.cert, key: ca.key } });
-  const docker = await startDockerSandbox(sandbox, SDK, ["api.postmarkapp.com"]).catch(
-    async (error) => {
-      await sandbox.close();
-      throw error;
-    },
-  );
-  try {
-    const container = {
-      image: IMAGE,
-      mounts: { ...mounts, [ca.dir]: "/ca" },
-      workdir: "/suite",
-      env: {
-        ...readKeys(SDK),
-        // Surefire forks the test JVM; JAVA_TOOL_OPTIONS reaches it without a pom change.
-        JAVA_TOOL_OPTIONS: `-Djavax.net.ssl.trustStore=/ca/truststore.p12 -Djavax.net.ssl.trustStorePassword=${STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=PKCS12`,
-      },
-    };
-    await sandbox.assertGuarded(/Network is unreachable/, () =>
-      docker.run({
+  const tls = { cert: ca.cert, key: ca.key };
+  return withContainerSandbox(
+    { sdk: SDK, aliases: ["api.postmarkapp.com"], tls },
+    async ({ sandbox, run }) => {
+      const container = {
+        image: IMAGES.maven,
+        mounts: { ...mounts, [ca.dir]: "/ca" },
+        workdir: "/suite",
+        env: {
+          ...readKeys(SDK),
+          ...MAVEN_ENV,
+          // Surefire forks the test JVM; JAVA_TOOL_OPTIONS reaches it without a pom change.
+          JAVA_TOOL_OPTIONS: `-Djavax.net.ssl.trustStore=/ca/truststore.p12 -Djavax.net.ssl.trustStorePassword=${STORE_PASSWORD} -Djavax.net.ssl.trustStoreType=PKCS12`,
+        },
+      };
+      await sandbox.assertGuarded(/Network is unreachable/, () =>
+        run({
+          ...container,
+          command: ["java", "/runner/Probe.java", `https://${PUBLIC_IP}/`],
+          quiet: true,
+        }),
+      );
+      // The suite's CI command (sdk/postmark-java/.circleci/config.yml:121), offline.
+      const suiteRun = await run({
         ...container,
-        command: ["java", "/runner/Probe.java", `https://${PUBLIC_IP}/`],
+        command: ["mvn", ...MAVEN, "-o", "test", "-DforkCount=1", "-DreuseForks=false"],
         quiet: true,
-      }),
-    );
-    // The suite's CI command (sdk/postmark-java/.circleci/config.yml:121), offline.
-    const suiteRun = await docker.run({
-      ...container,
-      command: ["mvn", ...MAVEN, "-o", "test", "-DforkCount=1", "-DreuseForks=false"],
-      quiet: true,
-    });
-    const reports = `${suite}/target/surefire-reports`;
-    if (!existsSync(reports)) {
-      throw new Error(`the suite wrote no surefire reports:\n${suiteRun.output.slice(-4000)}`);
-    }
-    sandbox.assertRouted();
+      });
+      if (!existsSync(reports)) {
+        throw new Error(`the suite wrote no surefire reports:\n${suiteRun.output.slice(-4000)}`);
+      }
+      sandbox.assertRouted();
 
-    const tests: TestResult[] = readdirSync(reports)
-      .filter((f) => f.startsWith("TEST-") && f.endsWith(".xml"))
-      .flatMap((f) => parseJUnit(readFileSync(`${reports}/${f}`, "utf8")))
-      .map((c) => {
+      const cases = readdirSync(reports)
+        .filter((f) => f.startsWith("TEST-") && f.endsWith(".xml"))
+        .flatMap((f) => parseJUnit(readFileSync(`${reports}/${f}`, "utf8")));
+      const tests = cases.map((c) => {
         const qualified = c.attrs.classname ?? "";
         const className = qualified.split(".").pop() ?? "";
-        const file = `src/test/java/${qualified.replaceAll(".", "/")}.java`;
-        return {
-          id: `${file} > ${className}.${c.attrs.name ?? ""}`,
-          state: c.state,
-          ...(c.error === undefined ? {} : { error: firstLine(c.error) }),
-        };
+        return result(
+          `${fileOf(qualified)} > ${className}.${c.attrs.name ?? ""}`,
+          c.state,
+          c.error,
+        );
       });
-    return results(tests.sort((a, b) => a.id.localeCompare(b.id)));
-  } finally {
-    await docker.close();
-    await sandbox.close();
-  }
+      // A crashed fork or a failed class setup leaves a class without any reported test.
+      const reported = new Set(cases.map((c) => c.attrs.classname));
+      for (const qualified of testClasses(suite).filter((q) => !reported.has(q))) {
+        const className = qualified.split(".").pop() ?? "";
+        tests.push(
+          result(
+            `${fileOf(qualified)} > ${className}`,
+            "fail",
+            "not run: surefire reported no test of this class",
+          ),
+        );
+      }
+      return results(tests);
+    },
+  );
 }

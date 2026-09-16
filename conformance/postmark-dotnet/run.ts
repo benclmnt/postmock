@@ -1,16 +1,17 @@
 import { copyFileSync, readFileSync, rmSync } from "node:fs";
 import {
+  completeResults,
   copySuite,
   exec,
-  firstLine,
   mustExec,
   PROBE_HOST,
+  result,
   runnerDir,
   stamp,
   startSandbox,
 } from "../harness.ts";
 import { parseTrx } from "../reports.ts";
-import type { ResultsFile, TestResult } from "../results.ts";
+import type { ResultsFile } from "../results.ts";
 
 // Runs the postmark-dotnet xUnit suite, unmodified, against postmock (docs/08 §5.2).
 // Route: BASE_URL (sdk/postmark-dotnet/src/Postmark.Tests/ClientBaseFixture.cs:84). Guard: .NET
@@ -21,6 +22,14 @@ const PROJECT = "src/Postmark.Tests";
 const TEST_NAMESPACE = "Postmark.Tests.";
 const BUILD = ["--configuration", "release", "-p:TargetFramework=net8.0"];
 
+/** `Postmark.Tests.ClientBounceTests.Client_CanGetBounces` → `<file> > ClientBounceTests.Client_CanGetBounces`. */
+function idOf(testName: string): string {
+  const title = testName.startsWith(TEST_NAMESPACE)
+    ? testName.slice(TEST_NAMESPACE.length)
+    : testName;
+  return `${PROJECT}/${title.split(".")[0]}.cs > ${title}`;
+}
+
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
   const suite = copySuite(SDK, [
@@ -29,7 +38,8 @@ export async function run(): Promise<ResultsFile> {
     `${PROJECT}/bin`,
     `${PROJECT}/obj`,
   ]);
-  // The fixture looks for testing_keys.json in every folder above the test assembly (ClientBaseFixture.cs:43-63).
+  // The fixture looks for testing_keys.json in every folder above the test assembly
+  // (ClientBaseFixture.cs:43-63).
   for (const file of ["testing_keys.json", "Directory.Build.props"]) {
     copyFileSync(`${runnerDir(SDK)}/${file}`, `${suite}/${file}`);
   }
@@ -39,12 +49,27 @@ export async function run(): Promise<ResultsFile> {
     env: dotnetEnv,
     quiet: true,
   });
+  const listing = await mustExec(
+    "dotnet",
+    ["test", PROJECT, "--no-build", ...BUILD, "--list-tests"],
+    {
+      cwd: suite,
+      env: dotnetEnv,
+      quiet: true,
+    },
+  );
+  const listed = listing
+    .slice(listing.indexOf("The following Tests are available:"))
+    .split("\n")
+    .filter((line) => line.startsWith("    "))
+    .map((line) => idOf(line.trim()));
 
   const sandbox = await startSandbox();
   try {
     const env = { ...dotnetEnv, ...sandbox.trapEnv(), BASE_URL: sandbox.httpUrl };
+    const clientDll = `${suite}/${PROJECT}/bin/release/net8.0/Postmark.dll`;
     await sandbox.assertGuarded("trap", () =>
-      exec("dotnet", ["fsi", `${runnerDir(SDK)}/probe.fsx`, `https://${PROBE_HOST}/`], {
+      exec("dotnet", ["fsi", `${runnerDir(SDK)}/probe.fsx`, clientDll, `https://${PROBE_HOST}`], {
         env,
         quiet: true,
       }),
@@ -69,17 +94,10 @@ export async function run(): Promise<ResultsFile> {
     );
     sandbox.assertRouted();
 
-    const tests: TestResult[] = parseTrx(readFileSync(trx, "utf8")).map((c) => {
-      const name = c.attrs.testName ?? "";
-      const title = name.startsWith(TEST_NAMESPACE) ? name.slice(TEST_NAMESPACE.length) : name;
-      const file = `${PROJECT}/${title.split(".")[0]}.cs`;
-      return {
-        id: `${file} > ${title}`,
-        state: c.state,
-        ...(c.error === undefined ? {} : { error: firstLine(c.error) }),
-      };
-    });
-    return results(tests.sort((a, b) => a.id.localeCompare(b.id)));
+    const report = readFileSync(trx, "utf8");
+    const outcome = /<ResultSummary outcome="([^"]*)"/.exec(report)?.[1] ?? "missing";
+    const ran = parseTrx(report).map((c) => result(idOf(c.attrs.testName ?? ""), c.state, c.error));
+    return results(completeResults(listed, ran, () => `the test run ended as ${outcome}`));
   } finally {
     await sandbox.close();
   }

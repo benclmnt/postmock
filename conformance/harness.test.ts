@@ -1,6 +1,6 @@
 import http from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { type Sandbox, startSandbox } from "./harness.ts";
+import { completeResults, result, type Sandbox, startSandbox } from "./harness.ts";
 
 const connect = (proxy: string, target: string) =>
   new Promise<number>((resolve, reject) => {
@@ -61,5 +61,17 @@ describe("sandbox routing proof", () => {
     });
     await fetch(`${sandbox.httpUrl}/server`);
     expect(() => sandbox.assertRouted()).not.toThrow();
+  });
+});
+
+describe("completeResults", () => {
+  it("fails listed tests the run never reported and refuses unlisted ones", () => {
+    const ran = [result("a > one", "pass"), result("a > two", "fail", "404\nstack")];
+    expect(completeResults(["a > one", "a > two", "a > three"], ran, () => "class hook")).toEqual([
+      { id: "a > one", state: "pass" },
+      { id: "a > two", state: "fail", error: "404" },
+      { id: "a > three", state: "fail", error: "not run: class hook" },
+    ]);
+    expect(() => completeResults(["a > one"], ran, () => "")).toThrow(/a > two/);
   });
 });

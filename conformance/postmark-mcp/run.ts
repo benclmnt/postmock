@@ -1,4 +1,5 @@
 import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import {
   copySuite,
   exec,
@@ -21,6 +22,15 @@ const SMOKE_TESTS = [
   { example: "smoke-test.example.mjs", copy: "smoke-test.mjs" },
   { example: "smoke-test-mutating.example.mjs", copy: "smoke-test-mutating.mjs" },
 ];
+const SPAWN_PROBE = `
+import spawn from "cross-spawn";
+import { getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
+const child = spawn("node", ["-e", 'fetch("https://${PROBE_HOST}/")'], {
+  env: getDefaultEnvironment(),
+  stdio: "inherit",
+});
+child.on("exit", (code) => process.exit(code ?? 1));
+`;
 const CHECK = /^(PASS|FAIL) {2}(.*?)(?: {2}— (.*))?$/;
 const SUMMARY = /^\d+\/\d+ passed$/m;
 
@@ -37,14 +47,16 @@ export async function run(): Promise<ResultsFile> {
       .join(""),
   );
   copyFileSync(`${suite}/smoke-test.example.mjs`, `${suite}/smoke-test.mjs`);
-  const mutating = readFileSync(`${suite}/smoke-test-mutating.example.mjs`, "utf8")
-    .replace('const SENDER = "you@example.com";', `const SENDER = "${keys.DEFAULT_SENDER_EMAIL}";`)
-    .replace(
-      'const RECIPIENT = "another-you@example.com";',
-      'const RECIPIENT = "recipient@example.com";',
-    );
-  if (mutating.includes('"you@example.com";')) {
-    throw new Error("smoke-test-mutating.example.mjs changed its SENDER placeholder");
+  const placeholders = {
+    'const SENDER = "you@example.com";': `const SENDER = "${CONFORMANCE.senderEmail}";`,
+    'const RECIPIENT = "another-you@example.com";': `const RECIPIENT = "${CONFORMANCE.recipientEmail}";`,
+  };
+  let mutating = readFileSync(`${suite}/smoke-test-mutating.example.mjs`, "utf8");
+  for (const [placeholder, value] of Object.entries(placeholders)) {
+    if (!mutating.includes(placeholder)) {
+      throw new Error(`smoke-test-mutating.example.mjs no longer contains ${placeholder}`);
+    }
+    mutating = mutating.replace(placeholder, value);
   }
   writeFileSync(`${suite}/smoke-test-mutating.mjs`, mutating);
 
@@ -53,13 +65,12 @@ export async function run(): Promise<ResultsFile> {
     const env = {
       ...process.env,
       POSTMOCK_API_URL: sandbox.httpUrl,
-      NODE_OPTIONS: `--import=${runnerDir(SDK)}/fetch-shim.mjs`,
+      NODE_OPTIONS: `--import=${JSON.stringify(`${runnerDir(SDK)}/fetch-shim.mjs`)}`,
     };
+    // Every fetch happens in the MCP server the smoke tests spawn, so the probe spawns a child the
+    // way the MCP stdio transport does: cross-spawn with the filtered default environment.
     await sandbox.assertGuarded(/postmock fetch shim: refusing/, () =>
-      exec("node", ["-e", `await fetch("https://${PROBE_HOST}/")`, "--input-type=module"], {
-        env,
-        quiet: true,
-      }),
+      exec("node", ["--input-type=module", "-e", SPAWN_PROBE], { cwd: suite, env, quiet: true }),
     );
 
     const tests: TestResult[] = [];
@@ -74,7 +85,7 @@ export async function run(): Promise<ResultsFile> {
         seen.set(name, count);
         const id = `${example} > ${name}${count > 1 ? ` (${count})` : ""}`;
         // The mutating test logs a cleanup step it could not reach as a PASS named "skipped".
-        if (/skipped/.test(name)) tests.push({ id, state: "skip" });
+        if (verdict === "PASS" && /skipped/.test(name)) tests.push({ id, state: "skip" });
         else if (verdict === "PASS") tests.push({ id, state: "pass" });
         else tests.push({ id, state: "fail", error: detail ?? "" });
       }

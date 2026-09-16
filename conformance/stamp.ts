@@ -14,8 +14,9 @@ const git = (...args: string[]) =>
   execFileSync("git", ["-C", root, ...args], { encoding: "utf8", maxBuffer: 1 << 30 });
 
 /**
- * Files whose content decides a run's outcome: the server, the seeds, the shared runner code, this
- * SDK's runner folder without its baselines and skips, and the dependency manifests.
+ * Files whose content decides a run's outcome: the server, the seeds, the shared runner code and the
+ * test CA script, this SDK's runner folder without its baselines and skips, the dependency
+ * manifests, and the toolchain flake.
  * Tracked and untracked files count; git-ignored files (`.work/`, results) do not.
  */
 export function stampedFiles(sdk: string): string[] {
@@ -29,6 +30,9 @@ export function stampedFiles(sdk: string): string[] {
     "src",
     "seeds",
     ":(glob)conformance/*.ts",
+    "tools/test-ca.sh",
+    "flake.nix",
+    "flake.lock",
     `conformance/${sdk}`,
     "package.json",
     "pnpm-lock.yaml",
