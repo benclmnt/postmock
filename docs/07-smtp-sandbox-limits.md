@@ -73,7 +73,7 @@ The mock must accept this client without a change to it. Other SMTP clients diff
 | --- | --- | --- |
 | `X-PM-Message-Stream: <id>` | Selects the stream (server-token auth). Absent → default transactional stream `outbound`. Doc spells it `X-PM-MESSAGE-STREAM`; header names are case-insensitive. | **DOC** `refs/user-guide_send-email-with-smtp.md:16`, `:38`; case rule **INFERRED** |
 | `X-PM-Tag: <tag>` | Sets `Tag`. One tag per message. Max 1000 characters. | **DOC** `refs/user-guide_send-email-with-smtp.md:57`, `:61-63` |
-| `X-PM-Metadata-<key>: <value>` | Adds metadata key. Duplicate keys get an incrementing suffix on SMTP. Max 10 fields, key ≤ 20 chars, value ≤ 80 chars, values are strings. | **DOC** `refs/user-guide_send-email-with-smtp.md:78-83`; limits `refs/support_article_1125-custom-metadata-faq.md:70-75` |
+| `X-PM-Metadata-<key>: <value>` | Adds metadata key. Duplicate keys get an incrementing suffix on SMTP. Max 10 fields, key ≤ 20 chars, value ≤ 80 chars, values are strings. | header **DOC** `refs/user-guide_send-email-with-smtp.md:78-83`; suffix and limits `refs/support_article_1125-custom-metadata-faq.md:68-75` |
 | `X-PM-TrackOpens: true` | Adds pixel to HTML part. Absent or `false` → no tracking. Server `TrackOpens` overrides to always on. | **DOC** `refs/user-guide_tracking-opens_tracking-opens-per-email.md:8`, `:19-23` |
 | `X-PM-TrackLinks: None\|HtmlAndText\|HtmlOnly\|TextOnly` | Overrides server `TrackLinks`. | **DOC** `refs/user-guide_tracking-links.md:50-61` |
 | `X-PM-Bounce-Type: <type>` | Fake bounce; only to `bounce-testing.postmarkapp.com`. Works on SMTP. | **DOC** `refs/support_article_1239-how-to-test-bounces.md:40`, `:87` |

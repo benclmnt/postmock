@@ -35,6 +35,9 @@ A test that passes against postmock then tests code paths that real Postmark can
 | `POST /control/domains/:id/verify` | `{dkim?: true, returnPath?: true}` | the domain, as `GET /domains/{id}` | Postmark finds the DNS records. `dkim`: the pending key becomes the active key; an earlier key becomes the revoked key. `returnPath`: `ReturnPathDomainVerified` becomes true. 400 when no key is pending or no Return-Path is set. The `verifyDkim` and `verifyReturnPath` API calls report this state. | built (T7) |
 | `POST /control/senders/:id/verify` | `{dkim?: true, returnPath?: true}` | the signature, as `GET /senders/{id}` | The same for a sender signature | built (T7) |
 | `POST /control/senders/:id/confirm` | — | the signature | The recipient clicks the confirmation link. 400 when already confirmed. | built (T7) |
+| `POST /control/smtp/tokens` | `{serverId, messageStream}` | `{AccessKey, SecretKey, ServerID, MessageStream}` | A user creates an SMTP token for a stream in the UI. Refused (400) for an inbound or archived stream and a server with SMTP off, as ErrorCodes 1457, 1459, 1460. | built (T6) |
+| `DELETE /control/smtp/tokens/:accessKey` | — | `{AccessKey}` | A user revokes the token; the next AUTH or transaction on an open connection gets 535. | built (T6) |
+| `POST /control/smtp/faults` | `{stage: connect\|mail\|rcpt\|data, times?, reply: {code, message}}` | `{faults}` | A Postmark SMTP outage or idle close. `code` is 400–599; 421 also closes the connection. | built (T6) |
 | `POST /control/servers` | `{token, streams}` | — | Create a server and its token | design |
 | `POST /control/suppressions` | `{stream, email, reason, origin}` | — | A hard bounce, a complaint, an unsubscribe (`docs/04`) | design (T2) |
 | `POST /control/bounces` | `{messageId, type}` | — | The recipient server bounces | design (T2) |

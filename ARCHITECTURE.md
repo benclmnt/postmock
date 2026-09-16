@@ -2,7 +2,8 @@
 
 Status: W0 (foundation) is built.
 Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the postmark.js conformance runner.
-Design: every other endpoint, the send pipeline body, SMTP, TLS, the webhook emitter and inbound processing.
+Built by T6: the SMTP listener (`src/smtp/`, plugin `src/plugins/smtp.ts`).
+Design: every other endpoint, the send pipeline body, REST TLS, the webhook emitter and inbound processing.
 Tracks T1–T8 build the design parts (`docs/11` §3.2).
 
 postmock is one Node 24 process with one in-memory state.
@@ -11,7 +12,7 @@ A test drives it through a separate control port.
 
 ```
 SDK or app ──── REST  http :8080 (built), https :443 (design) ──┐
-SMTP client ─── SMTP  :25 :587 :2525, STARTTLS (design) ────────┤
+SMTP client ─── SMTP  :25 :587 :2525, STARTTLS (built) ─────────┤
                                                                 ├── postmock ── webhook emitter (design) ──► customer URLs
 test runner ─── control API  http :8025 (built) ────────────────┘
 ```
@@ -36,7 +37,7 @@ A misrouted request gets 401 from real Postmark and sends nothing.
 | REST, plain http | `127.0.0.1:8080` | `POSTMOCK_HOST`, `POSTMOCK_API_PORT` | Server-token and account-token API on any host, at `/` | built |
 | REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
-| SMTP | 25, 587, 2525 | `POSTMOCK_SMTP_*` (plugin) | Postmark SMTP (`docs/07`) | design (T6, `src/plugins/`) |
+| SMTP | `127.0.0.1:0` (a free port) | `POSTMOCK_SMTP_PORTS` (comma list; every port serves the same endpoint), `POSTMOCK_SMTP_TLS_KEY` + `POSTMOCK_SMTP_TLS_CERT` (PEM files; offers STARTTLS) | Postmark SMTP (`docs/07`). For Postmark's ports set `2525` and map 25 and 587 to it (`-p 25:2525 -p 587:2525 -p 2525:2525`). | built |
 | Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_*` (plugin) | Every RecordType, retries on the clock (`docs/05`) | design (T5, `src/plugins/`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
@@ -78,7 +79,7 @@ The handler cannot choose another success status.
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer | design (T3) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
-| `src/smtp/` | SMTP listener; started by a plugin | design (T6) |
+| `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
 
@@ -130,6 +131,13 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | Domain and signature DNS (DKIM, Return-Path CNAME) | verified only through the control API | — |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
+| SMTP behavior nobody captured: `POSTMARK_API_TEST` as AUTH, an SMTP token with `X-PM-Message-Stream` naming another stream | SMTP 502 with the reason | `docs/07` Q4, Q13 |
+| SMTP bad credentials, SMTP disabled, revoked token | 535 at AUTH (and at MAIL/DATA on an open connection) | `docs/07` Q3 |
+| SMTP message over 10 MB | 552 at `MAIL FROM SIZE=` or at DATA | `docs/07` Q3 |
+| SMTP DATA reply | `250 Ok: queued as <MessageID>`; for a rejected message, the MessageID of its `SMTPApiError` bounces | `docs/07` Q1 |
+| SMTP idle connection | never closed; a control fault sends 421 | `docs/07` Q11 |
+| SMTP delivered copy (`rawSource`) | incoming `X-PM-*` removed; `X-PM-Tag`, `X-PM-Message-Id` added; `Message-ID: <MessageID@mtasv.net>` unless `X-PM-KeepID: true` | `docs/07` Q8 |
+| `SMTPApiError` bounce | one per affected recipient; `Content` = `ErrorCode`, `Message`, raw MIME | `docs/07` Q9 |
 
 ## Traps
 
@@ -148,3 +156,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | `614` and `1226` appear under several families; `501` and `1408` use several statuses; `1406` appears only inside 200 bodies. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
 | Many docs/02 §4.4 rows summarize several messages (300, 700, 1000, 1122, …). Those rows are marked `summary`; the caller passes the exact wire text. | `src/errors.ts` |
 | `setTimeout` fires at once for a delay above 2^31−1 ms. The clock arms no real timer past that limit. | Node timers |
+| `smtp-server` reads `socketTimeout: 0` and `closeTimeout: 0` as its defaults (60 s, 30 s). The SMTP listener passes 2^31−1 ms (never idle-close) and 1 ms. | `smtp-server` `lib/smtp-connection.js:585` |
+| nodemailer writes header names in title case (`X-PM-Metadata-client-id` → `X-Pm-Metadata-Client-ID`). Metadata keys keep the wire case, so a nodemailer send gets `Client-ID`. | `src/smtp/smtp.test.ts` |
+| The CRLF before the terminating `.` ends the last body line: a single-part SMTP `TextBody` ends in `\n`. | RFC 5321 §4.1.1.4 |
+| An SMTP message problem is never an SMTP reject: SMTP answers 250 and records `SMTPApiError` bounces (`smtpApiError` event). | `docs/07` §1.4 |

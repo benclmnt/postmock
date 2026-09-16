@@ -172,7 +172,7 @@ function addMetadata(metadata: Record<string, string>, key: string, value: strin
  * The copy Postmark delivers and serves as the raw source: incoming `X-PM-*` headers removed
  * (docs/07 §1.3), `X-PM-Message-Id` and `X-PM-Tag` added as in the dump example
  * (refs/api_messages-api.md:276), and every `Message-ID` replaced unless `X-PM-KeepID: true`
- * (refs/user-guide_send-email-with-smtp.md:101-103). The replacement form `<MessageID@mtasv.net>`
+ * (refs/user-guide_send-email-with-smtp.md:101). The replacement form `<MessageID@mtasv.net>`
  * is INFERRED. The body bytes stay unchanged.
  */
 export function deliveredSource(
