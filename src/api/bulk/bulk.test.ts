@@ -179,6 +179,26 @@ describe("bulk send (docs/03 §1.6)", () => {
     });
   });
 
+  it("stops a request whose sender reaches an uncaptured state before release", async () => {
+    const { runtime, call, control, finish } = setup();
+    const sent = await call("POST", "/email/bulk", request([{ To: "a@example.com" }]));
+    expect(sent.status).toBe(200);
+    for (const domain of runtime.store.state.domains.values()) {
+      Object.assign(domain, { DKIMVerified: false, ReturnPathDomainVerified: true });
+    }
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await finish(1);
+    errors.mockRestore();
+    const res = await control.request(`/control/bulk/${sent.json.Id}`);
+    expect(await res.json()).toMatchObject({
+      Status: "Processing",
+      ReleasedCount: 0,
+      FailedCount: 0,
+      Unsupported: expect.stringContaining("without verified DKIM"),
+    });
+    expect(runtime.store.state.outbound.size).toBe(0);
+  });
+
   it("stops and reports a request that reaches uncaptured behavior on the clock", async () => {
     const { runtime, call, control, finish } = setup();
     const sent = await call("POST", "/email/bulk", request([{ To: "a@example.com" }]));
