@@ -96,19 +96,18 @@ const bounce = (serverId: number, fields: Partial<Bounce> = {}): Bounce => ({
 describe("webhook emitter", () => {
   it("POSTs a Delivery event to the verified row with the trigger on and to the server hook URL", async () => {
     const { runtime, server, receiver } = await setup();
-    const on = { Enabled: true };
-    addWebhook(runtime, server.ID, {
+    const delivery = { Delivery: { Enabled: true } };
+    const addRow = (fields: Partial<Webhook>, triggers: Partial<WebhookTriggers> = delivery) =>
+      addWebhook(runtime, server.ID, fields, triggers);
+    addRow({
       Url: `${receiver.url}/row?token=abc`,
       HttpAuth: { Username: "user", Password: "pass" },
       HttpHeaders: [{ Name: "X-Custom", Value: "1" }],
-      Triggers: { ...addWebhook(runtime, server.ID, {}).Triggers, Delivery: on },
     });
-    addWebhook(runtime, server.ID, { Url: `${receiver.url}/unverified`, Status: "unverified" });
-    addWebhook(runtime, server.ID, {
-      Url: `${receiver.url}/broadcast`,
-      MessageStream: "broadcast",
-    });
-    server.DeliveryHookUrl = receiver.url.replace("http://", "http://legacy:secret@") + "/legacy";
+    addRow({ Url: `${receiver.url}/off` }, {});
+    addRow({ Url: `${receiver.url}/unverified`, Status: "unverified" });
+    addRow({ Url: `${receiver.url}/broadcast`, MessageStream: "broadcast" });
+    server.DeliveryHookUrl = `${receiver.url.replace("http://", "http://legacy:secret@")}/legacy`;
 
     await deliver(runtime, server.ID);
 
@@ -200,6 +199,17 @@ describe("webhook emitter", () => {
     await deliver(runtime, server.ID);
     expect(receiver.received.map((r) => r.path)).toEqual(["/0", "/1", "/2", "/3"]);
     expect(runtime.store.state.webhookAttempts[0]?.result).toBe("success");
+  });
+
+  it("retries after an eleventh redirect", async () => {
+    const { runtime, server, receiver } = await setup(() => ({ redirect: "/again" }));
+    server.DeliveryHookUrl = receiver.url;
+    await deliver(runtime, server.ID);
+    expect(receiver.received).toHaveLength(11);
+    expect(runtime.store.state.webhookAttempts[0]).toMatchObject({
+      outcome: { error: "more than 10 redirects" },
+      result: "retry",
+    });
   });
 
   it("adds bounce Content only for a hook that includes it", async () => {
