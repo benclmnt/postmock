@@ -73,7 +73,7 @@ The handler cannot choose another success status.
 | `src/api/<group>/` | Other API groups | design (T2–T5, T7) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
-| `src/pipeline/` | `submitOutbound`: validation, stream, account approval, suppression check, store, `sent`; address lists; 406 wording | built (T1) |
+| `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer | design (T3) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
@@ -93,7 +93,7 @@ A change to a contract below goes through the integrator.
 | Errors | `src/errors.ts` | `apiError(code, { family?, status?, message? \| params?, extra? })`; `errorBody(code, …)` for a batch item. A `summary` row needs `message`, used verbatim; `params` fill `{name}` only in a `message` row; `extra` cannot set `ErrorCode` or `Message`. `isSummaryRow`, `ERROR_FAMILIES`. |
 | Normalization | `src/http/normalize.ts` | `ctx.query.get/all/prefixed/pick(schema)`; codecs `queryBool`, `queryInt`, `queryDate`; `parseBody(schema, ctx.body)`; codecs `absent`, `intLike`, `objectOrEmptyArray`, `base64` |
 | Responses | `src/http/respond.ts` | `paged(key, items, count, offset)`; `Unsupported` |
-| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, bulkRequestId, templateId }): Promise<SubmitResult>`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). `submitOutbound` owns every type, syntax and limit check and each ErrorCode. |
+| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, rawSource?, bulkRequestId, templateId }): Promise<SubmitResult>` = `validateOutbound(runtime, submission): Validation` (no state change) then `await acceptOutbound(runtime, outbound)`. JSON channels build the draft with `draftFromJson`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). `submitOutbound` owns every type, syntax and limit check and each ErrorCode. |
 | Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `await events.emit(name, payload)` awaits each listener in order. Listeners may be async; later work goes on the clock. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
 | Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)` (throws while seeding); `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
 | Servers | `src/state/servers.ts` | `createServer(store, now, settings)` and `addAccountToken(store, token)` refuse a token held twice (without case) and `POSTMARK_API_TEST`; `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
@@ -115,7 +115,8 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A send `From` that no sender signature or domain covers | accepted: postmock does not check senders | `docs/03` §8 Q3 |
 | A message over 10 MB, a body part over 5 MB, a batch over 50 MB (HTTP 413) | 501, plain text | `docs/02` §9 Q10 |
 | A send to an archived stream | 501, plain text | `docs/04` Q15 |
-| An `/email` body that is not a JSON object; a batch body that is not an array | 501, plain text | `docs/02` §9 Q16 |
+| An `/email` body that is not a JSON object; a batch body that is not an array of objects | 501, plain text | `docs/02` §9 Q16 |
+| An unknown `MessageStream` in a batch | 501, plain text; the batch sends nothing | `docs/03` §8 Q14 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | A bug in postmock | 500, plain text with the stack | — |
@@ -137,5 +138,4 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A route pattern with a literal wins over a param at the same position (`PUT /templates/push` before `/templates/:idOrAlias`). | `docs/08` §2.5 |
 | `614` and `1226` appear under several families; `501` and `1408` use several statuses; `1406` appears only inside 200 bodies. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
 | Many docs/02 §4.4 rows summarize several messages (300, 700, 1000, 1122, …). Those rows are marked `summary`; the caller passes the exact wire text. | `src/errors.ts` |
-| A batch item 406 has its own wording ("a recipient that has been", trailing space). A send route builds its response with `sendResponse` or `batchItem` (`src/api/email/json.ts`), never from `SubmitResult` by hand. | `docs/03` §3.2 |
 | `setTimeout` fires at once for a delay above 2^31−1 ms. The clock arms no real timer past that limit. | Node timers |

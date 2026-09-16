@@ -205,10 +205,10 @@ Applies to `/email/batch` and `/email/batchWithTemplates`.
 | --- | --- | --- |
 | HTTP status with per-item errors | 200 | `refs/api_email-api.md`; `refs/api_templates-api.md` **DOC** |
 | Result order | Same as request | same **DOC** |
-| Error item shape | `{ErrorCode, Message}`; no `MessageID`, `SubmittedAt`, `To` | `refs/api_email-api.md` (406 example) **DOC**; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:246-249` (MessageID empty GUID) **SDK** |
+| Error item shape | `{ErrorCode, Message}`; no `MessageID`, `SubmittedAt`, `To`. postmock keeps this shape (`docs/08` E14). | `refs/api_email-api.md` (406 example) **DOC**; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:246-249` (MessageID empty GUID) **SDK** |
 | Per-item errors seen | 300, 406, 1101 | `refs/api_email-api.md` **DOC**; `ClientTemplateTests.cs:247` **SDK** |
 | Whole-request errors | 401 token, 402 invalid JSON, 410 > 500 items, 413 > 50 MB | `refs/api_overview.md` **DOC**; split rule **INFERRED** |
-| Stream error 1235 in a batch | Unknown: per item or whole request | open question |
+| Stream error 1235 in a batch | Unknown: per item or whole request. postmock answers 501 and sends nothing; no SDK live test asserts either. | open question (Q14) |
 
 ## 3. Validation errors
 
@@ -252,8 +252,8 @@ postmock `Message` texts for the undocumented 300 cases (`src/pipeline/submit.ts
 | Case | postmock `Message` |
 | --- | --- |
 | `From` absent, malformed, or more than one address | `Invalid 'From' address: '<value>'.` (form of the documented `To` text) |
+| `To` absent or with no address (also when `Cc` or `Bcc` has one) | `Invalid 'To' address: '<value>'.` |
 | `Cc`, `Bcc`, `ReplyTo` malformed | `Invalid '<field>' address: '<value>'.` |
-| No recipient in `To`, `Cc`, `Bcc` | `Zero recipients specified` |
 | More than 50 recipients | `Exceeded the maximum of 50 recipients per message.` |
 | No `TextBody` and no `HtmlBody` | `Provide either email TextBody or HtmlBody or both.` |
 | `From` > 255, `Subject` > 2000, `Tag` > 1000 | `The '<field>' field exceeds the maximum length of <n> characters.` |
@@ -281,7 +281,7 @@ Notes:
 
 No source gives the order. Proposed mock order: token (401) → headers (415) → size (413) → JSON (402) → unknown fields (403) → batch count (410) → per-message: stream (1235/1236) → From signature → address syntax (300) → recipient count (300) → body present (300) → metadata/tag/subject limits (300) → attachments (411, 300) → template (11xx) → suppression (406). **INFERRED**
 
-postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → test token stops here → account approval (413, 412) → suppression (406). postmock does not check `From` against sender signatures (Q3). **INFERRED**
+postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → `To` present (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → end of `validateOutbound`; test token stops here → account approval (413, 412) → suppression (406). postmock does not check `From` against sender signatures (Q3). **INFERRED**
 
 ## 4. Test token and sandbox
 
