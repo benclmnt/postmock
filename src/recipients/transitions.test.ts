@@ -193,15 +193,35 @@ describe("T14: retention", () => {
 });
 
 describe("control refusals: only states a real recipient event can produce", () => {
-  it("refuses an address suppressed at send time, a repeated bounce type, and a queued message", async () => {
-    const { deliver, controlPost } = await kit();
+  it("refuses an address suppressed at send time, a bounce after a final one, a stream purged since the send, and a queued message", async () => {
+    const { deliver, controlPost, call, runtime } = await kit();
     const skipped = deliver("hardbounce@example.com");
     const bounce = (messageId: string, recipient: string) =>
       controlPost("/control/bounces", { messageId, recipient, type: "HardBounce" });
     expect((await bounce(skipped.MessageID, "hardbounce@example.com")).status).toBe(400);
     const message = deliver("twice@example.com");
+    const soft = { messageId: message.MessageID, recipient: "twice@example.com" };
+    expect((await controlPost("/control/bounces", { ...soft, type: "Transient" })).status).toBe(
+      200,
+    );
     expect((await bounce(message.MessageID, "twice@example.com")).status).toBe(200);
-    expect((await bounce(message.MessageID, "twice@example.com")).status).toBe(400);
+    expect((await controlPost("/control/bounces", { ...soft, type: "SoftBounce" })).status).toBe(
+      400,
+    );
+    await call("POST", "/message-streams", {
+      ID: "promo",
+      Name: "Promo",
+      MessageStreamType: "Broadcasts",
+    });
+    const onPromo = deliver("promo@example.com", "promo");
+    await call("POST", "/message-streams/promo/archive");
+    await runtime.clock.advance(45 * DAY);
+    await call("POST", "/message-streams", {
+      ID: "promo",
+      Name: "Promo",
+      MessageStreamType: "Broadcasts",
+    });
+    expect((await bounce(onPromo.MessageID, "promo@example.com")).status).toBe(400);
     const queued = deliver("queued@example.com");
     queued.Status = "Queued";
     expect((await bounce(queued.MessageID, "queued@example.com")).status).toBe(400);

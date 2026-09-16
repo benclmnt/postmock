@@ -80,7 +80,9 @@ describe("message streams", () => {
     await call("POST", rows, { Suppressions: [{ EmailAddress: "a@example.com" }] });
     await call("POST", "/message-streams/promo/archive");
     await runtime.clock.advance(45 * DAY);
-    expect(runtime.store.state.suppressions.size).toBe(1); // the seeded outbound row
+    const inPromo = (rows: Iterable<{ MessageStream: string }>) =>
+      [...rows].filter((r) => r.MessageStream === "promo");
+    expect(inPromo(runtime.store.state.suppressions.values())).toEqual([]);
     expect((await call("POST", "/message-streams", create("promo", "Broadcasts"))).status).toBe(
       200,
     );

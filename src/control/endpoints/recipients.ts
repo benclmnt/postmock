@@ -39,6 +39,11 @@ function delivered(ctx: ControlContext, input: z.output<typeof target>) {
   if (email === undefined) {
     throw new ControlError(`${input.recipient} is not a recipient of ${message.MessageID}`);
   }
+  const stream = ctx.store.state.streams.get(streamKey(message.ServerID, message.MessageStream));
+  // A purged stream, or a new stream with the same ID, never carried this message.
+  if (stream === undefined || stream.CreatedAt.getTime() > message.ReceivedAt.getTime()) {
+    throw new ControlError(`stream ${message.MessageStream} of ${message.MessageID} is gone`);
+  }
   if (message.Status === "Queued") {
     throw new ControlError(`message ${message.MessageID} is queued, not delivered`);
   }
@@ -47,19 +52,21 @@ function delivered(ctx: ControlContext, input: z.output<typeof target>) {
   if (row !== undefined && row.CreatedAt.getTime() <= message.ReceivedAt.getTime()) {
     throw new ControlError(`${email} was suppressed when ${message.MessageID} was sent`);
   }
-  return { message, email };
+  return { message, email, stream };
 }
 
-/** One message reaches one recipient once, so it bounces with a given type at most once. */
-function refuseRepeat(
-  ctx: ControlContext,
-  message: OutboundMessage,
-  email: string,
-  type: BounceType,
-) {
+/**
+ * One message ends once per recipient: after a bounce or complaint other than a `Transient` delay,
+ * no further bounce or complaint comes (INFERRED).
+ */
+function refuseAfterFinal(ctx: ControlContext, message: OutboundMessage, email: string) {
   for (const bounce of ctx.store.state.bounces.values()) {
-    if (bounce.MessageID === message.MessageID && bounce.Email === email && bounce.Type === type) {
-      throw new ControlError(`${message.MessageID} already has a ${type} for ${email}`);
+    if (
+      bounce.MessageID === message.MessageID &&
+      bounce.Email === email &&
+      bounce.Type !== "Transient"
+    ) {
+      throw new ControlError(`${message.MessageID} already has a ${bounce.Type} for ${email}`);
     }
   }
 }
@@ -101,7 +108,7 @@ defineControl({
       ctx.body,
     );
     const { message, email } = delivered(ctx, input);
-    refuseRepeat(ctx, message, email, input.type);
+    refuseAfterFinal(ctx, message, email);
     const bounce = await known(() =>
       recordBounce(ctx, {
         message,
@@ -121,7 +128,7 @@ defineControl({
   handler: async (ctx) => {
     const input = controlInput(target.extend({ dump: z.string().optional() }), ctx.body);
     const { message, email } = delivered(ctx, input);
-    refuseRepeat(ctx, message, email, "SpamComplaint");
+    refuseAfterFinal(ctx, message, email);
     const bounce = await known(() =>
       recordBounce(ctx, {
         message,
@@ -141,11 +148,10 @@ defineControl({
   method: "POST",
   path: "/control/events/unsubscribe",
   handler: async (ctx) => {
-    const { message, email } = delivered(ctx, controlInput(target, ctx.body));
-    const stream = ctx.store.state.streams.get(streamKey(message.ServerID, message.MessageStream));
+    const { message, email, stream } = delivered(ctx, controlInput(target, ctx.body));
     // Postmark adds its unsubscribe link only on such a stream (docs/04 §3.2 T5).
     if (
-      stream?.MessageStreamType !== "Broadcasts" ||
+      stream.MessageStreamType !== "Broadcasts" ||
       stream.SubscriptionManagementConfiguration.UnsubscribeHandlingType !== "Postmark"
     ) {
       throw new ControlError(
