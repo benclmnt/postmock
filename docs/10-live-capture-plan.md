@@ -197,8 +197,8 @@ Estimated volume for the full plan: under 170 messages (C61 is 50 of them).
 
 | Id | Human step | Needed by |
 | --- | --- | --- |
-| H1 | In the Postmark UI, create a new server `postmark-mock-capture` with type **Sandbox**. Do not reuse an existing server. | G2, G3, G4 |
-| H2 | Copy that server's API token into `.env.capture` at the repo root as `CAPTURE_SERVER_TOKEN`. Add `CAPTURE_SERVER_NAME=postmark-mock-capture`. Add `.env.capture` to `.gitignore`. | G2–G4 |
+| H1 | In the Postmark UI, create a new server `postmock-capture` with type **Sandbox**. Do not reuse an existing server. | G2, G3, G4 |
+| H2 | Copy that server's API token into `.env.capture` at the repo root as `CAPTURE_SERVER_TOKEN`. Add `CAPTURE_SERVER_NAME=postmock-capture`. Add `.env.capture` to `.gitignore`. | G2–G4 |
 | H3 | Pick a `From` address that the account already allows (confirmed signature or verified domain), preferably on a test domain. Put it in `.env.capture` as `CAPTURE_FROM`. | G2–G4 |
 | H4 | Enable SMTP on the sandbox server's `outbound` stream settings. | G4 |
 | H5 | Approve the send budget (§2.1 R8) and the account's monthly volume headroom. | G2–G4 |

@@ -124,7 +124,7 @@ Feature-complete = every phase exit check green.
 
 | Phase | Scope | Exit check |
 | --- | --- | --- |
-| P0 Capture | Run the `docs/10` P0 questions on a dedicated sandbox server | Every P0 C-id answered in `captures/` |
+| P0 Capture (deferred, `docs/11` B2) | Run the `docs/10` P0 questions on a dedicated sandbox server | Every P0 C-id answered in `captures/` |
 | P1 Transport, auth, errors, sending | TLS + http listeners, token auth, ErrorCode table, `POST /email`, `/email/batch`, faults, control API, Compose + test CA | postmark.js `Sending.test.ts` (non-template cases); rails `delivery_spec.rb`, `batch_delivery_spec.rb`; php `PostmarkClientEmailTest.php`; `docs/10` G0 + G1 scenarios conform |
 | P2 Suppressions, bounces, streams | state model and transitions between them (`docs/04`); 406 on send | postmark.js `Suppressions`, `Bounce`, `MessageStreams`; dotnet `ClientSuppressionTests`, `ClientBounceTests`, `ClientMessageStreamTests`; java `SuppressionsTest`, `BounceTest`, `MessageStreamsTest`; `g2-inactive`, `g2-suppressions` conform |
 | P3 Templates, bulk | templates CRUD + validate, Mustachio renderer, `withTemplate`, `batchWithTemplates`, bulk | postmark.js `Templates`; dotnet `ClientTemplateTests`, `ClientBulkSendingTests`; php `PostmarkClientTemplatesTest.php`; java `TemplateTest`, `TemplatedMessageTest`; cli `email.template.test.ts` |
@@ -141,12 +141,12 @@ Test names come from `sdk/*/test*` directory listings; case lists per file come 
 | # | Decision | Default if nobody decides |
 | --- | --- | --- |
 | D1 | Default routing in docs and Compose example: base-URL option (A) or DNS + test CA (B)? Local dev without Compose: a local DNS server (B), or D preload (REST only)? | A for SDK users; B in Compose; B with a local DNS server locally |
-| D2 | Who provisions the Postmark sandbox server and tokens for captures? | human steps H1–H12, `docs/10` human steps |
+| D2 | Who provisions the Postmark sandbox server and tokens for captures? | **Decided:** captures deferred (`docs/11` B2) |
 | D3 | SDK suites: TLS listener in the mock, or shims and proxies per SDK? | plain http + shims (`docs/08` conformance test approach); the TLS listener still ships for option B |
 | D4 | Java conformance: one-line host edit in a local copy, or hosts file + TLS? | hosts file + TLS (keeps the suite unmodified) |
 | D5 | Clone `nodemailer-postmark-transport` for profiling, or drop it? | drop; nodemailer is covered through SMTP |
 | D6 | Types from a patched spec, or hand-written zod? | hand-written zod; the spec is a cross-check |
-| D7 | Project name and trademark. "Postmark" is a mark of ActiveCampaign. Check before publishing. | a descriptive name (for example "postmark-compatible mock"); README disclaimer: not affiliated with or endorsed by Postmark or ActiveCampaign |
+| D7 | Project name and trademark. "Postmark" is a mark of ActiveCampaign. | **Decided:** postmock; npm `@benclmnt/postmock`; README disclaimer (`docs/11` B1) |
 | D8 | License | MIT |
 | D9 | `refs/` redistribution. Postmark docs are copyrighted. | do not commit `refs/`; `tools/fetch-refs.sh` recreates it (`AGENTS.md` rule 8) |
 | D10 | Clone postmark.js 4.0.2 to profile the CLI, or accept rows inferred from 5.1.0? | no; accept inferred rows |

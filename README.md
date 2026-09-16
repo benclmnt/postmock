@@ -1,4 +1,4 @@
-# postmark-mock
+# postmock
 
 A mock Postmark server in TypeScript, for testing code that sends email through Postmark.
 Real, unmodified clients talk to it: every official Postmark SDK, and plain SMTP clients.
@@ -8,9 +8,9 @@ Tests then read what was sent, seed suppressions and bounces, inject faults, and
 
 ## Status
 
-Research complete; server not built yet.
+Research complete; server not built yet. `docs/11` is the build plan.
 The docs record Postmark's behavior from its public docs, its Swagger specs, and the official SDKs.
-Nothing is CAPTURED from real Postmark yet; `docs/10` is the plan. `docs/09` sets the build order.
+Nothing is CAPTURED from real Postmark yet; `docs/10` is a later fidelity pass.
 
 ## Why
 
@@ -53,7 +53,8 @@ Existing open-source mocks answer `POST /email` only, with no errors, suppressio
 | `docs/07-smtp-sandbox-limits.md` | SMTP and `X-PM-*` headers, sandbox mode, bounce-testing addresses, limits |
 | `docs/08-sdk-client-matrix.md` | How each official SDK sends and parses; endpoint coverage; spec bugs; conformance plan |
 | `docs/09-implementation-options.md` | TypeScript design, routing options, control API, phases, decisions |
-| `docs/10-live-capture-plan.md` | Open questions and a safe capture harness design |
+| `docs/10-live-capture-plan.md` | Open questions and a safe capture harness design (deferred) |
+| `docs/11-build-plan.md` | Waves, parallel tracks, conformance runners, definition of done |
 | `tools/fetch-sources.sh` | Clones the official SDKs into `sdk/` at the commits the docs cite |
 | `tools/fetch-refs.sh` | Downloads Postmark's docs and Swagger specs into `refs/` |
 
