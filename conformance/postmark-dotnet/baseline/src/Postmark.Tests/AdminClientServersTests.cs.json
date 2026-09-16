@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "AdminClientServersTests.AdminClient_CanCreateServer",
+    "AdminClientServersTests.AdminClient_CanDeleteServer",
+    "AdminClientServersTests.AdminClient_CanEditServer",
+    "AdminClientServersTests.AdminClient_CanGetServer",
+    "AdminClientServersTests.AdminClient_CanListServers"
+  ]
+}

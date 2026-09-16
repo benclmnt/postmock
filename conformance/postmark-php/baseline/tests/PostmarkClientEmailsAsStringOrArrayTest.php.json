@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "PostmarkClientEmailsAsStringOrArrayTest::testCanSendArray",
+    "PostmarkClientEmailsAsStringOrArrayTest::testCanSendString"
+  ]
+}

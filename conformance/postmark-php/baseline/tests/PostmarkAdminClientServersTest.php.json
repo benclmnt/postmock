@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "PostmarkAdminClientServersTest::testClientCanCreateServer",
+    "PostmarkAdminClientServersTest::testClientCanDeleteServer",
+    "PostmarkAdminClientServersTest::testClientCanEditServer",
+    "PostmarkAdminClientServersTest::testClientCanGetServerList",
+    "PostmarkAdminClientServersTest::testClientCanGetSingleServer"
+  ]
+}

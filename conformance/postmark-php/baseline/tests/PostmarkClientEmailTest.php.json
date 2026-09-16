@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "PostmarkClientEmailTest::testClientCanSendBasicMessage",
+    "PostmarkClientEmailTest::testClientCanSendBatchMessages",
+    "PostmarkClientEmailTest::testClientCanSendMessageWithFileSystemAttachment",
+    "PostmarkClientEmailTest::testClientCanSendMessageWithRawAttachment",
+    "PostmarkClientEmailTest::testClientCanSetMessageStream",
+    "PostmarkClientEmailTest::testClientSendModel",
+    "PostmarkClientEmailTest::testRequestSentWithCustomGuzzleClientHasCorrectUri"
+  ]
+}

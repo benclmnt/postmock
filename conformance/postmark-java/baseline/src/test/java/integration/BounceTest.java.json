@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "BounceTest.activateBounce",
+    "BounceTest.bounceById",
+    "BounceTest.bounceByIdDump",
+    "BounceTest.bounceList",
+    "BounceTest.bounceListEmpty",
+    "BounceTest.deliveryStats",
+    "BounceTest.invalidBounceList"
+  ]
+}

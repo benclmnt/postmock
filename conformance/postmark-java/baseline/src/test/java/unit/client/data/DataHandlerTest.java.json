@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "DataHandlerTest.fromJson",
+    "DataHandlerTest.fromJsonTypeReference",
+    "DataHandlerTest.liberalMapper",
+    "DataHandlerTest.strictMapper",
+    "DataHandlerTest.toJson"
+  ]
+}

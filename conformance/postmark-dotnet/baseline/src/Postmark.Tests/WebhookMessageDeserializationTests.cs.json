@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "WebhookMessageDeserializationTests.CanDeserializeClickWebhook",
+    "WebhookMessageDeserializationTests.CanDeserializeSpamComplaintWebhook",
+    "WebhookMessageDeserializationTests.CanDeserializeSubscriptionChangeWebhook",
+    "WebhookMessageDeserializationTests.SubscriptionChangeReactivationHasNullSuppressionReason"
+  ]
+}

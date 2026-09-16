@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "Delivering messages with postmark-rails delivers a message with attachments",
+    "Delivering messages with postmark-rails delivers a message with inline image",
+    "Delivering messages with postmark-rails delivers a message with metadata",
+    "Delivering messages with postmark-rails delivers a multipart message",
+    "Delivering messages with postmark-rails delivers a simple message",
+    "Delivering messages with postmark-rails delivers a tagged message"
+  ]
+}

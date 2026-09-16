@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "HttpClientErrorHandlerTest.throw401error",
+    "HttpClientErrorHandlerTest.throw408error",
+    "HttpClientErrorHandlerTest.throw422error",
+    "HttpClientErrorHandlerTest.throw500error",
+    "HttpClientErrorHandlerTest.throw501error"
+  ]
+}

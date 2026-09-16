@@ -1,0 +1,12 @@
+{
+  "passing": [
+    "ParametersTest.build",
+    "ParametersTest.dateFromParameter",
+    "ParametersTest.dateToParameter",
+    "ParametersTest.init",
+    "ParametersTest.initString",
+    "ParametersTest.integerParameter",
+    "ParametersTest.multipleParameters",
+    "ParametersTest.stringParameter"
+  ]
+}

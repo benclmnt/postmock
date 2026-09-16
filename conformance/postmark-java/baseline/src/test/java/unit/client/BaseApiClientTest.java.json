@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "BaseApiClientTest.getBaseUrl",
+    "BaseApiClientTest.getEndpointUrl",
+    "BaseApiClientTest.getHttpClient"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "HttpClientTest.execute",
+    "HttpClientTest.executeIncorrectLink",
+    "HttpClientTest.getClient"
+  ]
+}

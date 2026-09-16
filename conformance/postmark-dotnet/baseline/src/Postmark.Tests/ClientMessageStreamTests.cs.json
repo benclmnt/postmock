@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "ClientMessageStreamTests.ClientCanArchiveStreams",
+    "ClientMessageStreamTests.ClientCanCreateMessageStream",
+    "ClientMessageStreamTests.ClientCanEditMessageStream",
+    "ClientMessageStreamTests.ClientCanGetMessageStream",
+    "ClientMessageStreamTests.ClientCanListArchivedStreams",
+    "ClientMessageStreamTests.ClientCanListMessageStreams",
+    "ClientMessageStreamTests.ClientCanUnArchiveStreams"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Account API client usage manage domains",
+    "Account API client usage manage senders",
+    "Account API client usage manage servers",
+    "Account API client usage manages data removals"
+  ]
+}

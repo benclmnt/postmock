@@ -1,0 +1,13 @@
+{
+  "passing": [
+    "createWebhook refuses zero triggers (validation)",
+    "diagnoseDelivery (configured recipient)",
+    "diagnoseDelivery (recipient with no recent sends)",
+    "editTemplate refuses no-op (validation)",
+    "finishes",
+    "getServerInfo",
+    "listSuppressions",
+    "searchBounces (count=1)",
+    "tools/list (24 expected)"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "DataRemovalTest.getDataRemovalStatus",
+    "DataRemovalTest.requestDataRemoval"
+  ]
+}

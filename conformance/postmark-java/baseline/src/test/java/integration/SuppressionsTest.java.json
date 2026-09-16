@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "SuppressionsTest.createSuppression",
+    "SuppressionsTest.deleteSuppression",
+    "SuppressionsTest.getSuppressions"
+  ]
+}

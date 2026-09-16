@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "MessageStreamsTest.archive",
+    "MessageStreamsTest.edit",
+    "MessageStreamsTest.list",
+    "MessageStreamsTest.listWithParameter"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "PostmarkAdminClientDataRemovalTest::testCheckDataRemovalRequest",
+    "PostmarkAdminClientDataRemovalTest::testClientCanCreateRequest"
+  ]
+}

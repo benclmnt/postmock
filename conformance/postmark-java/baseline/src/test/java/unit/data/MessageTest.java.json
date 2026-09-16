@@ -1,0 +1,21 @@
+{
+  "passing": [
+    "MessageTest.addAttachmentWithContentId",
+    "MessageTest.addImageAttachment",
+    "MessageTest.addMultipleAttachments",
+    "MessageTest.addPdfAttachment",
+    "MessageTest.addTextAttachment",
+    "MessageTest.attachmentException",
+    "MessageTest.simpleMessage",
+    "MessageTest.simpleMessageBccRecipients",
+    "MessageTest.simpleMessageBcccRecipientsFullName",
+    "MessageTest.simpleMessageCcRecipients",
+    "MessageTest.simpleMessageCcRecipientsFullName",
+    "MessageTest.simpleMessageToRecipients",
+    "MessageTest.simpleMessageToRecipientsFullName",
+    "MessageTest.simpleMessageWithHeaders",
+    "MessageTest.singleMessageFromRecipient",
+    "MessageTest.singleMessageFromRecipientFullName",
+    "MessageTest.singleMessageToRecipient"
+  ]
+}

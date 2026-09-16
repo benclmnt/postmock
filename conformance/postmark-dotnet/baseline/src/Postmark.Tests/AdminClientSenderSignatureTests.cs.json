@@ -1,0 +1,15 @@
+{
+  "passing": [
+    "AdminClientSenderSignatureTests.AdminClient_CanCreateSenderSignature",
+    "AdminClientSenderSignatureTests.AdminClient_CanCreateSignatureWithReturnPath",
+    "AdminClientSenderSignatureTests.AdminClient_CanDeleteSenderSignature",
+    "AdminClientSenderSignatureTests.AdminClient_CanGetSenderSignature",
+    "AdminClientSenderSignatureTests.AdminClient_CanListSenderSignatures",
+    "AdminClientSenderSignatureTests.AdminClient_CanUpdateSenderSignatureReturnPath",
+    "AdminClientSenderSignatureTests.AdminClient_CanUpdateSenderSignatures",
+    "AdminClientSenderSignatureTests.AdminClient_CanVerifySPF",
+    "AdminClientSenderSignatureTests.AdminClient_ResendSignatureVerificationEmailAsync",
+    "AdminClientSenderSignatureTests.CreateSignatureAsync_WithConfirmationPersonalNote_CreatesProperly",
+    "AdminClientSenderSignatureTests.UpdateSignatureAsync_WithConfirmationPersonalNote_UpdatesProperly"
+  ]
+}

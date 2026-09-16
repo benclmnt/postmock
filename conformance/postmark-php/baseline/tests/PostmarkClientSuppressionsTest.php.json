@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "PostmarkClientSuppressionsTest::testClientCanCreateMultipleSuppressions",
+    "PostmarkClientSuppressionsTest::testClientCanCreateSuppressions",
+    "PostmarkClientSuppressionsTest::testClientCanReactivateSuppressions",
+    "PostmarkClientSuppressionsTest::testDefaultMessageStream",
+    "PostmarkClientSuppressionsTest::testGetSuppressionsIsNotEmpty",
+    "PostmarkClientSuppressionsTest::testInvalidMessageStreamThrowsException",
+    "PostmarkClientSuppressionsTest::testInvalidSuppressionChangeRequestReturnsFailedStatus"
+  ]
+}

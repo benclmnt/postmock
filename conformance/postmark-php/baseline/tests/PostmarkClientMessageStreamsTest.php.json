@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "PostmarkClientMessageStreamsTest::testClientCanArchiveStreams",
+    "PostmarkClientMessageStreamsTest::testClientCanCreateMessageStream",
+    "PostmarkClientMessageStreamsTest::testClientCanEditMessageStream",
+    "PostmarkClientMessageStreamsTest::testClientCanGetMessageStream",
+    "PostmarkClientMessageStreamsTest::testClientCanListArchivedStreams",
+    "PostmarkClientMessageStreamsTest::testClientCanListMessageStreams",
+    "PostmarkClientMessageStreamsTest::testClientCanUnarchiveStreams"
+  ]
+}

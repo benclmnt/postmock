@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "Default command parameters help",
+    "Default command parameters no parameters",
+    "Default command parameters version"
+  ]
+}

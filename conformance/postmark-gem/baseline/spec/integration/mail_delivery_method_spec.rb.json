@@ -1,0 +1,13 @@
+{
+  "passing": [
+    "Sending Mail::Messages with delivery_method Mail::Postmark delivers a message with attachment",
+    "Sending Mail::Messages with delivery_method Mail::Postmark delivers a plain text message",
+    "Sending Mail::Messages with delivery_method Mail::Postmark delivers a tagged message",
+    "Sending Mail::Messages with delivery_method Mail::Postmark fails to deliver a message  without body - raise error",
+    "Sending Mail::Messages with delivery_method Mail::Postmark fails to deliver a message with invalid To address - do not deliver",
+    "Sending Mail::Messages with delivery_method Mail::Postmark fails to deliver a message with invalid To address - raise error",
+    "Sending Mail::Messages with delivery_method Mail::Postmark fails to deliver a message without body - do not deliver",
+    "Sending Mail::Messages with delivery_method Mail::Postmark updates a message object with X-PM-Message-Id",
+    "Sending Mail::Messages with delivery_method Mail::Postmark updates a message object with full postmark response"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "passing": [
+    "Sending Mail::Messages with Postmark::ApiClient batch message custom max_batch_size response - message responses count",
+    "Sending Mail::Messages with Postmark::ApiClient batch message custom max_batch_size response - valid response objects",
+    "Sending Mail::Messages with Postmark::ApiClient batch message doesn't deliver a batch of invalid Mail::Message objects",
+    "Sending Mail::Messages with Postmark::ApiClient batch message partially delivers a batch of partially valid Mail::Message objects",
+    "Sending Mail::Messages with Postmark::ApiClient batch message response - message responses count",
+    "Sending Mail::Messages with Postmark::ApiClient batch message response - valid Mail::Message objects",
+    "Sending Mail::Messages with Postmark::ApiClient batch message response - valid X-PM-Message-Ids",
+    "Sending Mail::Messages with Postmark::ApiClient batch message response - valid response objects",
+    "Sending Mail::Messages with Postmark::ApiClient invalid API code doesn't deliver messages",
+    "Sending Mail::Messages with Postmark::ApiClient single message fails to deliver a message with invalid To address",
+    "Sending Mail::Messages with Postmark::ApiClient single message fails to deliver a message without body",
+    "Sending Mail::Messages with Postmark::ApiClient single message message with attachment",
+    "Sending Mail::Messages with Postmark::ApiClient single message plain text message",
+    "Sending Mail::Messages with Postmark::ApiClient single message response Message-ID",
+    "Sending Mail::Messages with Postmark::ApiClient single message response is Hash"
+  ]
+}

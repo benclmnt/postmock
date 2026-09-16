@@ -1,0 +1,14 @@
+{
+  "passing": [
+    "Sending messages as Ruby hashes with Postmark::ApiClient batch message custom max_batch_size response message count",
+    "Sending messages as Ruby hashes with Postmark::ApiClient batch message doesn't deliver a batch of invalid Mail::Message objects",
+    "Sending messages as Ruby hashes with Postmark::ApiClient batch message partially delivers a batch of partially valid Mail::Message objects",
+    "Sending messages as Ruby hashes with Postmark::ApiClient batch message response messages count",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message fails to deliver a message with invalid To address",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message fails to deliver a message without body",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message message with attachment",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message plain text message",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message response Message-ID",
+    "Sending messages as Ruby hashes with Postmark::ApiClient single message response is Hash"
+  ]
+}

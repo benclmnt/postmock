@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "createSuppressions",
+    "deleteSuppressions",
+    "finishes",
+    "listSuppressions (call succeeds)",
+    "sendBatch (3 messages, formatter renders)",
+    "sendEmail (real send)"
+  ]
+}

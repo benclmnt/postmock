@@ -1,0 +1,14 @@
+{
+  "passing": [
+    "AdminClientDomainsTests.AdminClient_CanCallVerifyDomainDkim",
+    "AdminClientDomainsTests.AdminClient_CanCallVerifyDomainReturnPath",
+    "AdminClientDomainsTests.AdminClient_CanClearDomainReturnPath",
+    "AdminClientDomainsTests.AdminClient_CanCreateDomain",
+    "AdminClientDomainsTests.AdminClient_CanCreateDomainWithReturnPath",
+    "AdminClientDomainsTests.AdminClient_CanDeleteDomain",
+    "AdminClientDomainsTests.AdminClient_CanGetDomain",
+    "AdminClientDomainsTests.AdminClient_CanListDomains",
+    "AdminClientDomainsTests.AdminClient_CanUpdateDomainReturnPath",
+    "AdminClientDomainsTests.AdminClient_ShouldProduceErrorStatusForInvalidDomain"
+  ]
+}

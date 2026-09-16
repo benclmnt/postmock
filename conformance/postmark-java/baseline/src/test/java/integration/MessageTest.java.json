@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "MessageTest.invalidApiToken",
+    "MessageTest.send"
+  ]
+}

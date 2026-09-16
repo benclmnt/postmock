@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "ClientSendingTests.Client_CanSendABatchOfMessages",
+    "ClientSendingTests.Client_CanSendAPostmarkMessage",
+    "ClientSendingTests.Client_CanSendAPostmarkMessageWithEmptyTrackLinks",
+    "ClientSendingTests.Client_CanSendASingleMessage",
+    "ClientSendingTests.UnknownMessageStream_ThrowsException"
+  ]
+}

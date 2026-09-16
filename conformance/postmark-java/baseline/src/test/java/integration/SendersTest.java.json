@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "SendersTest.createSignature",
+    "SendersTest.deleteSignature",
+    "SendersTest.list",
+    "SendersTest.listById"
+  ]
+}

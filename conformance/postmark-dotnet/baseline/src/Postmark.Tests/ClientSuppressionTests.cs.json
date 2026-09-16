@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "ClientSuppressionTests.ClientCanDeleteSuppressions",
+    "ClientSuppressionTests.ClientCanFilterSuppressionsByEmail",
+    "ClientSuppressionTests.ClientCanListSuppressions",
+    "ClientSuppressionTests.ClientCanSuppressRecipients",
+    "ClientSuppressionTests.InvalidRequest_HasFailedStatus"
+  ]
+}

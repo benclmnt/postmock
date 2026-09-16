@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "PostmarkAdminClientDomainTest::testClientCanCreateDomain",
+    "PostmarkAdminClientDomainTest::testClientCanDeleteDomain",
+    "PostmarkAdminClientDomainTest::testClientCanEditDomain",
+    "PostmarkAdminClientDomainTest::testClientCanGetDomainList",
+    "PostmarkAdminClientDomainTest::testClientCanGetSingleDomain",
+    "PostmarkAdminClientDomainTest::testClientCanVerifyDKIM",
+    "PostmarkAdminClientDomainTest::testClientCanVerifyReturnPath"
+  ]
+}

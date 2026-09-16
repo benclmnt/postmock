@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "PostmarkAdminClientSenderSignatureTest::testClientCanCreateSignature",
+    "PostmarkAdminClientSenderSignatureTest::testClientCanDeleteSignature",
+    "PostmarkAdminClientSenderSignatureTest::testClientCanEditSignature",
+    "PostmarkAdminClientSenderSignatureTest::testClientCanGetSignatureList",
+    "PostmarkAdminClientSenderSignatureTest::testClientCanGetSingleSignature",
+    "PostmarkAdminClientSenderSignatureTest::testClientCanRequestNewVerificationForSignature"
+  ]
+}

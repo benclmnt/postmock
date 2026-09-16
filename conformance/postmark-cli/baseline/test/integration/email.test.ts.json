@@ -1,0 +1,13 @@
+{
+  "passing": [
+    "Email send command not valid no arguments",
+    "Email send command not valid no body",
+    "Email send command not valid no mandatory arguments missing :from",
+    "Email send command not valid no mandatory arguments missing :subject",
+    "Email send command not valid no mandatory arguments missing :to",
+    "Email send command not valid no mandatory arguments missing :to, :from, :subject",
+    "Email send command valid html message",
+    "Email send command valid multipart message",
+    "Email send command valid text message"
+  ]
+}

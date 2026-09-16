@@ -1,0 +1,12 @@
+{
+  "passing": [
+    "PostmarkTest.getAccountApiClient",
+    "PostmarkTest.getAccountApiClientCustomBaseUrl",
+    "PostmarkTest.getAccountApiClientCustomUrl",
+    "PostmarkTest.getAccountApiClientSecure",
+    "PostmarkTest.getApiClient",
+    "PostmarkTest.getApiClientCustomBaseUrl",
+    "PostmarkTest.getApiClientCustomUrl",
+    "PostmarkTest.getApiClientSecure"
+  ]
+}

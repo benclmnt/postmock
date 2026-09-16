@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "PostmarkClientTests.ClientCanRetrieveBounces",
+    "PostmarkClientTests.ClientCanRetrieveServerInformation",
+    "PostmarkClientTests.ClientCanSendMessage",
+    "PostmarkClientTests.ClientProducesDeliveryStats"
+  ]
+}
