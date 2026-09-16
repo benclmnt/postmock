@@ -5,11 +5,13 @@ import {
   absent,
   base64,
   decodeJsonBody,
+  inclusiveUpperBound,
   intLike,
   objectOrEmptyArray,
   parseBody,
   parseQueryDate,
   Query,
+  type QueryDate,
   queryBool,
   queryDate,
   queryInt,
@@ -111,6 +113,14 @@ describe("R5 query dates", () => {
 
   it("rejects other text through the zod codec", () => {
     expect(queryDate.safeParse("yesterday").success).toBe(false);
+  });
+
+  it("ends an inclusive date-only todate at the next Eastern midnight, also on DST days", () => {
+    const end = (text: string) => inclusiveUpperBound(parseQueryDate(text) as QueryDate);
+    expect(end("2020-02-01")).toEqual(new Date("2020-02-02T05:00:00Z"));
+    expect(end("2024-03-10")).toEqual(new Date("2024-03-11T04:00:00Z"));
+    expect(end("2024-11-03")).toEqual(new Date("2024-11-04T05:00:00Z"));
+    expect(end("2020-02-01T10:00:00Z")).toEqual(new Date("2020-02-01T10:00:00.001Z"));
   });
 });
 

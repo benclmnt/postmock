@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError } from "../errors.ts";
-import { easternWallTime } from "../time.ts";
+import { easternWallTime, formatEasternDate } from "../time.ts";
 import { Unsupported } from "./respond.ts";
 
 // Request normalization: the accept rules of docs/08 §4.1. SDKs disagree on key case,
@@ -111,6 +111,19 @@ export function parseQueryDate(value: string): QueryDate | undefined {
   const offset =
     zone === "Z" ? 0 : (zone.startsWith("-") ? -1 : 1) * (zoneHours * 60 + zoneMinutes);
   return { instant: new Date(utc - offset * 60000), dateOnly: false };
+}
+
+/**
+ * The exclusive end of an inclusive `todate`: the next Eastern midnight for a date-only value,
+ * else the instant plus 1 ms.
+ */
+export function inclusiveUpperBound({ instant, dateOnly }: QueryDate): Date {
+  if (!dateOnly) return new Date(instant.getTime() + 1);
+  // 30 h past a midnight is inside the next day on 23 h and 25 h DST days.
+  const [y, m, d] = formatEasternDate(new Date(instant.getTime() + 30 * 3600_000))
+    .split("-")
+    .map(Number);
+  return easternWallTime(y as number, m as number, d as number);
 }
 
 export const queryDate = z.string().transform((value, ctx) => {
