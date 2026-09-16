@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Client - Click Statistics getClickCounts",
+    "Client - Click Statistics getClickBrowserUsage",
+    "Client - Click Statistics getEmailOpenPlatformUsage",
+    "Client - Click Statistics getClickLocation"
+  ]
+}

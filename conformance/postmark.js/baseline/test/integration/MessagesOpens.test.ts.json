@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Client - Message Statistics getMessageOpens",
+    "Client - Message Statistics getEmailOpenCounts",
+    "Client - Message Statistics getEmailPlatformUsage",
+    "Client - Message Statistics getEmailClientUsage"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Client - Message Statistics getOutboundMessages",
+    "Client - Message Statistics getOutboundMessageDetails",
+    "Client - Message Statistics getInboundMessages",
+    "Client - Message Statistics getInboundMessageDetails"
+  ]
+}

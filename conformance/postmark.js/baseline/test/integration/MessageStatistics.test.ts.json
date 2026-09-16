@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "Client - Message Statistics getSentCounts",
+    "Client - Message Statistics getBounceCounts",
+    "Client - Message Statistics getSpamComplaints",
+    "Client - Message Statistics getTrackedEmailCounts",
+    "Client - Message Statistics getOutboundOverview"
+  ]
+}
