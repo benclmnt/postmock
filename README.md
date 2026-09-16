@@ -8,7 +8,8 @@ Tests then read what was sent, seed suppressions and bounces, inject faults, and
 
 ## Status
 
-Research complete; server not built yet. `docs/11` is the build plan.
+The foundation (W0) is built: REST listener, auth, ErrorCode table, `GET /server`, control API skeleton, postmark.js conformance runner.
+The other endpoints, SMTP and webhooks are in progress. `docs/11` is the build plan; `ARCHITECTURE.md` marks what is built.
 The docs record Postmark's behavior from its public docs, its Swagger specs, and the official SDKs.
 Nothing is CAPTURED from real Postmark yet; `docs/10` is a later fidelity pass.
 
@@ -44,6 +45,13 @@ Existing open-source mocks answer `POST /email` only, with no errors, suppressio
 | Path | Content |
 | --- | --- |
 | `AGENTS.md` | Rules for working in this repo (`CLAUDE.md` links to it) |
+| `ARCHITECTURE.md` | Listeners, modules, request flow, shared contracts, traps |
+| `CONTROL-API.md` | Test-facing control API: principle, shape, endpoints, seeds |
+| `TESTING.md` | Gates, conformance runners, results and baseline, test traps |
+| `flake.nix` | Dev shell with every toolchain the SDK suites need |
+| `src/` | The server (`ARCHITECTURE.md` "Modules") |
+| `seeds/` | Named seeds: `empty`, `conformance` |
+| `conformance/` | One runner per SDK suite, baselines, skip lists |
 | `docs/01-client-reachability.md` | How clients pick the host; routing an unmodified app to the mock; client parsing of server text; surface tiers |
 | `docs/02-transport-auth-errors.md` | Hosts, headers, tokens, `POSTMARK_API_TEST`, error envelope, ErrorCode table, SDK error mapping, JSON and paging rules |
 | `docs/03-sending.md` | `/email`, batch, templates, bulk; validation and ErrorCodes; sandbox; tracking after accept |

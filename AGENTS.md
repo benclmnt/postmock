@@ -1,6 +1,8 @@
 1. Read `README.md` first: goal, scope, layout. This repo builds postmock, a mock Postmark
    **server** in TypeScript. Real, unmodified Postmark clients (every official
    SDK, and plain SMTP clients) talk to it as if it were Postmark.
+   `ARCHITECTURE.md` is the design and the shared contracts, `CONTROL-API.md` the
+   test-facing API, and `TESTING.md` how to verify the mock.
 2. Scope is every official SDK's surface: server-token API, account-token API,
    SMTP, and outbound webhooks. `docs/11` is the build plan. Done means every
    official SDK's live integration suite passes (`conformance/`).
@@ -22,7 +24,17 @@
 8. `sdk/` and `refs/` are git-ignored: they hold third-party code and Postmark's
    copyrighted docs. Recreate them with `tools/fetch-sources.sh` and
    `tools/fetch-refs.sh`. Line cites into `refs/` match the 2026-09-16 snapshot.
+   Never modify files under `sdk/`.
 9. `grep` may be ugrep: a complex regex can report 0 hits. Use Python for
    anything beyond a plain string search.
 10. Write docs in Simplified Technical English: short active sentences, one
     fact per line, tables over prose.
+11. Do not keep old methods or compatibility shims. This is a new project with no
+    compatibility concerns.
+12. The control API never produces a state that a real Postmark client action or
+    a real Postmark event could not produce (`CONTROL-API.md`).
+13. This repo has no remote. Commit locally; never add a remote or push.
+14. Commit your changes before you finish your turn.
+15. Read the traps before debugging: server and client traps in `ARCHITECTURE.md`,
+    test and harness traps in `TESTING.md`. When a new trap costs you an hour,
+    add it there.
