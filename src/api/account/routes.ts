@@ -271,15 +271,20 @@ defineRoute({
     const sender = findSender(store.state, params.id as string);
     if (body === undefined) throw apiError(502);
     const input = parseAccountBody(senderSchema.omit({ FromEmail: true }), body);
+    // Check every field before the first change: a rejected edit changes nothing.
+    const replyTo = input.ReplyToEmail === undefined ? undefined : checkReplyTo(input.ReplyToEmail);
+    const returnPath =
+      typeof input.ReturnPathDomain === "string"
+        ? checkSenderReturnPath(input.ReturnPathDomain, sender.EmailAddress)
+        : undefined;
+    const note =
+      input.ConfirmationPersonalNote === undefined
+        ? undefined
+        : checkNote(input.ConfirmationPersonalNote);
     if (input.Name !== undefined) sender.Name = input.Name;
-    if (input.ReplyToEmail !== undefined)
-      sender.ReplyToEmailAddress = checkReplyTo(input.ReplyToEmail);
-    if (typeof input.ReturnPathDomain === "string") {
-      setReturnPath(sender, checkSenderReturnPath(input.ReturnPathDomain, sender.EmailAddress));
-    }
-    if (input.ConfirmationPersonalNote !== undefined) {
-      sender.ConfirmationPersonalNote = checkNote(input.ConfirmationPersonalNote);
-    }
+    if (replyTo !== undefined) sender.ReplyToEmailAddress = replyTo;
+    if (returnPath !== undefined) setReturnPath(sender, returnPath);
+    if (note !== undefined) sender.ConfirmationPersonalNote = note;
     return senderJson(sender);
   },
 });

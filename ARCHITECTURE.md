@@ -124,6 +124,9 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A field of the wrong JSON type on an account-token body | 501, plain text | capture |
 | `DeliveryType` change on `PUT /servers/{id}`; a signature without `Name`; a successful `requestnewdkim` | 501, plain text | capture |
 | `InboundDomain` on a server: no MX lookup (ErrorCode 610 never occurs) | accepted | — |
+| An unknown sender signature | 404 + ErrorCode 501 (the doc allows 422 or 404); an unknown domain is 422 + 510 | capture |
+| Free mail domains refused for a signature (ErrorCode 503) | a fixed list of 8 domains | capture |
+| A verified DKIM key replaces an older key | the old key becomes revoked with `SafeToRemoveRevokedKeyFromDNS: true` at once | capture |
 | Domain and signature DNS (DKIM, Return-Path CNAME) | verified only through the control API | — |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |

@@ -61,6 +61,7 @@ export function pushTemplates(
     (t): t is Template & { Alias: string } => t.Alias !== null,
   );
   if (sources.length === 0) {
+    // The message is INFERRED (a summary row).
     throw apiError(1124, { message: "No templates with aliases found to push." });
   }
   const destination = active(destinationServer.ID);
@@ -92,7 +93,8 @@ export function pushTemplates(
     }
     return {
       Action: target === undefined ? "Create" : "Edit",
-      // postmark.js types TemplateId as optional: a dry-run Create has no destination template yet (INFERRED).
+      // postmark.js types TemplateId as optional; a dry-run Create has no destination template yet,
+      // so it omits TemplateId (INFERRED; the doc example is a real push, refs/api_templates-api.md:420-428).
       ...(templateId !== undefined && { TemplateId: templateId }),
       Alias: source.Alias,
       Name: source.Name,

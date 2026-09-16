@@ -171,6 +171,17 @@ describe("sender signatures", () => {
     expect((await controlPost(`/control/senders/${sender.ID}/confirm`)).status).toBe(400);
   });
 
+  it("a rejected edit changes nothing", async () => {
+    const { call } = await setup();
+    const { json: sender } = await call("POST", "/senders", {
+      FromEmail: "ed@new.org",
+      Name: "Ed",
+    });
+    const edit = await call("PUT", `/senders/${sender.ID}`, { Name: "New", ReplyToEmail: "bad" });
+    expect(edit.json.ErrorCode).toBe(522);
+    expect((await call("GET", `/senders/${sender.ID}`)).json.Name).toBe("Ed");
+  });
+
   it("validates create input", async () => {
     const { call } = await setup();
     expect((await call("POST", "/senders", { Name: "x" })).json.ErrorCode).toBe(520);

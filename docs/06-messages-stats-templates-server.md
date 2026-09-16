@@ -279,6 +279,7 @@ The doc example shows `ContentIsValid: true` beside a non-empty `ValidationError
 | Response | `{TotalCount, Templates: [{Action: Create\|Edit, TemplateId, Alias, Name, TemplateType}]}` | `:406-430` **DOC** |
 | Match rule | by alias; templates without alias are not pushed | `:359` **DOC**; `refs/api_overview.md:91` **DOC** |
 | Errors | 601 server not found; 1124 nothing to push; 1125 type mismatch | `refs/api_overview.md:82`, `:91-92` **DOC** |
+| 601 wire texts | Server ID 1 is not in the live accounts. `The source and destination servers were not found.`, `The destination server was not found.`, `The source server was not found.` | `sdk/postmark.js/test/integration/Templates.test.ts:178-211`; `sdk/postmark-java/src/test/java/integration/TemplatePushTest.java:22-26` **SDK** |
 
 ### 3.5 Mustachio syntax
 
@@ -342,7 +343,7 @@ Fields (GET response; PUT response is the same):
 
 Disagreements:
 - OpenAPI lists lowercase colors and misspells `turqoise`. `refs/openapi/server.yml:109-110` **DOC**
-- The tables list capitalized colors; every response example shows lowercase (`refs/api_servers-api.md:67`, `:431`, `:457`) **DOC**. The live tests send `red`, `purple`, `yellow` and read the same value back: `sdk/postmark.js/test/integration/Servers.test.ts:57-70`, `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientServersTests.cs:37`, `:110`, `sdk/postmark-gem/spec/integration/account_api_client_spec.rb:101-102` **SDK**. The mock matches a color without case and answers lowercase.
+- The tables list capitalized colors; every response example shows lowercase (`refs/api_servers-api.md:67`, `:431`, `:457`) **DOC**. The live tests send `red`, `purple`, `yellow` and read the same value back: `sdk/postmark.js/test/integration/Servers.test.ts:57-70`, `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientServersTests.cs:37`, `:108`, `sdk/postmark-gem/spec/integration/account_api_client_spec.rb:101-102` **SDK**. The mock matches a color without case and answers lowercase.
 - The PUT response table types `DeliveryType` as boolean. `refs/api_server-api.md:171` **DOC**. The GET table says string. Trust string. **INFERRED**
 
 ### 4.2 Servers API (account token)
@@ -381,7 +382,7 @@ Verification (domains and signatures):
 | `verifyspf` answers `SPFVerified: true` for a new domain or signature with no DNS. | `account_api_client_spec.rb:33`, `:73` **SDK** |
 | `verifyDkim` and `verifyReturnPath` answer the entity, also when DNS is not ready. | `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientDomainsTests.cs:130-147` **SDK** |
 | A Return-Path on a domain without DNS is accepted at create and edit (no ErrorCode 523). | `sdk/postmark.js/test/integration/Domains.test.ts:63-70` **SDK** |
-| Push to or from server ID 1 is "not found" for the live accounts. Wire texts: `The source and destination servers were not found.`, `The destination server was not found.`, `The source server was not found.` | `sdk/postmark.js/test/integration/Templates.test.ts:178-211`; `sdk/postmark-java/src/test/java/integration/TemplatePushTest.java:22-26` **SDK** |
+
 Errors 510–523. `refs/api_overview.md:170-180` **DOC**
 
 ### 4.4 Sender Signatures API (account token)
