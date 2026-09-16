@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "MessagesTest.exception",
+    "MessagesTest.inboundMessageById",
+    "MessagesTest.list",
+    "MessagesTest.listInbound",
+    "MessagesTest.messageById",
+    "MessagesTest.messageByIdDump",
+    "MessagesTest.messageByIdWithParameters"
+  ]
+}

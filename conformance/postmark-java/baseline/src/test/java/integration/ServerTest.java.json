@@ -1,3 +1,5 @@
 {
-  "passing": ["ServerTest.list"]
+  "passing": [
+    "ServerTest.list"
+  ]
 }

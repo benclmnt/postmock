@@ -1,3 +1,5 @@
 {
-  "passing": ["TemplatedMessageTest.metadata"]
+  "passing": [
+    "TemplatedMessageTest.metadata"
+  ]
 }
