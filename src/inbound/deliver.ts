@@ -11,7 +11,8 @@ import { inboundPayload } from "../webhooks/payloads.ts";
  */
 export async function deliverInbound(runtime: Runtime, message: InboundMessage): Promise<void> {
   const server = runtime.store.state.servers.get(message.ServerID);
-  if (server === undefined) throw new Error(`inbound message ${message.MessageID}: no server`);
+  // Like outbound events, an event of a server that no longer exists goes nowhere.
+  if (server === undefined) return;
   if (server.InboundHookUrl === "") {
     message.Status = "Processed";
     return;
