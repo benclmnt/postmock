@@ -74,12 +74,14 @@ The handler cannot choose another success status.
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
 | `src/api/bounces/`, `src/api/suppressions/`, `src/api/message-streams/`, `src/api/data-removals/` | Bounce, Suppressions, Message Streams and Data Removals APIs (`docs/04`) | built (T2) |
 | `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events. `MessageEvents` on the message come from listeners of those events (T4). | built (T2) |
-| `src/api/<group>/` | Other API groups | design (T3–T5) |
+| `src/api/templates/` | Templates CRUD, `/templates/validate`, `/email/withTemplate`, `/email/batchWithTemplates` | built (T3; push: T7) |
+| `src/api/bulk/` | `/email/bulk` send, status, list; processing on the clock | built (T3) |
+| `src/api/<group>/` | Other API groups | design (T4, T5) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
-| `src/render/` | Mustachio renderer | design (T3) |
+| `src/render/` | Mustachio renderer: parse errors, render, suggested model | built (T3) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants in `seeds/lib/`) | built (more parts: tracks) |
@@ -138,6 +140,10 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | Free mail domains refused for a signature (ErrorCode 503) | a fixed list of 8 domains | capture |
 | A verified DKIM key replaces an older key | the old key becomes revoked with `SafeToRemoveRevokedKeyFromDNS: true` at once | capture |
 | Domain and signature DNS (DKIM, Return-Path CNAME) | verified only through the control API | — |
+| Template syntax the article omits (`{{! }}`, `{{> }}`), `{{#x}}` on a list, `{{x}}` on an object or list | 501, plain text | `docs/06` §3.5 |
+| Rendered HTML with a `<style>` block while `InlineCss` is on (default) | 501, plain text | `docs/06` Q12 |
+| A `TemplateType` change on edit; a new alias for a layout in use | 501, plain text | `docs/06` §3.2 |
+| A bulk send on a non-broadcast stream; `GET /email/bulk` without `count` 1–500 | 501, plain text | `docs/03` Q20 |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 | SMTP behavior nobody captured: `POSTMARK_API_TEST` as AUTH, an SMTP token with `X-PM-Message-Stream` naming another stream | SMTP 502 with the reason | `docs/07` Q4, Q13 |

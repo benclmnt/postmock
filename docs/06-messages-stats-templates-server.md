@@ -251,6 +251,10 @@ Behavior notes:
 - Delete response: `{ErrorCode: 0, Message: "Template 1234 removed."}`. `refs/api_templates-api.md:769-771` **DOC**
 - A deleted template stays readable with `Active: false`. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:112-115` **SDK** (live-API test)
 - List response `Templates[]` has `Active`, `TemplateId`, `Name`, `Alias`, `TemplateType`, `LayoutTemplate`. `refs/api_templates-api.md:712-731` **DOC**
+- A deleted template leaves the list: `TotalCount` drops from 10 to 9. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:151-157` **SDK** (live-API test)
+- A layout created without `Alias` gets an alias. The live tests read it and never set it. `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-56`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:55-63` **SDK**. The format is unknown; postmock uses `layout-<TemplateId>`. **INFERRED**
+- Edit changes only the fields sent. postmark.js sends `{Name}` alone; php sends only `LayoutTemplate`. `null` keeps a value; `LayoutTemplate: ""` clears it. `sdk/postmark.js/test/integration/Templates.test.ts:101`; `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:84-92`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:92-99` **SDK**
+- The edit doc omits `TemplateType` from the response; postmark-python requires it. `sdk/postmark-python/postmark/models/templates/schemas.py:109-115` **SDK**. postmock sends it. **INFERRED**
 - The Get example returns two objects side by side, which is not valid JSON. It also shows `"LayoutTemplate": "null"` as a string. `refs/api_templates-api.md:476-499` **DOC**. Treat both as doc errors. **INFERRED**
 
 ### 3.3 Validate
@@ -266,6 +270,9 @@ Response:
 | `ValidationErrors[]` | never null; `{Message, Line, CharacterPosition}`, 1-based; `Line`/`CharacterPosition` may be null | `:842` **DOC**; `refs/openapi/server.yml:876-884` **DOC** |
 | `RenderedContent` | render with `SuggestedTemplateModel` merged with `TestRenderModel` | `:843` **DOC** |
 | `SuggestedTemplateModel` | every key found in the template; placeholder value `<key>_Value`; merged with `TestRenderModel` | `:844`, `:873-878` **DOC** |
+
+A list key gets three items in `SuggestedTemplateModel`. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:193-205` **SDK** (live-API test). The doc example shows one item (`refs/api_templates-api.md:880-884`); the live test wins (`docs/11` B3).
+A part that the request does not send is `null` in the response. **INFERRED** from a unit fixture, `sdk/postmark-python/tests/test_templates.py:373-375`.
 
 Validate with a layout: `RenderedContent` is the layout with `{{{ @content }}}` replaced by the template. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:219-221` **SDK**
 
@@ -316,6 +323,7 @@ The article's example output drops the colon after "Employees" and closes `<ul>`
 | Template list paging / bad `TemplateType` | 422 | 1100 | — | `refs/api_overview.md:83` **DOC** |
 | Layout in use on delete | 422 | 1130 | — | `refs/api_overview.md:93` **DOC** |
 | Layout placeholder rules | 422 | 1131 | — | `refs/api_overview.md:94` **DOC** |
+| Check order | — | — | template lookup (1101) before `TemplateModel` (1120): the live test sends no model and gets 1101 | `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:236-248` **SDK** |
 | Model value missing for a used key | 200 | 0 | renders empty; not an error | **INFERRED** (Mustachio is permissive, `refs/support_article_1077-template-syntax.md:111`) |
 
 ## 4. Server, Servers, Domains, Sender Signatures
@@ -535,3 +543,6 @@ Domains and Sender Signatures (§4.3–§4.4):
 | Q9 | For `/email/withTemplate` with an unknown `TemplateId` (not alias): the exact 1101 message. | Only the alias message is known (§3.6). |
 | Q10 | Does the `tag` filter match case-sensitively? | Filter parity on messages, opens, clicks and stats. |
 | Q11 | Is the empty result `{"TotalCount": 0, "Opens": []}` for an unknown tag? | A §5.1 paging loop stops on `TotalCount`. |
+| Q12 | What does CSS inlining (`InlineCss`, `InlineCssForHtmlTestRender`) produce, byte for byte? | postmock answers 501 for rendered HTML with a `<style>` block. |
+| Q13 | Does `/email/withTemplate` accept a missing `TemplateModel`? The gem drops an empty model before it sends (`sdk/postmark-gem/lib/postmark/mail_message_converter.rb:20-22,38`). | postmock follows the doc: 1120. |
+| Q14 | Mustachio edge rules: the HTML-encoded character set, boolean text (`True`?), `0` in a section, `{{#x}}` on a list, comments, and the syntax error texts. | §3.5 rows marked INFERRED. |
