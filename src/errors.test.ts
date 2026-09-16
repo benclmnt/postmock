@@ -48,8 +48,8 @@ describe("ERROR_TABLE", () => {
   });
 
   it("uses the doc text as the message template", () => {
-    ERROR_TABLE.forEach(([code, , , message], i) => {
-      if (!MESSAGE_OVERRIDES.has(code)) expect(message).toBe(documented[i]?.message);
+    ERROR_TABLE.forEach(([code, , , , text], i) => {
+      if (!MESSAGE_OVERRIDES.has(code)) expect(text).toBe(documented[i]?.message);
     });
   });
 });
@@ -77,9 +77,10 @@ describe("errorBody / apiError", () => {
   });
 
   it("requires a status for a code with several statuses", () => {
-    expect(() => apiError(501)).toThrow("needs a status");
-    expect(apiError(501, { status: 404 }).status).toBe(404);
-    expect(() => apiError(501, { status: 400 })).toThrow("needs a status");
+    const message = "Signature not found.";
+    expect(() => apiError(501, { message })).toThrow("needs a status");
+    expect(apiError(501, { message, status: 404 }).status).toBe(404);
+    expect(() => apiError(501, { message, status: 400 })).toThrow("needs a status");
   });
 
   it("refuses an HTTP error for a code that only appears inside 200 bodies", () => {
@@ -93,8 +94,20 @@ describe("errorBody / apiError", () => {
     expect(() => errorBody(9999)).toThrow("not in docs/02");
   });
 
+  it("needs the exact message for a summary row", () => {
+    expect(() => apiError(300)).toThrow("summary row");
+    const message = "Zero recipients specified";
+    expect(apiError(300, { message }).body).toEqual({ ErrorCode: 300, Message: message });
+  });
+
+  it("uses a caller message verbatim, braces included (Mustachio text)", () => {
+    const message = "Unexpected '{{name}' in template";
+    expect(errorBody(1122, { message }).Message).toBe(message);
+  });
+
   it("merges extra keys (ErrorCode 11 Errors)", () => {
-    const error = apiError(11, { extra: { Errors: { From: [] } } });
+    const message = "Multiple errors occurred. Inspect the Errors property for more information.";
+    const error = apiError(11, { message, extra: { Errors: { From: [] } } });
     expect(error.body.Errors).toEqual({ From: [] });
   });
 });
