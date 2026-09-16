@@ -38,7 +38,7 @@ A misrouted request gets 401 from real Postmark and sends nothing.
 | REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
 | SMTP | `127.0.0.1:0` (a free port) | `POSTMOCK_SMTP_PORTS` (comma list; every port serves the same endpoint), `POSTMOCK_SMTP_TLS_KEY` + `POSTMOCK_SMTP_TLS_CERT` (PEM files; offers STARTTLS) | Postmark SMTP (`docs/07`). For Postmark's ports set `2525` and map 25 and 587 to it (`-p 25:2525 -p 587:2525 -p 2525:2525`). | built |
-| Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_*` (plugin) | Every RecordType, retries on the clock (`docs/05`) | design (T5, `src/plugins/`) |
+| Webhook emitter | outbound | — | Every RecordType, retries on the clock (`docs/05`); POSTs with `fetch` to the configured URLs | built (`src/plugins/webhooks.ts`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
@@ -69,7 +69,7 @@ The handler cannot choose another success status.
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
 | `src/discover.ts` | Imports route, control and seed-part files from disk in filename order | built |
 | `src/api/index.ts` | Loads every `src/api/<group>/routes.ts` | built |
-| `src/api/server/` | `GET /server`; `serverJson` for the Servers API | built (`PUT /server`: T5) |
+| `src/api/server/` | `GET/PUT /server`; `serverJson`; `PUT` uses `editServer` from `src/api/account/servers.ts` | built |
 | `src/api/account/` | Account-token API: servers, domains, sender signatures, template push | built (T7) |
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
 | `src/api/bounces/`, `src/api/suppressions/`, `src/api/message-streams/`, `src/api/data-removals/` | Bounce, Suppressions, Message Streams and Data Removals APIs (`docs/04`) | built (T2) |
@@ -78,7 +78,9 @@ The handler cannot choose another success status.
 | `src/api/bulk/` | `/email/bulk` send, status, list; processing on the clock | built (T3) |
 | `src/api/messages/` | Messages API: outbound and inbound search and details, dump, opens, clicks; paging caps (inbound bypass and retry: T5) | built (T4) |
 | `src/api/stats/` | Stats API from recorded facts; `readtimes` answers 501 | built (T4) |
-| `src/api/<group>/` | Other API groups | design (T5) |
+| `src/api/webhooks/` | `/webhooks` list, get, create, edit, delete; `verify` and `statistics` answer 501 | built (T5) |
+| `src/api/triggers/` | `/triggers/inboundrules` list, create, delete | built (T5) |
+| `src/api/inbound/` | `PUT /messages/inbound/{id}/bypass`, `/retry` | built (T5) |
 | `src/state/` | Entity types, `Store` (incl. `stats` facts), ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
@@ -86,7 +88,9 @@ The handler cannot choose another success status.
 | `src/render/` | Mustachio renderer: parse errors, render, suggested model | built (T3) |
 | `src/tracking.ts` | Recipient actions: delivery (writes the `Delivered` event), open, click; refuses what a real recipient could not do | built (T4) |
 | `src/plugins/stats.ts`, `src/plugins/message-events.ts` | Stats facts from events; `MessageEvents` for bounces, complaints, subscription changes, first opens and first clicks | built (T4) |
-| `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
+| `src/webhooks/` | Payloads per RecordType, hook selection, delivery with retries and the attempt log | built |
+| `src/inbound/` | MIME compose and parse, server routing, rules, spam threshold, hook delivery | built |
+| `src/plugins/webhooks.ts` | Subscribes the emitter to every domain event | built |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants, `read-server.ts` and `history.ts` past traffic in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
@@ -150,6 +154,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A bulk send on a non-broadcast stream; `GET /email/bulk` without `count` 1–500 | 501, plain text | `docs/03` Q20 |
 | A bulk message that reaches uncaptured behavior on the clock (a stream archived after accept) | the request stops releasing and never completes; the reason goes to stderr and `GET /control/bulk/:id` | `docs/03` §1.6 |
 | A bug in postmock | 500, plain text with the stack | — |
+| Webhook create or edit with `Verify: true`; `POST /webhooks/{id}/verify`; `GET /webhooks/{id}/statistics` | 501, plain text. Without `Verify`, a webhook saves `verified` with no probe (SDK live tests) | `docs/05` Q13, Q19 |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 | SMTP behavior nobody captured: `POSTMARK_API_TEST` as AUTH, an SMTP token with `X-PM-Message-Stream` naming another stream | SMTP 502 with the reason | `docs/07` Q4, Q13 |
 | SMTP bad credentials, SMTP disabled, revoked token | 535 at AUTH (and at MAIL/DATA on an open connection) | `docs/07` Q3 |

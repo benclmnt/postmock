@@ -111,6 +111,8 @@ Verify failure body:
 Source: `refs/api_webhooks-api.md:381-393` **DOC**
 Conflict: the 1364 error text says "send `?verify=false`" (query string). `refs/api_overview.md:221` **DOC**
 Conflict: the webhooks page says `Verify` is a body field. `refs/api_webhooks-api.md:306` **DOC**
+Conflict V1: SDK live tests create webhooks with no `Verify` field and every trigger on, at hosts that answer no probe with 200. `sdk/postmark.js/test/integration/Webhook.test.ts:17`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientWebhookTests.cs:33`, `sdk/postmark-java/src/test/java/integration/WebhookTest.java:38` **SDK** vs `refs/api_webhooks-api.md:360` **DOC**
+postmock follows the live tests (`docs/11` B3): without `Verify`, a webhook saves as `verified` and gets no probe. `Verify: true` answers 501 until Q13 gives the probe body. `Verify: false` saves `unverified`.
 
 ### 1.4 Errors
 
@@ -587,6 +589,18 @@ Persistent failure across many events pauses one trigger type. Threshold not doc
 
 Conflict R2: inbound text says non-200 retries. A receiver that answers 204 on success is then retried 10 times, if Postmark reads the text literally. **INFERRED**; Q6 (top priority).
 Conflict R3: outbound drops 400/401/404. Inbound retries them. Only 403 stops inbound. **DOC** vs **DOC**
+postmock reads the text literally: a 204 retries (R2).
+
+Inbound message `Status` in postmock. Status names: `refs/api_messages-api.md:315` **DOC**. The mapping is **INFERRED**.
+
+| Case | `Status` |
+| --- | --- |
+| Blocked by a rule or `InboundSpamThreshold` | `Blocked` |
+| Server has no `InboundHookUrl` | `Processed` |
+| Hook answered 200 | `Processed` |
+| Retry waits on the clock | `Scheduled` |
+| 403, or the last retry failed | `Failed` |
+| Bypass or retry started, before the answer | `Queued` |
 
 Inbound schedule: 10 retries. `refs/webhooks_inbound-webhook.md:189-198` **DOC**
 
@@ -753,40 +767,40 @@ The mock emits every event type in §0. A control-API command creates the event;
 The mock never waits on a wall clock. A control command advances a virtual clock for retries.
 
 Config API (`/webhooks`, §1.1–1.4):
-- [ ] Serve list, get, create, edit, delete, `verify` and `statistics` with server-token auth.
-- [ ] Match the list filter as `MessageStream` and `messageStream` (§1.1 conflict).
-- [ ] Default `MessageStream` to `outbound` on create. Reject an inbound stream (1351), an archived stream (1350), a missing or bad `Url` (1354).
-- [ ] Reject `ID` on create (1356), `ID` or `MessageStream` change on edit (1357), `Status` on create or edit (1363), a bad header `Name` (1358), an unknown `ID` (1352).
-- [ ] Edit with a partial `Triggers` object changes only the given triggers.
-- [ ] Verify on create and edit unless `Verify: false`: one probe per enabled trigger; any non-200 → HTTP 422, 1364, nothing saved. Q6, Q13, Q16.
-- [ ] Save `Verify: false` rows as `unverified`. Send no events to an unverified row.
+- [x] Serve list, get, create, edit, delete with server-token auth. `verify` and `statistics`: 501 until Q13 and Q19.
+- [x] Match the list filter as `MessageStream` and `messageStream` (§1.1 conflict).
+- [x] Default `MessageStream` to `outbound` on create. Reject an inbound stream (1351), an archived stream (1350), a missing or bad `Url` (1354).
+- [x] Reject `ID` on create (1356), `ID` or `MessageStream` change on edit (1357), `Status` on create or edit (1363), a bad header `Name` (1358), an unknown `ID` (1352).
+- [x] Edit with a partial `Triggers` object changes only the given triggers.
+- [ ] Verify on create and edit when `Verify: true`: one probe per enabled trigger; any non-200 → HTTP 422, 1364, nothing saved. Q6, Q13, Q16. Until Q13: 501 (conflict V1).
+- [x] Save `Verify: false` rows as `unverified`. Send no events to an unverified row.
 - [ ] `POST /webhooks/{Id}/verify` answers HTTP 200 with the §1.3 body, also on failure.
 - [ ] `GET /webhooks/{Id}/statistics` counts attempts from the attempt log over the last 24 virtual hours. Slow thresholds: Q19.
 - [ ] 1359 limit: crash until Q9 gives the number.
 
 Legacy hook fields (`GET/PUT /server`, `/servers/{id}`, §1.5):
-- [ ] Store `InboundHookUrl`, `BounceHookUrl`, `OpenHookUrl`, `DeliveryHookUrl`, `ClickHookUrl`, `PostFirstOpenOnly`, `IncludeBounceContentInHook`, `EnableSmtpApiErrorHooks`, `RawEmailEnabled`, `InboundSpamThreshold`.
-- [ ] Reject an invalid legacy URL with 606.
-- [ ] Send events to legacy URLs as well as to `/webhooks` rows. Whether one shows up as the other: Q10.
+- [x] Store `InboundHookUrl`, `BounceHookUrl`, `OpenHookUrl`, `DeliveryHookUrl`, `ClickHookUrl`, `PostFirstOpenOnly`, `IncludeBounceContentInHook`, `EnableSmtpApiErrorHooks`, `RawEmailEnabled`, `InboundSpamThreshold`.
+- [x] Reject an invalid legacy URL with 606.
+- [x] Send events to legacy URLs as well as to `/webhooks` rows. Whether one shows up as the other: Q10.
 
 Inbound rules (`/triggers/inboundrules`, §1.6):
-- [ ] Serve list (`count`, `offset` required), create, delete. Match the path case-insensitively (`inboundRules`).
-- [ ] Errors 800 and 809.
-- [ ] Drop inbound mail from a blocked address or domain. Send nothing.
+- [x] Serve list (`count`, `offset` required), create, delete. Match the path case-insensitively (`inboundRules`).
+- [x] Errors 800 and 809.
+- [x] Drop inbound mail from a blocked address or domain. Send nothing.
 
 Request shape (every emit):
-- [ ] Method `POST`. Body is one JSON object. No batching.
+- [x] Method `POST`. Body is one JSON object. No batching.
 - [ ] `Content-Type: application/json`. Exact value: Q1.
-- [ ] Move URL userinfo into `Authorization: Basic base64(user:pass)`. Strip userinfo from the request URL. Send `HttpAuth` the same way. Q3, Q18.
-- [ ] Keep the URL query string exactly (`?token=…`). Q18.
-- [ ] Send each `HttpHeaders[]` item.
-- [ ] Send `X-PM-Webhook-Trace-Id` (UUID), stable across retries of one event.
-- [ ] Send `X-PM-Retries-Remaining` on outbound events (6 on first attempt, then 5 … 0). Q8.
-- [ ] Serialize JSON once per event and resend the same bytes on retry.
+- [x] Move URL userinfo into `Authorization: Basic base64(user:pass)`. Strip userinfo from the request URL. Send `HttpAuth` the same way. Q3, Q18.
+- [x] Keep the URL query string exactly (`?token=…`). Q18.
+- [x] Send each `HttpHeaders[]` item.
+- [x] Send `X-PM-Webhook-Trace-Id` (UUID), stable across retries of one event.
+- [x] Send `X-PM-Retries-Remaining` on outbound events (6 on first attempt, then 5 … 0). Q8.
+- [x] Serialize JSON once per event and resend the same bytes on retry.
 
 Outbound payloads (§2.1–2.6, §2.8):
-- [ ] Every event: `RecordType`, `MessageStream`, `MessageID`, `Metadata` (strings; `{}` when the send had none), `Tag` from the original send.
-- [ ] Dates as `YYYY-MM-DDTHH:MM:SS.fffffffZ`.
+- [x] Every event: `RecordType`, `MessageStream`, `MessageID`, `Metadata` (strings; `{}` when the send had none), `Tag` from the original send.
+- [x] Dates as `YYYY-MM-DDTHH:MM:SS.fffffffZ`.
 - [ ] Bounce: `ID` is a JSON integer, unique per bounce. All §2.1 keys present. `Content` only when `IncludeContent` (or `IncludeBounceContentInHook`) is on.
 - [ ] Bounce: `Description` is the fixed text per `Type` from `refs/api_bounce-api.md:397-418`. `Details` carries the command's SMTP line.
 - [ ] HardBounce sets `Inactive: true` and adds the address to the stream suppression list.
@@ -797,27 +811,27 @@ Outbound payloads (§2.1–2.6, §2.8):
 - [ ] Click: only for tracked links (§5). First click per recipient per link. `ClickLocation`, `OriginalLink`. No `ServerID`.
 - [ ] Record opens and clicks so `docs/06` §1.7 reads see them.
 - [ ] SubscriptionChange: on every suppression add or remove, including after HardBounce and SpamComplaint. Nulls per §2.6 on reactivation. Order vs Bounce: Q12.
-- [ ] SMTP API Error: a Bounce payload with `Type: SMTPApiError`, `TypeCode: 100007`, only when `EnableSmtpApiErrorHooks` is on.
+- [x] SMTP API Error: a Bounce payload with `Type: SMTPApiError`, `TypeCode: 100007`, only when `EnableSmtpApiErrorHooks` is on.
 
 Inbound payload (§2.7, §4):
-- [ ] All §4.2 keys present, with `""` or `[]` for empty values. `RawEmail` only when `RawEmailEnabled`.
-- [ ] Attachment `Content` is base64 of the bytes. `ContentLength` is the decoded byte count.
-- [ ] `ToFull[].MailboxHash` and top-level `MailboxHash` from `+hash` in the local part.
-- [ ] `Date` in RFC 2822 form.
-- [ ] Add `X-Spam-Status`, `X-Spam-Score`, `X-Spam-Tests` headers. Drop mail above `InboundSpamThreshold`.
-- [ ] Apply the §4.2 Bcc rules.
-- [ ] Record the message so `docs/06` §1.2 inbound reads, `bypass` and `retry` see it.
+- [x] All §4.2 keys present, with `""` or `[]` for empty values. `RawEmail` only when `RawEmailEnabled`.
+- [x] Attachment `Content` is base64 of the bytes. `ContentLength` is the decoded byte count.
+- [x] `ToFull[].MailboxHash` and top-level `MailboxHash` from `+hash` in the local part.
+- [x] `Date` in RFC 2822 form.
+- [x] Add `X-Spam-Status`, `X-Spam-Score`, `X-Spam-Tests` headers. Block mail above `InboundSpamThreshold`; 0 blocks nothing (INFERRED).
+- [x] Apply the §4.2 Bcc rules.
+- [x] Record the message so `docs/06` §1.2 inbound reads, `bypass` and `retry` see it.
 
 Responses and retries:
-- [ ] Outbound: 2xx success; 408, 429, 5xx, timeout, connect error retry; other 4xx drop.
-- [ ] Outbound retry delays 1, 5, 10, 10, 10, 15 min. Then drop. Q7 may add a slower tier.
-- [ ] Inbound: 200 success; 403 stop; other codes retry. Q6 may change 2xx handling.
-- [ ] Inbound retry delays 1, 5, 10, 10, 10, 15, 30, 60, 120, 360 min. Then mark `InboundError`.
-- [ ] `PUT /messages/inbound/{id}/retry` sends the inbound event again.
-- [ ] Follow up to 10 redirects. Treat an 11th as a failure.
-- [ ] Timeout: inbound 120 s. Outbound: use the Q5 capture result. Until then, crash on an outbound timeout config read.
+- [x] Outbound: 2xx success; 408, 429, 5xx, timeout, connect error retry; other 4xx drop.
+- [x] Outbound retry delays 1, 5, 10, 10, 10, 15 min. Then drop. Q7 may add a slower tier.
+- [x] Inbound: 200 success; 403 stop; other codes retry. Q6 may change 2xx handling.
+- [x] Inbound retry delays 1, 5, 10, 10, 10, 15, 30, 60, 120, 360 min. Then mark the message `Failed` (§3.6).
+- [x] `PUT /messages/inbound/{id}/retry` sends the inbound event again.
+- [x] Follow up to 10 redirects. Treat an 11th as a failure.
+- [x] Timeout: inbound 120 s. Outbound: 120 s until the Q5 capture result (INFERRED).
 - [ ] Pause one trigger type after persistent failure. Threshold: Q11; crash until known.
-- [ ] Log every attempt (URL, headers, body, status, virtual time) for test assertions through the control API.
+- [x] Log every attempt (URL, headers, body, status, virtual time) for test assertions through the control API.
 
 Test sends (§3.8):
 - [ ] A send to `<type>@bounce-testing.postmarkapp.com` or with `X-PM-Bounce-Type` fires a real Bounce event.
