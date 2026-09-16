@@ -212,7 +212,7 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
   }
   // The test token belongs to no account; the gem live suite sends from an address no account
   // holds (sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10).
-  // Check order after the data checks is INFERRED (docs/03 §3.3).
+  // Check order after the data checks is INFERRED (docs/03 §3.4).
   if (submission.auth.kind === "server" && !senderAuthorized(runtime.store.state, from)) {
     return reject("From", errorBody(400, { params: { from: from.Email } }));
   }
@@ -450,7 +450,7 @@ const domainOf = (address: Address): string =>
  * A verified Domain authorizes every local part (CAPTURED: captures/20260916T231736Z-from-verification/03).
  * A Domain is verified once DKIM or its Return-Path is verified; an exact domain match only, no
  * subdomains (both INFERRED). A confirmed Sender Signature authorizes its own address, without case
- * (docs/03 §3.1). An unconfirmed one has no captured error (docs/03 Q3).
+ * (docs/03 §3.4). An unconfirmed one has no captured error (docs/03 Q3).
  */
 function senderAuthorized(state: State, from: Address): boolean {
   const domain = domainOf(from);

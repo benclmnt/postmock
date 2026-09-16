@@ -2,7 +2,7 @@
 
 Scope: one plan for every open question in `docs/01`–`docs/08`.
 This page merges the questions, defines a safe capture setup, and designs a TypeScript capture harness.
-No capture exists yet. This page calls no Postmark endpoint.
+One capture exists: `captures/20260916T231736Z-from-verification/` (C27, part of C40). This page calls no Postmark endpoint.
 
 Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (`AGENTS.md` rule 6).
 The setup and harness design are **INFERRED** unless a row cites a source.
@@ -112,7 +112,7 @@ No ref says fake bounces fire on a **sandbox** server. Scenario `g2-probe` check
 | C24 | Delete a `HardBounce` row: is the dump row gone at once? Does the bounce show `Inactive: false`, and does `CanActivate` change? Reverse: activate bounce → dump row gone? `emailFilter`: substring or exact, case-sensitive? | 04 Q8; 04 Q1 | P1 — state transitions (`docs/04` §3 "State machine") | Delete C18 row; `GET /bounces?emailFilter=` with the full address, a prefix, and upper case; repeat with a fresh hard bounce and `PUT /bounces/{id}/activate` | volume (1), supp | open |
 | C25 | Unknown tag: `{"TotalCount": 0, "Opens": []}`? | 06 Q11 | P1 — client paging stops on `TotalCount` | `GET /messages/outbound/opens?tag=capture-none&count=500&offset=0`; same for clicks | none | open |
 | C26 | Opens: one row per recipient (first open) or per open? `FirstOpen`, `ReadSeconds` present? | 06 Q5 | P1 — open counts | Send tracked HTML; read `/dump`; fetch the pixel URL twice with two User-Agents; list opens. A sandbox server may record no open (**INFERRED**). | volume (1) | open |
-| C27 | `/email` from an unregistered `From`; from an unconfirmed signature: ErrorCode (400/401?), status, text. | 03 Q3; 06 Q8 | P1 — the SDK error class follows the ErrorCode, which is known to be an error | `From: capture@example.com`. Unconfirmed case only after human step H9. | volume (≤2) | open |
+| C27 | `/email` from an unregistered `From`; from an unconfirmed signature: ErrorCode (400/401?), status, text. | 03 Q3; 06 Q8 | P1 — the SDK error class follows the ErrorCode, which is known to be an error | `From: capture@example.com`. Unconfirmed case only after human step H9. | volume (≤2) | answered for an unregistered `From`: 422 / 400, text and the verified-domain rule (`captures/20260916T231736Z-from-verification/`, `docs/03` §3.4); unconfirmed signature open |
 | C28 | Activate a bounce that is already `Inactive: false`: 200 or error? | 04 Q9 | P1 | Second `PUT /bounces/{id}/activate` from C24 | none | open |
 | C29 | Does `SoftBounce` ever set `Inactive: true`? Which `SuppressionReason`? Can a `HardBounce` have `CanActivate: false`? | 04 Q13, Q14 | P1 | Send to `softbounce@`, `transient@`, `dnserror@bounce-testing.postmarkapp.com`; list bounces and dump | volume (3) | open |
 | C30 | 401 text for the sandbox server token on an account endpoint (`GET /servers`). | 02 Q2 (last case) | P1 | One GET | none | open |
@@ -125,7 +125,7 @@ No ref says fake bounces fire on a **sandbox** server. Scenario `g2-probe` check
 | C37 | Outbound message `Attachments`: name list or object list? | 06 Q3 | **P0** — typed SDKs fail on the wrong shape (`docs/08` response parsing strictness) | Send with a `.txt` attachment; `GET /messages/outbound?count=1&offset=0` | volume (1) | open |
 | C38 | Tracking pixel URL and position; tracked link URL format. | 03 Q12 | P2 | `/dump` of the C26 message | none | open |
 | C39 | Broadcast non-template send: `List-Unsubscribe` added? `{{{pm:unsubscribe}}}` replaced in raw `HtmlBody`? | 03 Q13 | P1 | Send on `broadcast` to blackhole; `/dump` | volume (1) | open |
-| C40 | Batch: error item keys (`To`, `SubmittedAt`, `MessageID`?); 1235 per item or whole request. | 03 Q14; 08 Q3 | **P0** — python raises without the keys; dotnet raises on `MessageID: null` (`docs/08` open questions) | `POST /email/batch` with one good, one bad-stream item | volume (1) | open |
+| C40 | Batch: error item keys (`To`, `SubmittedAt`, `MessageID`?); 1235 per item or whole request. | 03 Q14; 08 Q3 | **P0** — python raises without the keys; dotnet raises on `MessageID: null` (`docs/08` open questions) | `POST /email/batch` with one good, one bad-stream item | volume (1) | keys answered for a 400 item: `ErrorCode` and `Message` only (`captures/20260916T231736Z-from-verification/02-batch-unverified-domain`); 1235 open |
 | C41 | Bulk POST key `ID` or `Id`; status `Cancelled` or `Failed`. `GET /email/bulk` `count` range, default, out-of-range error. | 03 Q15, Q20; 08 Q4 | **P0** — required key; python checks `BulkJobStatus` with case | `POST /email/bulk` to blackhole; expect ErrorCode 14 if not approved | volume (≤2) | open |
 | C42 | SDK-only paths: `/stats/outbound/opens/readtimes`, `GET /messages/inbound/{id}/dump`, `/triggers/tags`. | 08 Q2 | **P0** — six SDKs send `readtimes`; 200 vs 404 decides success vs error | Three GETs | none | open; `verifyCustomTracking` not captured (§4.2) |
 | C43 | Templates: `ContentIsValid` with errors; 1101 text for an unknown numeric `TemplateId`. | 06 Q7, Q9 | P1 | `POST /templates/validate` broken template; `POST /email/withTemplate` with `TemplateId: 1` | none | open |

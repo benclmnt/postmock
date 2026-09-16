@@ -9,7 +9,7 @@ This document answers four questions:
 
 Source versions: `sdk/*` at the commits in `tools/fetch-sources.sh` (postmark.js 5.1.0, commit `f955212`).
 Library cites use `<package>@<version> <path>:LINE` from the published npm package.
-Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (`AGENTS.md` rule 6). No captures exist yet.
+Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (`AGENTS.md` rule 6). One capture exists: `captures/20260916T231736Z-from-verification/` (the sender check, `docs/03` §3.4). Nothing in this doc is CAPTURED yet.
 
 ## 1. Surface tiers
 
