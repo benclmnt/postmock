@@ -1,0 +1,33 @@
+{
+  "name": "@benclmnt/postmock",
+  "version": "0.0.0",
+  "description": "A mock Postmark server for testing code that sends email through Postmark",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.22.0",
+  "scripts": {
+    "start": "node src/main.ts",
+    "check": "biome check . && tsc --noEmit && vitest run",
+    "test": "vitest run",
+    "conformance": "node conformance/run.ts",
+    "conformance:check": "node conformance/check.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.8",
+    "mailparser": "^3.9.28",
+    "smtp-server": "^3.19.13",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.13",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^24.13.4",
+    "@types/smtp-server": "^3.5.13",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}

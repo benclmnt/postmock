@@ -1,4 +1,6 @@
-sdk/
-refs/
+/sdk
+/refs
 node_modules/
-captures/
+/captures/
+/conformance/results/
+/conformance/*/.work/
