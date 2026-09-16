@@ -102,7 +102,14 @@ export const ERROR_TABLE: readonly Row[] = [
   ],
   [413, "sending", [422], "message", "This account is not approved to send email."],
   [422, "sending", [422], "message", "Invalid Server or Account."],
-  [1235, "sending", [422], "message", "The stream provided does not exist on this server."],
+  // SDK text: sdk/postmark-php/tests/PostmarkClientEmailTest.php:92-93.
+  [
+    1235,
+    "sending",
+    [422],
+    "message",
+    "The stream provided: '{stream}' does not exist on this server.",
+  ],
   [1236, "sending", [422], "message", "Sending is not supported for this stream type."],
   [
     1480,

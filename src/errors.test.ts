@@ -25,7 +25,7 @@ function documentedRows() {
 }
 
 // Rows whose Message comes from an SDK test or a per-item doc example, not the table text.
-const MESSAGE_OVERRIDES = new Set([406, 1406]);
+const MESSAGE_OVERRIDES = new Set([406, 1235, 1406]);
 
 describe("ERROR_TABLE", () => {
   const documented = documentedRows();
@@ -56,12 +56,12 @@ describe("ERROR_TABLE", () => {
 
 describe("errorBody / apiError", () => {
   it("builds the envelope with the table status (docs/02 §4.1)", () => {
-    const error = apiError(1235);
+    const error = apiError(1235, { params: { stream: "unknown-stream" } });
     expect(error).toBeInstanceOf(ApiError);
     expect(error.status).toBe(422);
     expect(error.body).toEqual({
       ErrorCode: 1235,
-      Message: "The stream provided does not exist on this server.",
+      Message: "The stream provided: 'unknown-stream' does not exist on this server.",
     });
   });
 
