@@ -57,7 +57,7 @@ defineRoute({
       });
     }
     const layout = query.get("LayoutTemplate");
-    // A deleted template leaves the list (sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:153-157).
+    // A deleted template leaves the list (sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:150-155).
     const templates = [...store.state.templates.values()]
       .filter(
         (t) =>
@@ -122,7 +122,7 @@ defineRoute({
 });
 
 // Edit changes only the fields sent: postmark.js sends `{Name}` alone, php sends only a layout
-// (sdk/postmark.js/test/integration/Templates.test.ts:101; sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:84).
+// (sdk/postmark.js/test/integration/Templates.test.ts:100; sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:86).
 defineRoute({
   method: "PUT",
   path: "/templates/:idOrAlias",

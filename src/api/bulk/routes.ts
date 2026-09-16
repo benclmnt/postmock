@@ -242,7 +242,7 @@ defineRoute({
     state.bulkRequests.set(bulk.Id, bulk);
     scheduleBulk(ctx, auth, bulk, jobs, templateId);
     // The dotnet live test reads TotalMessages from the POST answer, so it is the full status
-    // object (sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:55-58).
+    // object (sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:51-54).
     return bulkStatusJson(bulk);
   },
 });

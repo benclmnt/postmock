@@ -154,7 +154,7 @@ Disagreements:
 | Status counters | `ReleasedCount`, `FailedCount` | absent in postmark.js type — `BulkEmail.ts:109-116` **SDK** |
 
 Resolution (`docs/11` B3): the POST answers the full status object with key `Id`.
-The live tests read `Id` and `TotalMessages` from the POST answer: `sdk/postmark.js/test/integration/Sending.test.ts:48-49`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:55-58` **SDK**.
+The live tests read `Id` and `TotalMessages` from the POST answer: `sdk/postmark.js/test/integration/Sending.test.ts:48-49`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:51-54` **SDK**.
 postmark-python's `ID` on POST stays unserved. postmock emits `Cancelled`, the doc value.
 
 ### 1.7 Attachments

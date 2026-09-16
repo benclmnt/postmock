@@ -251,9 +251,9 @@ Behavior notes:
 - Delete response: `{ErrorCode: 0, Message: "Template 1234 removed."}`. `refs/api_templates-api.md:769-771` **DOC**
 - A deleted template stays readable with `Active: false`. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:112-115` **SDK** (live-API test)
 - List response `Templates[]` has `Active`, `TemplateId`, `Name`, `Alias`, `TemplateType`, `LayoutTemplate`. `refs/api_templates-api.md:712-731` **DOC**
-- A deleted template leaves the list: `TotalCount` drops from 10 to 9. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:151-157` **SDK** (live-API test)
-- A layout created without `Alias` gets an alias. The live tests read it and never set it. `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-56`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:55-63` **SDK**. The format is unknown; postmock uses `layout-<TemplateId>`. **INFERRED**
-- Edit changes only the fields sent. postmark.js sends `{Name}` alone; php sends only `LayoutTemplate`. `null` keeps a value; `LayoutTemplate: ""` clears it. `sdk/postmark.js/test/integration/Templates.test.ts:101`; `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:84-92`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:92-99` **SDK**
+- A deleted template leaves the list: `TotalCount` drops from 10 to 9. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:150-155` **SDK** (live-API test)
+- A layout created without `Alias` gets an alias. The live tests read it and never set it. `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-57`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:55-63` **SDK**. The format is unknown; postmock uses `layout-<TemplateId>`. **INFERRED**
+- Edit changes only the fields sent. postmark.js sends `{Name}` alone; php sends only `LayoutTemplate`. `null` keeps a value; `LayoutTemplate: ""` clears it. `sdk/postmark.js/test/integration/Templates.test.ts:100`; `sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:84-92`; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:92-99` **SDK**
 - The edit doc omits `TemplateType` from the response; postmark-python requires it. `sdk/postmark-python/postmark/models/templates/schemas.py:109-115` **SDK**. postmock sends it. **INFERRED**
 - The Get example returns two objects side by side, which is not valid JSON. It also shows `"LayoutTemplate": "null"` as a string. `refs/api_templates-api.md:476-499` **DOC**. Treat both as doc errors. **INFERRED**
 

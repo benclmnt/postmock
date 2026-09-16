@@ -175,7 +175,7 @@ export function checkLayoutChange(state: State, before: Template, after: Templat
 
 /**
  * A new layout without an alias gets one: the dotnet and php live tests read a layout alias they
- * never set (sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-56). The format is INFERRED.
+ * never set (sdk/postmark-php/tests/PostmarkClientTemplatesTest.php:55-57). The format is INFERRED.
  */
 export function generatedLayoutAlias(state: State, template: Template): string {
   for (let n = 0; ; n += 1) {
