@@ -37,6 +37,11 @@ export interface State {
   servers: Map<number, Server>;
   /** Key: `streamKey(serverId, streamId)`. */
   streams: Map<string, MessageStream>;
+  /**
+   * `streamKey`s of archived streams deleted at their purge date. Unarchive answers 1232 for them;
+   * a new stream with the same ID removes the key (docs/04 §4.3).
+   */
+  purgedStreams: Set<string>;
   /** Key: MessageID. */
   outbound: Map<string, OutboundMessage>;
   /** Key: MessageID. */
@@ -76,6 +81,7 @@ function emptyState(): State {
     },
     servers: new Map(),
     streams: new Map(),
+    purgedStreams: new Set(),
     outbound: new Map(),
     inbound: new Map(),
     bounces: new Map(),
