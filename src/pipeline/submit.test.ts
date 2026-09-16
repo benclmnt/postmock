@@ -89,7 +89,6 @@ describe("submitOutbound", () => {
         channel: "rest",
         draft: draft(fields),
         request: {},
-        rawSource: "",
         bulkRequestId: null,
         templateId: null,
       });
@@ -136,7 +135,6 @@ describe("submitOutbound", () => {
       channel: "rest",
       draft: draft(fields),
       request: {},
-      rawSource: "",
       bulkRequestId: null,
       templateId: null,
     });

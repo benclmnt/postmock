@@ -74,8 +74,6 @@ function validateTemplated(
       TextBody: rendered.content.TextBody ?? undefined,
     },
     request: raw,
-    // REST sends generate no MIME source yet.
-    rawSource: "",
     bulkRequestId: null,
     templateId: template.TemplateId,
   });

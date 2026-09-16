@@ -29,8 +29,6 @@ const validateJson = (
     channel: "rest",
     draft: draftFromJson(body),
     request: body,
-    // REST sends generate no MIME source yet.
-    rawSource: "",
     bulkRequestId: null,
     templateId: null,
   });

@@ -52,7 +52,6 @@ export const bulkSubmission = (
   channel: "rest",
   draft,
   request,
-  rawSource: "",
   bulkRequestId,
   templateId,
 });

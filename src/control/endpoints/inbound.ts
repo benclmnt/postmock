@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { composeMime } from "../../inbound/compose.ts";
 import { receiveInbound } from "../../inbound/receive.ts";
+import { composeMime } from "../../mime/compose.ts";
 import { ControlError, controlInput, defineControl } from "../registry.ts";
 
 const address = z.union([z.string(), z.object({ email: z.string(), name: z.string().optional() })]);

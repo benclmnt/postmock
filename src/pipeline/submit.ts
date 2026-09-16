@@ -3,6 +3,7 @@ import { type ErrorBody, errorBody } from "../errors.ts";
 import { absent, base64, canonicalizeKeys, objectOrEmptyArray } from "../http/normalize.ts";
 import { Unsupported } from "../http/respond.ts";
 import type { ServerAuth } from "../http/routes.ts";
+import { composeMime } from "../mime/compose.ts";
 import type { Runtime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
 import { findStream, type TestTokenContext } from "../state/servers.ts";
@@ -77,18 +78,19 @@ export function draftFromJson(body: Record<string, unknown>): OutboundDraft {
   return Object.fromEntries(keys.map((key) => [key, canonical[key]])) as OutboundDraft;
 }
 
-export interface Submission {
+/**
+ * A REST submission gets its MIME source from the pipeline, written from the draft. An SMTP
+ * submission carries `rawSource`: the delivered copy the dump endpoint serves.
+ */
+export type Submission = {
   /** A test context is `POSTMARK_API_TEST`: validate, never store or deliver (docs/02 §3.3). */
   auth: ServerAuth | TestTokenContext;
-  channel: "rest" | "smtp";
   draft: OutboundDraft;
   /** Request JSON (REST) or raw MIME (SMTP), kept for `GET /control/messages`. */
   request: unknown;
-  /** The MIME source the dump endpoint serves. REST sends pass `""`: they generate no MIME yet. */
-  rawSource: string;
   bulkRequestId: string | null;
   templateId: number | null;
-}
+} & ({ channel: "rest" } | { channel: "smtp"; rawSource: string });
 
 export type SubmitResult =
   | { outcome: "accepted"; message: OutboundMessage }
@@ -277,7 +279,7 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
     MessageEvents: [],
     channel: submission.channel,
     request: submission.request,
-    rawSource: submission.rawSource,
+    rawSource: submission.channel === "smtp" ? submission.rawSource : restSource(outbound, now),
     bulkRequestId: submission.bulkRequestId,
     templateId: submission.templateId,
     suppressedRecipients: uniqueEmails(inactive),
@@ -290,6 +292,34 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
         message,
         error: inactiveRecipientsError(uniqueEmails(inactive)),
       };
+}
+
+/**
+ * The MIME source of a REST send, served by the dump endpoint. The gem live test finds the subject
+ * in it (sdk/postmark-gem/spec/integration/api_client_resources_spec.rb:36-40). Headers and layout
+ * are INFERRED.
+ */
+function restSource({ draft, from, lists }: ValidOutbound, now: Date): string {
+  const address = (a: Address) => ({ email: a.Email, name: a.Name ?? undefined });
+  return composeMime(
+    {
+      from: address(from),
+      to: lists.To.map(address),
+      cc: lists.Cc.map(address),
+      replyTo: draft.ReplyTo,
+      subject: draft.Subject ?? "",
+      text: draft.TextBody,
+      html: draft.HtmlBody,
+      headers: (draft.Headers ?? []).map((h) => ({ name: h.Name, value: h.Value })),
+      attachments: (draft.Attachments ?? []).map((a) => ({
+        name: a.Name,
+        content: a.Content.toString("base64"),
+        contentType: a.ContentType,
+        contentId: a.ContentID || undefined,
+      })),
+    },
+    now,
+  );
 }
 
 /**

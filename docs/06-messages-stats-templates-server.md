@@ -43,7 +43,7 @@ Query-name casing disagreement:
 | --- | --- | --- | --- |
 | GET `/messages/outbound` | `getOutboundMessages(filter)` | `{TotalCount, Messages[]}` | `refs/api_messages-api.md:10-51` **DOC**; `sdk/postmark.js/src/client/ServerClient.ts:330-333` **SDK** |
 | GET `/messages/outbound/{id}/details` | `getOutboundMessageDetails(id)` | message + `TextBody`, `HtmlBody`, `Body`, `MessageEvents[]` | `refs/api_messages-api.md:98-139` **DOC**; `ServerClient.ts:343-345` **SDK** |
-| GET `/messages/outbound/{id}/dump` | `getOutboundMessageDump(id)` | `{Body}`; empty string when no dump | `refs/api_messages-api.md:245-267` **DOC**; `ServerClient.ts:355-357` **SDK** |
+| GET `/messages/outbound/{id}/dump` | `getOutboundMessageDump(id)` | `{Body}`; empty string when no dump. A REST send has a dump: the gem live test finds the subject in it (`sdk/postmark-gem/spec/integration/api_client_resources_spec.rb:36-40` **SDK**) | `refs/api_messages-api.md:245-267` **DOC**; `ServerClient.ts:355-357` **SDK** |
 | GET `/messages/inbound` | `getInboundMessages(filter)` | `{TotalCount, InboundMessages[]}` | `refs/api_messages-api.md:284-334` **DOC**; `ServerClient.ts:367-370` **SDK** |
 | GET `/messages/inbound/{id}/details` | `getInboundMessageDetails(id)` | inbound message + `TextBody`, `HtmlBody`, `Headers`, `BlockedReason` | `refs/api_messages-api.md:382-423` **DOC**; `ServerClient.ts:380-381` **SDK** |
 | PUT `/messages/inbound/{id}/bypass` | `bypassBlockedInboundMessage(id)` | `{ErrorCode: 0, Message}` | `refs/api_messages-api.md:525-559` **DOC**; `ServerClient.ts:391-392` **SDK** |

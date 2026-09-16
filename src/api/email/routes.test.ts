@@ -1,3 +1,4 @@
+import { simpleParser } from "mailparser";
 import { describe, expect, it } from "vitest";
 import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
@@ -52,6 +53,31 @@ describe("POST /email", () => {
     expect(body.SubmittedAt).toMatch(TIMESTAMP);
     expect(body.MessageID).toMatch(UUID);
     expect(runtime.store.state.outbound.get(String(body.MessageID))?.request).toEqual(message());
+  });
+
+  it("writes a MIME source that the dump endpoint serves (gem api_client_resources_spec)", async () => {
+    const { runtime, post } = setup();
+    const fields = {
+      Cc: "c@example.com",
+      Bcc: "hidden@example.com",
+      HtmlBody: "<p>Hello</p>",
+      Headers: [{ Name: "X-Custom", Value: "1" }],
+      Attachments: [{ Name: "a.txt", Content: "aGk=", ContentType: "text/plain" }],
+    };
+    const { MessageID } = await item(await post("/email", message(fields)));
+    const dump = await createApiApp(runtime).request(
+      `http://api.postmarkapp.com/messages/outbound/${MessageID}/dump`,
+      { headers: { "X-Postmark-Server-Token": "token" } },
+    );
+    const source = ((await dump.json()) as { Body: string }).Body;
+    const mail = await simpleParser(source);
+    expect(mail.from?.text).toBe("sender@example.com");
+    expect(mail.subject).toBe("Hi");
+    expect(mail.text?.trim()).toBe("Hello");
+    expect(mail.html).toBe("<p>Hello</p>");
+    expect(mail.headers.get("x-custom")).toBe("1");
+    expect(mail.attachments.map((a) => a.content.toString())).toEqual(["hi"]);
+    expect(source).not.toContain("hidden@example.com");
   });
 
   it("answers Test job accepted for POSTMARK_API_TEST and stores nothing (docs/03 §4)", async () => {
