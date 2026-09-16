@@ -321,7 +321,7 @@ Note on `/messages/outbound/opens/{messageid}`:
 
 | Method | Path | Who sends it | Citation **SDK** | Mock decision |
 |---|---|---|---|---|
-| GET | /stats/outbound/opens/readtimes | js `readTimes` S565; py `readTimes` stats:221; net S673; php S993; rb (spec test `opens/readtimes`); java `readTimes` S328; mcp `readTimes` 1387 | as listed; `sdk/postmark-gem/spec/unit/postmark/api_client_spec.rb:1022` | Needs a capture. The response shape is unknown. |
+| GET | /stats/outbound/opens/readtimes | js `readTimes` S565; py `readTimes` stats:221; net S673; php S993; rb (spec test `opens/readtimes`); java `readTimes` S328; mcp `readTimes` 1387 | as listed; `sdk/postmark-gem/spec/unit/postmark/api_client_spec.rb:1022` | The shape comes from the SDK clients (`docs/06` §2.2); the bucket names need a capture. |
 | PUT | /domains/{id}/verifyCustomTracking | php only | `sdk/postmark-php/src/Postmark/PostmarkAdminClient.php:376-378` | Unknown API. Needs a capture. |
 | GET | /triggers/{type}/{id} and /triggers/tags | gem only | `sdk/postmark-gem/lib/postmark/api_client.rb:191-215` | Likely a retired API (INFERRED). |
 | GET | /messages/inbound/{id}/dump | gem (`dump_message(id, inbound: true)`) | `sdk/postmark-gem/lib/postmark/api_client.rb:126-128` | Unknown. Needs a capture. |

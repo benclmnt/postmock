@@ -198,10 +198,16 @@ describe("filters", () => {
   });
 });
 
-it("answers 501 for read times, whose body no doc gives", async () => {
-  const { runtime } = setup();
-  const res = await createApiApp(runtime).request("/stats/outbound/opens/readtimes", {
-    headers: { "X-Postmark-Server-Token": TOKEN },
+it("counts unique opens with a read time by whole seconds read", async () => {
+  const { runtime, get, send } = setup();
+  const m = await send(Date.parse("2026-06-14T12:00:00Z"));
+  const at = new Date(Date.parse("2026-06-14T13:00:00Z"));
+  const agent = { UserAgent: "UA", Client: null, OS: null, Platform: null, Geo: null };
+  const target = { messageId: m.MessageID, recipient: "a@example.com", agent };
+  await recordOpen(runtime, { ...target, readSeconds: 7 }, at);
+  await recordOpen(runtime, { ...target, readSeconds: 3 }, at);
+  expect((await get("/stats/outbound/opens/readTimes")).body).toEqual({
+    Days: [{ Date: "2026-06-14", "7": 1 }],
+    "7": 1,
   });
-  expect(res.status).toBe(501);
 });

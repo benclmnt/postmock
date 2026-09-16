@@ -205,7 +205,7 @@ Response shape: `{Days: [{Date: "YYYY-MM-DD", <keys>}], <same keys as totals>}`.
 | `/stats/outbound/opens` | `getEmailOpenCounts` | `Opens`, `Unique` | `refs/api_stats-api.md:382-419` **DOC**; `ServerClient.ts:528-530` **SDK** |
 | `/stats/outbound/opens/platforms` | `getEmailOpenPlatformUsage` | `Desktop`, `Mobile`, `WebMail`, `Unknown` | `refs/api_stats-api.md:464-503` **DOC**; `ServerClient.ts:540-542` **SDK** |
 | `/stats/outbound/opens/emailclients` | `getEmailOpenClientUsage` (sends `emailClients`) | dynamic client names, e.g. `"Apple Mail"` | `refs/api_stats-api.md:540-576` **DOC**; `ServerClient.ts:552-554` **SDK** |
-| `/stats/outbound/opens/readTimes` | `getEmailOpenReadTimes` | dynamic | not in docs; `ServerClient.ts:563-565` **SDK** |
+| `/stats/outbound/opens/readTimes` | `getEmailOpenReadTimes` | dynamic read-time buckets; postmock: whole seconds read, e.g. `"5"` **INFERRED** | not in docs; `ServerClient.ts:563-565`, `Stats.ts:81-87` **SDK** |
 | `/stats/outbound/clicks` | `getClickCounts` | `Clicks`, `Unique` | `refs/api_stats-api.md:611-648` **DOC**; `ServerClient.ts:575-577` **SDK** |
 | `/stats/outbound/clicks/browserfamilies` | `getClickBrowserUsage` (sends `browserFamilies`) | dynamic browser names | `refs/api_stats-api.md:693-729` **DOC**; `ServerClient.ts:586-588` **SDK** |
 | `/stats/outbound/clicks/platforms` | `getClickPlatformUsage` | `Desktop`, `Mobile`, `Unknown` | `refs/api_stats-api.md:764-802` **DOC**; `ServerClient.ts:598-600` **SDK** |
@@ -220,7 +220,9 @@ Disagreements:
 - Rates are percentages of `Sent` with 3 decimals: 64 / 615 = 10.406. `refs/api_stats-api.md:67-70` **DOC**
 - Totals carry every documented key, also when 0: the postmark.js live tests read `Sent`, `Tracked` and `Clicks` on any server. `sdk/postmark.js/test/integration/MessageStatistics.test.ts:24,39`, `ClickStatistics.test.ts:15` **SDK**
 - postmark.js sends `fromDate` with a one-digit month and day (`2026-9-7`). `sdk/postmark.js/test/integration/MessageStatistics.test.ts:13-15` **SDK**
-- The dotnet live test expects a `/stats/outbound/opens/readtimes` body `{Days: [{Date, <bucket>: n}], <bucket>: n}` with at least one bucket. `sdk/postmark-dotnet/src/Postmark/PostmarkClient.cs:670-706`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:136-142` **SDK**. The bucket names are unknown, so postmock answers 501.
+- The dotnet live test expects a `/stats/outbound/opens/readtimes` body `{Days: [{Date, <bucket>: n}], <bucket>: n}` with at least one bucket. `sdk/postmark-dotnet/src/Postmark/PostmarkClient.cs:670-706`, `sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:136-142` **SDK**
+- The python model gives the same shape: bucket names are dynamic keys at the top and in each day, next to `Date`. `sdk/postmark-python/postmark/models/stats/schemas.py:220-229` **SDK**
+- No source names the buckets. postmock counts each unique open with a read time under its whole seconds read (`"5"`), like `WithReadTimeRecorded`. **INFERRED**; capture C42 (`docs/10`) decides.
 
 ## 3. Templates API
 
@@ -509,7 +511,7 @@ Stats (§2):
 - [ ] Filter by `tag`, `fromdate`/`todate` (date, inclusive, EST), `messagestream` (default: all streams).
 - [ ] Omit days with no data from `Days`. Omit zero keys inside a day.
 - [ ] `/stats/outbound` has no `Days`. Rate keys are doubles; key name `SMTPApiErrors` (§2.2 conflict).
-- [ ] Serve `/stats/outbound/opens/readtimes`. Its shape is not documented: crash until a capture gives it (`docs/08` §6).
+- [x] Serve `/stats/outbound/opens/readtimes` in the SDK shape; bucket names are INFERRED until a capture gives them (`docs/08` §6).
 - [ ] Errors 900 (bad date), 1226 (unknown stream), 1500 (`FromDate` older than 1 year).
 
 Templates (§3):

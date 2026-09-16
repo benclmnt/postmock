@@ -1,6 +1,5 @@
 import { apiError } from "../../errors.ts";
 import { parseQueryDate } from "../../http/normalize.ts";
-import { Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
 import { findStream } from "../../state/servers.ts";
 import type { StatsFact } from "../../state/types.ts";
@@ -121,10 +120,14 @@ stat("/opens/emailclients", (f) =>
   ),
 );
 
-// Six SDKs call it; no doc gives its body (docs/06 §6, docs/08 §6 Q2).
-stat("/opens/readtimes", () => {
-  throw new Unsupported("the /stats/outbound/opens/readtimes body is not documented");
-});
+// No doc gives this body. Its shape comes from the SDK clients (docs/06 §2.2). No source names the
+// buckets: postmock keys each unique open with a read time by its whole seconds, "5" (INFERRED).
+stat("/opens/readtimes", (f) =>
+  series(
+    each(uniqueOpens(f), (o) => (o.readSeconds > 0 ? String(o.readSeconds) : null)),
+    [],
+  ),
+);
 
 stat("/clicks", (f) => series(clicksCounts(f), ["Clicks", "Unique"]));
 

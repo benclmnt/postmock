@@ -78,7 +78,7 @@ The handler cannot choose another success status.
 | `src/api/templates/` | Templates CRUD, `/templates/validate`, `/email/withTemplate`, `/email/batchWithTemplates` (replies from `src/api/email/json.ts`) | built (T3; push: T7) |
 | `src/api/bulk/` | `/email/bulk` send, status, list; processing on the clock | built (T3) |
 | `src/api/messages/` | Messages API: outbound and inbound search and details, dump, opens, clicks; paging caps (inbound bypass and retry: T5) | built (T4) |
-| `src/api/stats/` | Stats API from recorded facts; `readtimes` answers 501 | built (T4) |
+| `src/api/stats/` | Stats API from recorded facts | built (T4) |
 | `src/api/webhooks/` | `/webhooks` list, get, create, edit, delete; `verify` and `statistics` answer 501 | built (T5) |
 | `src/api/triggers/` | `/triggers/inboundrules` list, create, delete | built (T5) |
 | `src/api/inbound/` | `PUT /messages/inbound/{id}/bypass`, `/retry` | built (T5) |
@@ -140,6 +140,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A purged stream (a clock task at `ExpectedPurgeDate`): the stream, its suppressions and bounces are deleted; unarchive answers 1232; create may reuse its ID | INFERRED | `docs/04` §4.3 |
 | Suppressions of an inbound stream; edit of an archived stream | 501, plain text | `docs/04` §2, §4 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
+| `/stats/outbound/opens/readtimes` bucket names | whole seconds read (`"5"`) per unique open with a read time; the shape comes from the SDK clients | `docs/06` §2.2, `docs/10` C42 |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | An unknown server ID on `/servers/{id}`: no servers ErrorCode names it | 501, plain text | capture |
 | A field of the wrong JSON type on an account-token body | 501, plain text | capture |
