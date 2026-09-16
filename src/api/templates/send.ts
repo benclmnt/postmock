@@ -1,57 +1,53 @@
 import { z } from "zod";
 import { ApiError, apiError } from "../../errors.ts";
 import { absent } from "../../http/normalize.ts";
+import { Unsupported } from "../../http/respond.ts";
 import type { RequestContext, ServerAuth } from "../../http/routes.ts";
-import { type OutboundDraft, type SubmitResult, submitOutbound } from "../../pipeline/submit.ts";
-import { formatTimestamp } from "../../time.ts";
+import {
+  acceptOutbound,
+  acceptOutbounds,
+  draftFromJson,
+  type SubmitResult,
+  type Validation,
+  validateOutbound,
+} from "../../pipeline/submit.ts";
+import { batchItem, sendResponse } from "../email/json.ts";
 import { renderContent } from "./content.ts";
-import { parseOrReject, sendTemplate, templateIdField, templateModelField } from "./templates.ts";
+import {
+  CONTENT_PARTS,
+  parseOrReject,
+  sendTemplate,
+  templateIdField,
+  templateModelField,
+} from "./templates.ts";
 
 // `/email/withTemplate` and `/email/batchWithTemplates` (docs/03 §1.4–§1.5, docs/06 §3.6).
 
-/** The send fields a templated message passes to the pipeline as received. */
-const PASSED_FIELDS = [
-  "From",
-  "To",
-  "Cc",
-  "Bcc",
-  "ReplyTo",
-  "Tag",
-  "MessageStream",
-  "Headers",
-  "Attachments",
-  "Metadata",
-  "TrackOpens",
-  "TrackLinks",
-] as const satisfies ReadonlyArray<keyof OutboundDraft>;
+const MAX_BATCH_MESSAGES = 500;
 
-const passed = Object.fromEntries(
-  PASSED_FIELDS.map((key) => [key, z.unknown().optional()]),
-) as Record<(typeof PASSED_FIELDS)[number], z.ZodOptional<z.ZodUnknown>>;
-
-const templatedMessage = z.object({
+/** The template fields of a message; the send fields go through `draftFromJson`. */
+const templateFields = z.object({
   TemplateId: templateIdField,
   TemplateAlias: absent(z.string()),
   TemplateModel: templateModelField,
   InlineCss: absent(z.boolean()),
-  Subject: absent(z.unknown()),
-  HtmlBody: absent(z.unknown()),
-  TextBody: absent(z.unknown()),
-  ...passed,
 });
 
 /**
- * Renders one templated message and submits it. Check order is INFERRED: templated vs content
- * fields (1123), template (1101), model (1120), then the pipeline checks.
+ * Renders one templated message and validates the result. Check order is INFERRED: templated vs
+ * content fields (1123), template (1101), model (1120), then the pipeline checks. A template error
+ * throws `ApiError`.
  */
-async function submitTemplated(
+function validateTemplated(
   ctx: RequestContext,
   auth: ServerAuth,
-  raw: unknown,
-): Promise<{ result: SubmitResult; to: unknown }> {
-  const message = parseOrReject(templatedMessage, raw);
-  for (const part of ["Subject", "HtmlBody", "TextBody"] as const) {
-    if (message[part] !== undefined) {
+  raw: Record<string, unknown>,
+): Validation {
+  const message = parseOrReject(templateFields, raw);
+  const draft = draftFromJson(raw);
+  for (const part of CONTENT_PARTS) {
+    // R9: null and "" are absent (docs/08).
+    if (draft[part] !== undefined && draft[part] !== null && draft[part] !== "") {
       throw apiError(1123, {
         message: `The '${part}' field cannot be used when sending with a template.`,
       });
@@ -68,75 +64,64 @@ async function submitTemplated(
     message.InlineCss ?? true,
   );
   if (!rendered.ok) throw new Error(`stored template ${template.TemplateId} does not parse`);
-  const draft: OutboundDraft = {
-    ...Object.fromEntries(PASSED_FIELDS.map((key) => [key, message[key]])),
-    Subject: rendered.content.Subject ?? undefined,
-    HtmlBody: rendered.content.HtmlBody ?? undefined,
-    TextBody: rendered.content.TextBody ?? undefined,
-  } as OutboundDraft;
-  const result = await submitOutbound(ctx, {
+  return validateOutbound(ctx, {
     auth,
     channel: "rest",
-    draft,
+    draft: {
+      ...draft,
+      Subject: rendered.content.Subject ?? undefined,
+      HtmlBody: rendered.content.HtmlBody ?? undefined,
+      TextBody: rendered.content.TextBody ?? undefined,
+    },
     request: raw,
+    // REST sends generate no MIME source yet.
+    rawSource: "",
     bulkRequestId: null,
     templateId: template.TemplateId,
   });
-  return { result, to: message.To };
 }
 
-/**
- * The `/email` response of one message (docs/03 §1.2), or its `{ErrorCode, Message}`. Some
- * recipients suppressed still answers 406 (docs/03 §3.2, INFERRED).
- */
-function resultJson(result: SubmitResult, To: unknown) {
-  switch (result.outcome) {
-    case "accepted":
-      return {
-        To,
-        SubmittedAt: formatTimestamp(result.message.ReceivedAt),
-        MessageID: result.message.MessageID,
-        ErrorCode: 0,
-        Message: "OK",
-      };
-    case "validated":
-      return {
-        To,
-        SubmittedAt: formatTimestamp(result.submittedAt),
-        MessageID: result.messageId,
-        ErrorCode: 0,
-        Message: "Test job accepted",
-      };
-    case "rejected":
-    case "partiallySuppressed":
-      return result.error;
-  }
-}
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
-export async function sendWithTemplate(ctx: RequestContext, auth: ServerAuth, raw: unknown) {
-  const { result, to } = await submitTemplated(ctx, auth, raw);
-  // Every send rejection is HTTP 422 (docs/03 §3.1).
-  if (result.outcome === "rejected" || result.outcome === "partiallySuppressed") {
-    throw new ApiError(422, result.error);
-  }
-  return resultJson(result, to);
+export async function sendWithTemplate(ctx: RequestContext, auth: ServerAuth, body: unknown) {
+  if (!isObject(body)) throw new Unsupported("a send body that is not a JSON object");
+  const validation = validateTemplated(ctx, auth, body);
+  if (validation.outcome === "rejected") return sendResponse(validation, "");
+  const { outbound } = validation;
+  return sendResponse(await acceptOutbound(ctx, outbound), outbound.draft.To);
 }
 
 const batchBody = z.object({ Messages: z.array(z.unknown()) });
 
-/** One result per message in request order; a failed item is `{ErrorCode, Message}` (docs/03 §2). */
+/**
+ * One item per message in request order (docs/03 §2). Every item is validated before any is
+ * stored, as on `/email/batch`.
+ */
 export async function sendBatchWithTemplates(ctx: RequestContext, auth: ServerAuth, body: unknown) {
   const { Messages } = parseOrReject(batchBody, body);
-  if (Messages.length > 500) throw apiError(410);
-  const results: unknown[] = [];
-  for (const raw of Messages) {
+  if (!Messages.every(isObject)) throw new Unsupported("a batch message that is not an object");
+  if (Messages.length > MAX_BATCH_MESSAGES) throw apiError(410);
+  const validations = Messages.map((raw): Validation => {
     try {
-      const { result, to } = await submitTemplated(ctx, auth, raw);
-      results.push(resultJson(result, to));
+      return validateTemplated(ctx, auth, raw);
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
-      results.push({ ErrorCode: error.body.ErrorCode, Message: error.body.Message });
+      return { outcome: "rejected", field: "", error: error.body };
     }
+  });
+  // Whether 1235 is per item or for the whole request is not captured (docs/03 §8 Q14).
+  if (validations.some((v) => v.outcome === "rejected" && v.error.ErrorCode === 1235)) {
+    throw new Unsupported("an unknown MessageStream in a batch (docs/03 §8 Q14)");
   }
-  return results;
+  const accepted = await acceptOutbounds(
+    ctx,
+    validations.flatMap((v) => (v.outcome === "valid" ? [v.outbound] : [])),
+  );
+  let next = 0;
+  return validations.map((validation) =>
+    validation.outcome === "rejected"
+      ? batchItem(validation, "")
+      : batchItem(accepted[next++] as SubmitResult, validation.outbound.draft.To),
+  );
 }

@@ -3,10 +3,9 @@ import { ApiError, apiError, type ErrorBody } from "../../errors.ts";
 import { absent, parseBody, queryInt } from "../../http/normalize.ts";
 import { Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
-import type { OutboundDraft } from "../../pipeline/submit.ts";
-import { submitOutbound } from "../../pipeline/submit.ts";
+import { draftFromJson, type OutboundDraft, validateOutbound } from "../../pipeline/submit.ts";
 import { newMessageId } from "../../state/ids.ts";
-import { findStream, type TestTokenContext } from "../../state/servers.ts";
+import { findStream } from "../../state/servers.ts";
 import type { State } from "../../state/store.ts";
 import type { BulkRequest, Template } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
@@ -19,7 +18,7 @@ import {
   templateIdField,
   templateModelField,
 } from "../templates/templates.ts";
-import { type BulkJob, bulkStatusJson, scheduleBulk } from "./bulk.ts";
+import { type BulkJob, bulkStatusJson, bulkSubmission, scheduleBulk } from "./bulk.ts";
 
 // Bulk API (docs/03 §1.6; refs/api_bulk-email.md). Not in the Swagger spec.
 
@@ -75,55 +74,45 @@ function mergeHeaders(request: RawHeader[] | undefined, message: RawHeader[] | u
   return [...request.filter((h) => !names.has(h.Name.toLowerCase())), ...(message ?? [])];
 }
 
-/** The field a pipeline error names: `Invalid 'To' address: 'x'.` → `To` (refs/api_bulk-email.md:217-230). */
-function errorField(error: ErrorBody): string {
-  const field = /'([A-Za-z]+)'/.exec(error.Message)?.[1];
-  if (field === undefined) {
-    throw new Unsupported(`the bulk 'Errors' key for ErrorCode ${error.ErrorCode} is not captured`);
-  }
-  return field;
-}
-
 /**
  * Validates every message before any is accepted: one malformed field rejects the request with its
- * own code, several with ErrorCode 11 and an `Errors` map (refs/api_bulk-email.md:185, :213-231, :406-407).
- * The pipeline validates without storing when it sees a test context; this one holds the real server
- * and its streams. Suppressions are not malformed fields (refs/api_bulk-email.md:185).
+ * own code, several with ErrorCode 11 and an `Errors` map keyed by field (refs/api_bulk-email.md:185,
+ * :213-231, :406-407). A message that fails to render is checked with its source content, so the
+ * render failure stays a `FailedCount` (refs/api_bulk-email.md:308).
  */
-async function checkMessages(ctx: RequestContext, auth: ServerAuth, drafts: OutboundDraft[]) {
-  const dryRun: TestTokenContext = {
-    kind: "test",
-    server: auth.server,
-    streams: [...ctx.store.state.streams.values()].filter((s) => s.ServerID === auth.server.ID),
-  };
-  const errors = new Map<string, ErrorBody>();
-  for (const draft of drafts) {
-    const result = await submitOutbound(ctx, {
-      auth: dryRun,
-      channel: "rest",
-      draft,
-      request: null,
-      bulkRequestId: null,
-      templateId: null,
-    });
-    if (result.outcome !== "rejected" || result.error.ErrorCode === 406) continue;
-    errors.set(`${result.error.ErrorCode}/${result.error.Message}`, result.error);
+function checkMessages(
+  ctx: RequestContext,
+  auth: ServerAuth,
+  jobs: readonly BulkJob[],
+  source: Content,
+) {
+  const errors = new Map<string, { field: string; error: ErrorBody }>();
+  for (const job of jobs) {
+    const draft = job.rendered.ok ? job.draft : withContent(job.draft, source);
+    const validation = validateOutbound(ctx, bulkSubmission(auth, draft, job.request, null, null));
+    if (validation.outcome === "valid") continue;
+    const { field, error } = validation;
+    errors.set(`${field}/${error.ErrorCode}/${error.Message}`, { field, error });
   }
   const found = [...errors.values()];
   const [only] = found;
   if (only === undefined) return;
   // Every send rejection is HTTP 422 (docs/03 §3.1).
-  if (found.length === 1) throw new ApiError(422, only);
+  if (found.length === 1) throw new ApiError(422, only.error);
   const Errors: Record<string, ErrorBody[]> = {};
-  for (const error of found) {
-    const field = errorField(error);
-    Errors[field] = [...(Errors[field] ?? []), error];
-  }
+  for (const { field, error } of found) Errors[field] = [...(Errors[field] ?? []), error];
   throw apiError(11, {
     message: "Multiple errors occurred. Inspect the Errors property for more information.",
     extra: { Errors },
   });
 }
+
+const withContent = (draft: OutboundDraft, content: Content): OutboundDraft => ({
+  ...draft,
+  Subject: content.Subject ?? undefined,
+  HtmlBody: content.HtmlBody ?? undefined,
+  TextBody: content.TextBody ?? undefined,
+});
 
 defineRoute({
   method: "POST",
@@ -186,16 +175,13 @@ defineRoute({
         message.TemplateModel ?? {},
         input.InlineCss ?? true,
       );
-      const body = rendered.ok ? rendered.content : content;
-      const draft: OutboundDraft = {
+      // Keys are canonical here; `draftFromJson` keeps one folding rule for every JSON draft.
+      const draft = draftFromJson({
         From: input.From,
         To: message.To,
         Cc: message.Cc,
         Bcc: message.Bcc,
         ReplyTo: input.ReplyTo,
-        Subject: body.Subject ?? undefined,
-        HtmlBody: body.HtmlBody ?? undefined,
-        TextBody: body.TextBody ?? undefined,
         Tag: input.Tag,
         MessageStream: streamId,
         Headers: mergeHeaders(input.Headers, message.Headers),
@@ -203,20 +189,14 @@ defineRoute({
         Metadata,
         TrackOpens: input.TrackOpens,
         TrackLinks: input.TrackLinks,
+      });
+      return {
+        draft: rendered.ok ? withContent(draft, rendered.content) : draft,
+        rendered,
+        request: rawMessages[i],
       };
-      return { draft, rendered, request: rawMessages[i] };
     });
-    // Validation sees the source content, so a render failure stays a FailedCount (refs/api_bulk-email.md:185).
-    await checkMessages(
-      ctx,
-      auth,
-      jobs.map((job) => ({
-        ...job.draft,
-        Subject: content.Subject ?? undefined,
-        HtmlBody: content.HtmlBody ?? undefined,
-        TextBody: content.TextBody ?? undefined,
-      })),
-    );
+    checkMessages(ctx, auth, jobs, content);
 
     const bulk: BulkRequest = {
       Id: newMessageId(),
@@ -230,6 +210,7 @@ defineRoute({
       // A templated request has no request Subject, so the key is omitted (INFERRED).
       Subject: input.Subject ?? null,
       messageIds: [],
+      unsupported: null,
     };
     state.bulkRequests.set(bulk.Id, bulk);
     scheduleBulk(ctx, auth, bulk, jobs, templateId);

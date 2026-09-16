@@ -16,3 +16,14 @@ defineControl({
     return bulkStatusJson(bulk);
   },
 });
+
+// The bulk request as the API shows it, plus why processing stopped on uncaptured behavior.
+defineControl({
+  method: "GET",
+  path: "/control/bulk/:id",
+  handler: ({ store, params }) => {
+    const bulk = store.state.bulkRequests.get(params.id ?? "");
+    if (bulk === undefined) throw new ControlError(`no bulk request '${params.id}'`);
+    return { ...bulkStatusJson(bulk), Unsupported: bulk.unsupported };
+  },
+});

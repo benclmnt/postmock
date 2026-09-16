@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createControlApp } from "../../control/app.ts";
 import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
@@ -154,6 +154,25 @@ describe("bulk send (docs/03 §1.6)", () => {
     expect((await call("GET", `/email/bulk/${sent.json.Id}`)).json).toMatchObject({
       Status: "Cancelled",
       ReleasedCount: 0,
+    });
+  });
+
+  it("stops and reports a request that reaches uncaptured behavior on the clock", async () => {
+    const { runtime, call, control, finish } = setup();
+    const sent = await call("POST", "/email/bulk", request([{ To: "a@example.com" }]));
+    for (const stream of runtime.store.state.streams.values()) {
+      if (stream.ID === "broadcast") stream.ArchivedAt = runtime.clock.now();
+    }
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await finish(1);
+    expect(errors).toHaveBeenCalledOnce();
+    errors.mockRestore();
+    const res = await control.request(`/control/bulk/${sent.json.Id}`);
+    expect(await res.json()).toMatchObject({
+      Status: "Processing",
+      ReleasedCount: 0,
+      FailedCount: 0,
+      Unsupported: expect.stringContaining("archived"),
     });
   });
 

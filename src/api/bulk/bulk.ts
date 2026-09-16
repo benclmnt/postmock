@@ -1,5 +1,11 @@
+import { Unsupported } from "../../http/respond.ts";
 import type { ServerAuth } from "../../http/routes.ts";
-import { type OutboundDraft, submitOutbound } from "../../pipeline/submit.ts";
+import {
+  acceptOutbound,
+  type OutboundDraft,
+  type Submission,
+  validateOutbound,
+} from "../../pipeline/submit.ts";
 import type { Runtime } from "../../runtime.ts";
 import type { BulkRequest } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
@@ -34,12 +40,33 @@ export const bulkStatusJson = (bulk: BulkRequest) => ({
   ...(bulk.Subject !== null && { Subject: bulk.Subject }),
 });
 
+/** A bulk message submission. REST sends generate no MIME source yet. */
+export const bulkSubmission = (
+  auth: ServerAuth,
+  draft: OutboundDraft,
+  request: unknown,
+  bulkRequestId: string | null,
+  templateId: number | null,
+): Submission => ({
+  auth,
+  channel: "rest",
+  draft,
+  request,
+  rawSource: "",
+  bulkRequestId,
+  templateId,
+});
+
 /**
  * Accepted → Processing → Completed. A message with every recipient suppressed, or one that failed
  * to render, counts in `FailedCount`; the rest in `ReleasedCount` (refs/api_bulk-email.md:303-316).
- * A message with only some recipients suppressed counts as released (INFERRED, docs/03 Q21).
- * A cancelled request releases nothing more. A pipeline `Unsupported` inside a job crashes postmock:
- * a job runs on the clock, where no request can carry the 501.
+ * A message that state changed since accept (a deleted stream) fails its checks and counts as
+ * failed too (INFERRED). A message with only some recipients suppressed counts as released
+ * (INFERRED, docs/03 Q21). A cancelled request releases nothing more.
+ *
+ * `Unsupported` in a job (an archived stream, a listener) has no request to answer with 501, and
+ * the docs give no count for it. The request stops releasing and keeps its counters, so it never
+ * reaches Completed; the reason goes to stderr and `GET /control/bulk/:id` (AGENTS.md rule 5).
  */
 export function scheduleBulk(
   runtime: Runtime,
@@ -54,26 +81,40 @@ export function scheduleBulk(
   });
   jobs.forEach((job, i) => {
     clock.schedule(BULK_START_MS + (i + 1) * BULK_STEP_MS, async () => {
-      if (bulk.Status !== "Processing") return;
-      const result = job.rendered.ok
-        ? await submitOutbound(runtime, {
-            auth,
-            channel: "rest",
-            draft: job.draft,
-            request: job.request,
-            bulkRequestId: bulk.Id,
-            templateId,
-          })
-        : undefined;
-      if (result?.outcome === "accepted" || result?.outcome === "partiallySuppressed") {
-        bulk.ReleasedCount += 1;
-        bulk.messageIds.push(result.message.MessageID);
-      } else {
-        bulk.FailedCount += 1;
+      if (bulk.Status !== "Processing" || bulk.unsupported !== null) return;
+      try {
+        bulk[
+          (await release(runtime, auth, bulk, job, templateId)) ? "ReleasedCount" : "FailedCount"
+        ] += 1;
+      } catch (error) {
+        if (!(error instanceof Unsupported)) throw error;
+        bulk.unsupported = error.message;
+        console.error(`postmock: bulk request ${bulk.Id} stopped: ${error.message}`);
+        return;
       }
       const done = bulk.ReleasedCount + bulk.FailedCount;
       bulk.PercentageCompleted = (done / bulk.TotalMessages) * 100;
       if (done === bulk.TotalMessages) bulk.Status = "Completed";
     });
   });
+}
+
+/** Sends one bulk message; true when it was released. */
+async function release(
+  runtime: Runtime,
+  auth: ServerAuth,
+  bulk: BulkRequest,
+  job: BulkJob,
+  templateId: number | null,
+): Promise<boolean> {
+  if (!job.rendered.ok) return false;
+  const validation = validateOutbound(
+    runtime,
+    bulkSubmission(auth, job.draft, job.request, bulk.Id, templateId),
+  );
+  if (validation.outcome === "rejected") return false;
+  const result = await acceptOutbound(runtime, validation.outbound);
+  if (result.outcome !== "accepted" && result.outcome !== "partiallySuppressed") return false;
+  bulk.messageIds.push(result.message.MessageID);
+  return true;
 }
