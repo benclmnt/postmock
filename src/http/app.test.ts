@@ -117,6 +117,13 @@ describe("emit rules", () => {
     expect(res.headers.get("Content-Encoding")).toBeNull();
   });
 
+  it("E2: refuses a handler that returns no body", async () => {
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
+    const res = await setup().request("/test/undefined");
+    expect(res.status).toBe(500);
+    expect(await res.text()).toContain("response body is undefined");
+  });
+
   it("refuses to serialize an unformatted Date (docs/02 §7.1)", async () => {
     vi.spyOn(console, "error").mockImplementationOnce(() => {});
     const res = await setup().request("/test/date");

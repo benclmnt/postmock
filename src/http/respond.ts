@@ -10,8 +10,12 @@ export class Unsupported extends Error {}
 // docs/02 §4.1 example: `Content-Type: application/json`; charset pending capture Q4.
 const JSON_TYPE = "application/json";
 
-/** Serializes JSON and refuses a raw Date: each surface formats its own dates (docs/02 §7.1). */
+/**
+ * Serializes JSON. Refuses `undefined` (no JSON body: an empty 200 breaks php, gem, java and dotnet,
+ * docs/08 §1.5) and a raw Date (each surface formats its own dates, docs/02 §7.1).
+ */
 export function toJson(body: unknown): string {
+  if (body === undefined) throw new Error("response body is undefined");
   return JSON.stringify(body, function (this: Record<string, unknown>, key, value) {
     if (this[key] instanceof Date) throw new Error(`unformatted Date at key '${key}'`);
     return value;
