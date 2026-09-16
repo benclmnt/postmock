@@ -20,8 +20,11 @@ function setup() {
       headers: { "X-Postmark-Server-Token": token, "Content-Type": "application/json" },
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
-    // biome-ignore lint/suspicious/noExplicitAny: the tests read nested response JSON.
-    return { status: res.status, json: (await res.json()) as any };
+    const json = res.headers.get("content-type")?.includes("json")
+      ? await res.json()
+      : await res.text();
+    // biome-ignore lint/suspicious/noExplicitAny: the tests read nested response JSON; a 501 is text.
+    return { status: res.status, json: json as any };
   };
   const finish = (messages: number) =>
     runtime.clock.advance(BULK_START_MS + messages * BULK_STEP_MS);
@@ -122,7 +125,17 @@ describe("bulk send (docs/03 §1.6)", () => {
       request([{ To: "a@example.com" }], { From: "probe@elsewhere.org" }),
     );
     expect(sender.status).toBe(422);
-    expect(sender.json.ErrorCode).toBe(400);
+    expect(sender.json).toEqual({
+      ErrorCode: 400,
+      Message:
+        "The 'From' address you supplied (probe@elsewhere.org) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+    });
+    const both = await call(
+      "POST",
+      "/email/bulk",
+      request([{ To: "a@example.com" }], { From: "probe@elsewhere.org", MessageStream: "nope" }),
+    );
+    expect(both.status).toBe(501);
     expect(runtime.store.state.bulkRequests.size).toBe(0);
   });
 

@@ -20,8 +20,11 @@ function setup() {
       headers: { "X-Postmark-Server-Token": "token", "Content-Type": "application/json" },
       ...(body !== undefined && { body: JSON.stringify(body) }),
     });
-    // biome-ignore lint/suspicious/noExplicitAny: the tests read nested response JSON.
-    return { status: res.status, json: (await res.json()) as any };
+    const json = res.headers.get("content-type")?.includes("json")
+      ? await res.json()
+      : await res.text();
+    // biome-ignore lint/suspicious/noExplicitAny: the tests read nested response JSON; a 501 is text.
+    return { status: res.status, json: json as any };
   };
   const layout = async () =>
     (
@@ -202,6 +205,32 @@ describe("templated sends (docs/03 §1.4–§1.5)", () => {
           "The Template's 'Alias' associated with this request is not valid or was not found.",
       },
     ]);
+  });
+
+  it("rejects a From that no account holds, single and per batch item", async () => {
+    const { call } = setup();
+    await call("POST", "/templates", { Name: "t", Alias: "t", Subject: "s", TextBody: "b" });
+    const text =
+      "The 'From' address you supplied (probe@elsewhere.org) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.";
+    const templated = { ...message, TemplateAlias: "t", TemplateModel: {} };
+    const single = await call("POST", "/email/withTemplate", {
+      ...templated,
+      From: "probe@elsewhere.org",
+    });
+    expect(single.status).toBe(422);
+    expect(single.json).toEqual({ ErrorCode: 400, Message: text });
+    const batch = await call("POST", "/email/batchWithTemplates", {
+      Messages: [templated, { ...templated, From: "probe@elsewhere.org" }],
+    });
+    expect(batch.json[0]).toMatchObject({ ErrorCode: 0 });
+    expect(batch.json[1]).toEqual({ ErrorCode: 400, Message: text });
+    // A template error beside an unknown sender: which error Postmark answers is not captured.
+    const both = await call("POST", "/email/withTemplate", {
+      ...templated,
+      TemplateAlias: "missing",
+      From: "probe@elsewhere.org",
+    });
+    expect(both.status).toBe(501);
   });
 
   it("rejects content fields beside a template and a missing model", async () => {
