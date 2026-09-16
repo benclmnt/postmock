@@ -32,7 +32,7 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 | Command | Checks | When |
 | --- | --- | --- |
 | `nix develop -c pnpm check` | `biome check .`, `tsc --noEmit`, `vitest run` | Every commit |
-| `nix develop -c tools/pack-smoke.sh` | `npm pack`, install the tarball outside the repo, `npm exec postmock`: `GET /server` answers 200, SMTP accepts a nodemailer send | A change to the build, `package.json` or discovery |
+| `nix develop .#node -c tools/pack-smoke.sh` | `npm pack`, install the tarball outside the repo; `dist/` holds a module for every source module; `npm exec postmock`: `GET /server` answers 200, SMTP accepts a nodemailer send | A change to the build, `package.json` or discovery |
 | `pnpm conformance <sdk>` | Runs that SDK suite against a fresh postmock; writes `conformance/results/<sdk>.json` | Before merge, for the suites the track touches |
 | `pnpm conformance all` | Every runner | Integration (W2) |
 | `pnpm conformance:check [sdk]` | The results file comes from the current postmock source, and every baseline test passes in it; no argument checks every runner | Before merge; no regression |
@@ -40,16 +40,18 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 ## CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request.
-It needs no secret. Actions are pinned by commit SHA; images by digest.
+It needs no secret. Actions are pinned by commit SHA; images by digest. A newer push cancels the running workflow of its ref.
 
 | Job | Runs |
 | --- | --- |
-| `check` | `nix develop -c pnpm check`, then `tools/pack-smoke.sh` |
-| `compose` | `docker compose run --rm --build example-node`: `examples/node/default-hosts.ts` on the internal network, no base-URL option (`docs/01` §3.3 option B) |
+| `check` | In the small `nix develop .#node` shell: `pnpm check`, then `tools/pack-smoke.sh` |
+| `compose` | `docker compose run --rm --build example-node`: `examples/node/default-hosts.ts` on the internal network, no base-URL option (`docs/01` §3.3 option B); `docker compose -f examples/compose/compose.yaml config -q` |
 | `runners` | Lists every `conformance/<sdk>/run.ts` for the matrix |
-| `conformance` (one per SDK) | `tools/fetch-sources.sh`, `nix develop -c pnpm conformance <sdk>`, `pnpm conformance:check <sdk>`; uploads `conformance/results/<sdk>.json` |
+| `conformance` (one per SDK) | `tools/fetch-sources.sh <sdk>`, `nix develop -c pnpm conformance <sdk>`, `pnpm conformance:check <sdk>`; uploads `conformance/results/<sdk>.json` |
+| `compat-table` | After every `conformance` job passes: downloads the results, runs `pnpm compat-table`, and fails when `README.md` changes. Commit the new table when a suite changes its counts. |
 
 The container runners (php, java, cli) run on the Linux runner's Docker Engine: see the `host-gateway` trap below.
+Each job downloads its nix shell; there is no nix store cache yet.
 
 ## Conformance files
 

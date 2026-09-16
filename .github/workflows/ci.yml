@@ -11,25 +11,35 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
-      - run: nix develop -c pnpm install --frozen-lockfile
-      - run: nix develop -c pnpm check
+      - run: nix develop .#node -c pnpm install --frozen-lockfile
+      - run: nix develop .#node -c pnpm check
       - name: npm package smoke test
-        run: nix develop -c tools/pack-smoke.sh
+        run: nix develop .#node -c tools/pack-smoke.sh
 
   compose:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: examples/node through DNS aliases and the test CA
         run: docker compose run --rm --build example-node
+      - name: the include example resolves
+        run: docker compose -f examples/compose/compose.yaml config -q
       - if: always()
         run: docker compose --profile example down -v
 
@@ -40,6 +50,8 @@ jobs:
       sdks: ${{ steps.list.outputs.sdks }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - id: list
         name: every conformance/<sdk>/run.ts
         run: echo "sdks=$(printf '%s\n' conformance/*/run.ts | cut -d/ -f2 | jq -Rnc '[inputs]')" >>"$GITHUB_OUTPUT"
@@ -55,8 +67,10 @@ jobs:
         sdk: ${{ fromJSON(needs.runners.outputs.sdks) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
-      - run: tools/fetch-sources.sh
+      - run: tools/fetch-sources.sh ${{ matrix.sdk }}
       - run: nix develop -c pnpm install --frozen-lockfile
       - run: nix develop -c pnpm conformance ${{ matrix.sdk }}
       - run: nix develop -c pnpm conformance:check ${{ matrix.sdk }}
@@ -66,3 +80,24 @@ jobs:
           name: conformance-${{ matrix.sdk }}
           path: conformance/results/${{ matrix.sdk }}.json
           if-no-files-found: ignore
+
+  compat-table:
+    needs: conformance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: conformance-*
+          path: conformance/results
+          merge-multiple: true
+      - run: tools/fetch-sources.sh
+      - run: nix develop .#node -c pnpm install --frozen-lockfile
+      - name: README table matches the CI results
+        run: |
+          nix develop .#node -c pnpm compat-table
+          git diff --exit-code README.md
