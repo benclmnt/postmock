@@ -28,11 +28,13 @@ async function setup() {
 }
 
 describe("conformance message history", () => {
-  it("has 33 sent messages, tagged ones, inbound, opens and clicks", async () => {
+  it("has 51 sent messages, tagged ones, 10 processed inbound, opens and clicks", async () => {
     const get = await setup();
     expect((await get("/messages/outbound?count=33&offset=0&status=sent")).Messages).toHaveLength(
       33,
     );
+    expect((await get("/messages/outbound?count=1&offset=50")).Messages).toHaveLength(1);
+    expect((await get("/messages/inbound?count=10&offset=0")).InboundMessages).toHaveLength(10);
     expect(
       (await get("/messages/outbound?count=20&offset=0&tag=test_tag")).TotalCount,
     ).toBeGreaterThan(0);
