@@ -163,7 +163,10 @@ describe("submitOutbound", () => {
     });
 
     it("reads X-PM-TrackOpens text on SMTP (docs/07 §1.3)", async () => {
-      expect(accepted(await setup().send({ TrackOpens: "True" }, "smtp")).TrackOpens).toBe(true);
+      expect(
+        accepted(await setup().send({ HtmlBody: "<b>Hi</b>", TrackOpens: "True" }, "smtp"))
+          .TrackOpens,
+      ).toBe(true);
     });
 
     it.each([
@@ -215,7 +218,9 @@ describe("submitOutbound", () => {
       [{ To: "test" }, "Invalid 'To' address: 'test'."],
       [{ Bcc: "a@example.com, nope" }, "Invalid 'Bcc' address: 'a@example.com, nope'."],
       [{ ReplyTo: "nope" }, "Invalid 'ReplyTo' address: 'nope'."],
-      [{ To: undefined }, "Zero recipients specified"],
+      [{ To: undefined }, "Invalid 'To' address: ''."],
+      [{ To: undefined, Cc: "c@example.com" }, "Invalid 'To' address: ''."],
+      [{ To: " , " }, "Invalid 'To' address: ' , '."],
       [{ TextBody: undefined }, "Provide either email TextBody or HtmlBody or both."],
     ])("rejects %j", async (fields, message) => {
       expect(await setup().send(fields)).toEqual(rejected(300, message));
@@ -252,6 +257,10 @@ describe("submitOutbound", () => {
         error: { ErrorCode: 300 },
       });
     });
+  });
+
+  it("reads Metadata [] as no metadata (php encodes an empty array as [])", async () => {
+    expect(accepted(await setup().send({ Metadata: [] })).Metadata).toEqual({});
   });
 
   describe("attachments", () => {
@@ -292,11 +301,21 @@ describe("submitOutbound", () => {
   });
 
   describe("tracking", () => {
-    it("keeps the message TrackOpens unless the server forces it on (docs/03 §5.3)", async () => {
-      expect(accepted(await setup().send({})).TrackOpens).toBe(false);
-      expect(accepted(await setup().send({ TrackOpens: true })).TrackOpens).toBe(true);
+    it("never tracks opens of a message without an HTML body (docs/07 §3)", async () => {
       const forced = setup({ TrackOpens: true });
-      expect(accepted(await forced.send({ TrackOpens: false })).TrackOpens).toBe(true);
+      expect(accepted(await forced.send({ TextBody: "Hi" })).TrackOpens).toBe(false);
+      expect(accepted(await setup().send({ TrackOpens: true })).TrackOpens).toBe(false);
+    });
+
+    it("keeps the message TrackOpens unless the server forces it on (docs/03 §5.3)", async () => {
+      expect(accepted(await setup().send({ HtmlBody: "<b>Hi</b>" })).TrackOpens).toBe(false);
+      expect(
+        accepted(await setup().send({ HtmlBody: "<b>Hi</b>", TrackOpens: true })).TrackOpens,
+      ).toBe(true);
+      const forced = setup({ TrackOpens: true });
+      expect(
+        accepted(await forced.send({ HtmlBody: "<b>Hi</b>", TrackOpens: false })).TrackOpens,
+      ).toBe(true);
     });
 
     it("lets the message TrackLinks override the server value (docs/03 §5.2)", async () => {

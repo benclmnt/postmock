@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { type ErrorBody, errorBody } from "../errors.ts";
-import { absent, base64, canonicalizeKeys } from "../http/normalize.ts";
+import { absent, base64, canonicalizeKeys, objectOrEmptyArray } from "../http/normalize.ts";
 import { Unsupported } from "../http/respond.ts";
 import type { ServerAuth } from "../http/routes.ts";
 import type { Runtime } from "../runtime.ts";
@@ -50,7 +50,8 @@ const draftSchema = (channel: "rest" | "smtp") =>
         }),
       ),
     ),
-    Metadata: nullable(z.record(z.string(), z.string())),
+    // php sends an empty metadata array as `[]` (sdk/postmark-php/src/Postmark/PostmarkClient.php:97,113).
+    Metadata: nullable(objectOrEmptyArray(z.record(z.string(), z.string()))),
     // SMTP: `X-PM-TrackOpens: true`; absent or false means no tracking (docs/07 §1.3).
     TrackOpens:
       channel === "rest"
@@ -177,8 +178,9 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
     if (addresses === undefined) return invalidAddress(field, draft[field] ?? "");
     lists[field] = addresses;
   }
+  // `To` is required (docs/03 §1.2); the empty-`To` text is INFERRED (docs/03 Q4).
+  if (draft.To === undefined || lists.To.length === 0) return invalidAddress("To", draft.To ?? "");
   const recipients = [...lists.To, ...lists.Cc, ...lists.Bcc];
-  if (recipients.length === 0) return invalid("Zero recipients specified");
   if (recipients.length > MAX_RECIPIENTS) {
     return invalid(`Exceeded the maximum of ${MAX_RECIPIENTS} recipients per message.`);
   }
@@ -197,7 +199,7 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
     outcome: "valid",
     outbound: {
       submission,
-      draft: { ...draft, From: draft.From, To: draft.To ?? "" },
+      draft: { ...draft, From: draft.From, To: draft.To },
       streamId,
       from,
       lists,
@@ -256,8 +258,10 @@ export async function acceptOutbound(
       ContentLength: a.Content.length,
     })),
     Metadata: draft.Metadata ?? {},
-    // A server with open tracking on forces it on (docs/03 §5.3).
-    TrackOpens: auth.server.TrackOpens || (draft.TrackOpens ?? false),
+    // A server with open tracking on forces it on (docs/03 §5.3); a message without an HTML body
+    // is never tracked (docs/07 §3).
+    TrackOpens:
+      draft.HtmlBody !== undefined && (auth.server.TrackOpens || (draft.TrackOpens ?? false)),
     // A message value overrides the server value (docs/03 §5.2).
     TrackLinks: draft.TrackLinks ?? auth.server.TrackLinks,
     Status: "Sent",
