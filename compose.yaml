@@ -1,0 +1,64 @@
+# postmock as api.postmarkapp.com and smtp.postmarkapp.com on an internal network (docs/01 §3.3
+# option B). A client on the `sandbox` network reaches postmock with Postmark's own host names once
+# it trusts /ca/ca.pem (NODE_EXTRA_CA_CERTS for Node). The network has no route out, so no request
+# reaches real Postmark.
+#
+#   docker compose run --rm example-node     # the example app sends over REST and SMTP
+#   docker compose down -v                   # drops the CA volume too
+
+name: postmock
+
+services:
+  ca:
+    build: { context: ., target: ca }
+    network_mode: none
+    volumes: [ca:/ca]
+
+  postmock:
+    build: .
+    image: postmock
+    depends_on:
+      ca: { condition: service_completed_successfully }
+    environment:
+      POSTMOCK_SEED: conformance
+      POSTMOCK_HTTPS_PORT: "443"
+      POSTMOCK_HTTPS_TLS_KEY: /ca/key.pem
+      POSTMOCK_HTTPS_TLS_CERT: /ca/cert.pem
+      # Postmark's SMTP ports (docs/07 §1.2).
+      POSTMOCK_SMTP_PORTS: "25,587,2525"
+      POSTMOCK_SMTP_TLS_KEY: /ca/key.pem
+      POSTMOCK_SMTP_TLS_CERT: /ca/cert.pem
+    volumes: [ca:/ca:ro]
+    # The non-root user binds 25 and 443.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    healthcheck:
+      test:
+        - CMD
+        - /nodejs/bin/node
+        - -e
+        - 'fetch("http://127.0.0.1:8025/control/messages").then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))'
+      interval: 1s
+      retries: 30
+    networks:
+      sandbox:
+        aliases: [api.postmarkapp.com, smtp.postmarkapp.com, smtp-broadcasts.postmarkapp.com]
+
+  example-node:
+    profiles: [example]
+    build: { context: ., dockerfile: examples/node/Dockerfile }
+    depends_on:
+      postmock: { condition: service_healthy }
+    environment:
+      NODE_EXTRA_CA_CERTS: /ca/ca.pem
+      POSTMARK_SERVER_TOKEN: postmock-server-token
+      POSTMOCK_CONTROL_URL: http://postmock:8025
+    volumes: [ca:/ca:ro]
+    networks: [sandbox]
+
+networks:
+  sandbox:
+    internal: true
+
+volumes:
+  ca:

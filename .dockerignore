@@ -1,0 +1,13 @@
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.json
+!tsconfig.build.json
+!src/
+!seeds/
+!tools/test-ca.sh
+!examples/node/package.json
+!examples/node/default-hosts.ts
+**/*.test.ts
+**/node_modules
