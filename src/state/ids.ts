@@ -1,9 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-/** Postmark MessageID and bulk Id: a lowercase UUID (docs/08 E7). */
+/** Postmark MessageID and bulk Id: a UUID (docs/08 E7). Lowercase hex as in doc examples (INFERRED). */
 export const newMessageId = (): string => randomUUID();
 
-/** A server or account token: a UUID, like the tokens Postmark issues. */
+/** A server or account token. The UUID shape matches no documented format (INFERRED). */
 export const newToken = (): string => randomUUID();
 
 /** Lowercase hex, for inbound hashes and SMTP token keys. */

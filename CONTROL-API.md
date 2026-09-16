@@ -16,20 +16,20 @@ A test that passes against postmock then tests code paths that real Postmark can
 ## Shape
 
 - `POST` for actions, `GET` for state. JSON in, JSON out.
-- Every call is synchronous. It returns after the change is applied and its events are emitted.
+- Every call is synchronous. It returns after the change is applied and every event listener finished (`await events.emit`). Work a listener puts on the clock (a webhook retry) runs on a later `clock/advance` or when real time reaches it.
 - A bad request returns 400 and `{"error": "..."}`. There is no partial success.
 - An unknown control route returns 404 and `{"error": "..."}`.
 - A bug in postmock returns 500 and plain text with the stack.
-- A track adds its endpoints in `src/control/<topic>.ts` with `defineControl`, and one import line in `src/control/index.ts`.
+- A track adds its endpoints in its own `src/control/endpoints/<topic>.ts` with `defineControl`. postmock loads the folder in filename order.
 
 ## Endpoints
 
 | Call | Body / query | Response | Real-world equivalent | Status |
 | --- | --- | --- | --- | --- |
-| `POST /control/reset` | `{seed?}` | `{seed}` | A new account. Clears all state, pending clock tasks and the clock offset, then applies `seed` or the startup seed. An unknown seed changes nothing. | built |
-| `POST /control/seed` | `{name}` | `{seed}` | Account setup done before the test. Applies `seeds/<name>.ts` on top of the current state. | built |
-| `POST /control/clock/advance` | `{ms}` (integer ≥ 0) | `{now}` | Time passes. Runs every scheduled task now due, in due order (webhook retries, bulk progress). | built |
-| `POST /control/faults` | `{match: {method, path}, times?, reply}` | `{faults}` | A Postmark outage or network loss. `path` is a route pattern matched like an API route. `times` defaults to 1. `reply` is `{status, errorCode}` (the envelope for that code), `"timeout"` (no answer until the client gives up) or `"reset"` (socket destroyed). | built |
+| `POST /control/reset` | `{seed?}` | `{seed}` | A new account. Clears all state, pending clock tasks and the clock offset, then applies `seed` or the startup seed. An unknown or failing seed changes nothing and answers 400. | built |
+| `POST /control/seed` | `{name}` | `{seed}` | Account setup done before the test. Applies `seeds/<name>.ts` on top of the current state. A seed that clashes with the state (a token another server holds) changes nothing and answers 400. | built |
+| `POST /control/clock/advance` | `{ms}` (integer ≥ 0) | `{now}` | Time passes. Runs every task due by the end, in due order, with the clock at each due time, and awaits it. Tasks scheduled during the advance run too when due (chained webhook retries). | built |
+| `POST /control/faults` | `{match: {method, path}, times?, reply}` | `{faults}` | A Postmark outage or network loss. `path` is a route pattern matched like an API route. `times` defaults to 1. `reply` is `{errorCode, status?, family?, message?}`: the envelope `apiError` builds, so only a status and code pair from `docs/02` §4.4 is accepted (429 has no documented body and cannot be faulted yet); or `"timeout"` (no answer until the client gives up) or `"reset"` (socket destroyed). | built |
 | `GET /control/messages` | `?to=&tag=&channel=rest\|smtp` | `{Messages: [{MessageID, ServerID, MessageStream, Channel, SubmittedAt, Request}]}` | The Activity page. `Request` is the request JSON (REST) or raw MIME (SMTP). `to` matches To, Cc or Bcc without case. | built |
 | `POST /control/servers` | `{token, streams}` | — | Create a server and its token | design |
 | `POST /control/suppressions` | `{stream, email, reason, origin}` | — | A hard bounce, a complaint, an unsubscribe (`docs/04`) | design (T2) |
@@ -47,4 +47,4 @@ It writes state that real Postmark could hold, directly into the store.
 | Seed | Content |
 | --- | --- |
 | `empty` | No token, no server |
-| `conformance` | Account token `postmock-account-token`; one server with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/core.ts`). Tracks add parts. |
+| `conformance` | Account token `postmock-account-token`; server ID 1 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs. |

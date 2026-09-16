@@ -47,8 +47,8 @@ Port `0` picks a free port; startup prints the URLs.
 | Step | Result on failure | Code |
 | --- | --- | --- |
 | 1. A control-API fault matches method and path | the fault reply | `src/http/faults.ts` |
-| 2. The route table matches method and path | 404, plain text `postmock: no route for …` | `src/http/routes.ts` |
-| 3. Auth reads the token header the route needs | 401 + ErrorCode 10; 501 for `POSTMARK_API_TEST` where its behavior is unknown | `src/http/auth.ts` |
+| 2. The route table matches method and path; one trailing slash is ignored | 404, plain text `postmock: no route for …` (also for `//` or a bad percent-escape) | `src/http/routes.ts` |
+| 3. Auth reads the token header the route needs. `POSTMARK_API_TEST` gets a stored-nowhere server with the default streams (INFERRED) | 401 + ErrorCode 10; 501 for `POSTMARK_API_TEST` where its behavior is unknown | `src/http/auth.ts` |
 | 4. The body decodes as UTF-8 JSON | 422 + ErrorCode 402 | `src/http/normalize.ts` |
 | 5. The handler returns a JSON body | `ApiError` → envelope; `Unsupported` → 501 text; any other throw → 500 text | `src/http/app.ts` |
 
@@ -65,39 +65,41 @@ The handler cannot choose another success status.
 | `src/errors.ts` | ErrorCode table (`docs/02` §4.4), `apiError`, `errorBody` | built |
 | `src/time.ts` | Eastern-time parse and the timestamp formats of `docs/02` §7.1 | built |
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
-| `src/api/index.ts` | One import per API group | built |
+| `src/discover.ts` | Imports route, control and seed-part files from disk in filename order | built |
+| `src/api/index.ts` | Loads every `src/api/<group>/routes.ts` | built |
 | `src/api/server/` | `GET /server`; `serverJson` for the Servers API | built (`PUT /server`: T5) |
 | `src/api/<group>/` | Other API groups | design (T1–T5, T7) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/submit.ts` | `submitOutbound` | contract + stub (body: T1) |
-| `src/control/` | Control registry, core endpoints, seed loader | built (more endpoints: tracks) |
+| `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer | design (T3) |
 | `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules | design (T5) |
 | `src/smtp/` | SMTP listener | design (T6) |
-| `seeds/` | `empty`, `conformance` (parts under `seeds/conformance/`) | built (more parts: tracks) |
+| `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
 
 ## Shared contracts
 
-A track adds files and one import line. It never edits another track's lines (`docs/11` §5).
+A track adds files. postmock finds them on disk in filename order; no shared list needs an edit (`docs/11` §5).
 A change to a contract below goes through the integrator.
 
 | Contract | Path | Shape |
 | --- | --- | --- |
 | API route | `src/http/routes.ts` | `defineRoute({ method, path: "/templates/:idOrAlias", auth: "server" \| "serverOrTest" \| "account", handler(ctx) })`. The handler returns the 200 body or throws `ApiError`/`Unsupported`. `ctx` has `store`, `events`, `clock`, `params`, `query`, `body`, `headers`, `auth`. |
-| API group registration | `src/api/index.ts` | `import "./<group>/routes.ts";` |
-| Errors | `src/errors.ts` | `apiError(code, { family?, status?, message?, params?, extra? })`; `errorBody(code, …)` for a batch item |
+| API group registration | `src/api/<group>/routes.ts` | The file exists; `src/api/index.ts` imports it |
+| Errors | `src/errors.ts` | `apiError(code, { family?, status?, message? \| params?, extra? })`; `errorBody(code, …)` for a batch item. A `summary` row needs `message`, used verbatim; `params` fill `{name}` only in a `message` row. |
 | Normalization | `src/http/normalize.ts` | `ctx.query.get/all/prefixed/pick(schema)`; codecs `queryBool`, `queryInt`, `queryDate`; `parseBody(schema, ctx.body)`; codecs `absent`, `intLike`, `objectOrEmptyArray`, `base64` |
 | Responses | `src/http/respond.ts` | `paged(key, items, count, offset)`; `Unsupported` |
-| Send pipeline | `src/pipeline/submit.ts` | `submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, bulkRequestId, templateId }): SubmitResult` |
-| Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `events.emit(name, payload)`. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
-| Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)`; `store.reset()`; `streamKey`, `suppressionKey` |
+| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, bulkRequestId, templateId }): Promise<SubmitResult>`. The draft holds the sender's raw values (address lists as strings); `submitOutbound` owns every send check and ErrorCode. |
+| Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `await events.emit(name, payload)` awaits each listener in order. Listeners may be async; later work goes on the clock. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
+| Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)`; `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
+| Servers | `src/state/servers.ts` | `createServer(store, now, settings)` (refuses a duplicate token); `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
 | Entities | `src/state/types.ts` | PascalCase fields are wire fields; camelCase fields are internal; dates are `Date` |
-| Clock | `src/state/clock.ts` | `clock.now()`, `clock.schedule(delayMs, run)`, `clock.advance(ms)` |
+| Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule |
 | Control endpoint | `src/control/registry.ts` | `defineControl({ method, path: "/control/…", handler(ctx) })`; `controlInput(schema, ctx.body)`; throw `ControlError` for 400 |
-| Control registration | `src/control/index.ts` | `import "./<topic>.ts";` |
-| Seed part | `src/control/seed.ts` | `defineSeedPart("conformance", (runtime) => …)` in `seeds/conformance/<part>.ts`, plus one import line in `seeds/conformance.ts` |
+| Control registration | `src/control/endpoints/<topic>.ts` | The file exists; `src/control/index.ts` imports it |
+| Seed part | `seeds/conformance/<NN-part>.ts` | Default export `Seed = (runtime) => void \| Promise<void>`. It claims fixed IDs, so its IDs do not depend on other parts. |
 
 ## Deviations from real Postmark
 
@@ -108,6 +110,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | Unknown route | 404, plain text | `docs/02` §9 Q9 |
 | `POSTMARK_API_TEST` on a route that does not accept it yet | 501, plain text | `docs/02` §9 Q8 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
+| A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 
@@ -125,4 +128,6 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A bundled app has its own copy of postmark.js. A preload that sets `HttpClient.DefaultOptions` does not reach it; replacing `globalThis.fetch` does. | `docs/01` §3.1 (D.c) |
 | postmark-cli uses postmark.js 4.0.2 (axios), not fetch. The fetch shim does not reach it. | `docs/08` §0 |
 | A route pattern with a literal wins over a param at the same position (`PUT /templates/push` before `/templates/:idOrAlias`). | `docs/08` §2.5 |
-| `614` and `1226` appear under several families; `501`, `1406`, `1408` use several statuses. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
+| `614` and `1226` appear under several families; `501` and `1408` use several statuses; `1406` appears only inside 200 bodies. `apiError` throws until the caller names the family or status. | `docs/02` §4.4 |
+| Many docs/02 §4.4 rows summarize several messages (300, 700, 1000, 1122, …). Those rows are marked `summary`; the caller passes the exact wire text. | `src/errors.ts` |
+| `setTimeout` fires at once for a delay above 2^31−1 ms. The clock arms no real timer past that limit. | Node timers |

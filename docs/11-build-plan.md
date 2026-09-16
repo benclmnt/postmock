@@ -2,7 +2,7 @@
 
 Status: plan. It splits the build in `docs/09` into waves and parallel tracks.
 Definition of done: every official SDK's live integration suite passes against postmock.
-Each allowed exception is listed in `conformance/<sdk>/SKIPS.md` with a reason.
+Each allowed exception is listed in `conformance/<sdk>/skips/<test file>.md` with a reason.
 
 ## 1. Decisions taken
 
@@ -31,9 +31,9 @@ SDK requirements: .NET tests target `netcoreapp3.1` (run with `DOTNET_ROLL_FORWA
 | `src/render/` | T3 | Mustachio renderer |
 | `src/webhooks/`, `src/inbound/` | T5 | Emitter with retries on the virtual clock; inbound parse and rules |
 | `src/smtp/` | T6 | SMTP listener |
-| `src/control/` | W0 skeleton, every track adds its endpoints | Control API (`docs/09` §5) and seed loader |
-| `seeds/` | W0 format, tracks add files | Named seeds: `empty`, `conformance` (`docs/08` harness seed) |
-| `conformance/<sdk>/` | W0 for postmark.js, T8 for the rest | `run.sh`, shims, `testing_keys.json`, `SKIPS.md`, `baseline.json` |
+| `src/control/` | W0 skeleton, every track adds files in `endpoints/` | Control API (`docs/09` §5) and seed loader |
+| `seeds/` | W0 format, tracks add parts in `seeds/conformance/` | Named seeds: `empty`, `conformance` (`docs/08` harness seed) |
+| `conformance/<sdk>/` | W0 for postmark.js, T8 for the rest | `run.ts`, shims, `testing_keys.json`, `baseline/<test file>.json`, `skips/<test file>.md` |
 | `examples/node/`, `Dockerfile`, `compose.yaml`, `.github/workflows/` | W3 | Packaging and CI |
 
 Rule: a track edits only its own paths. A change to a W0 contract goes through the integrator (§5).
@@ -53,13 +53,13 @@ flowchart LR
 | Deliverable | Exit check |
 | --- | --- |
 | `flake.nix`, pnpm workspace, tsconfig strict, biome, vitest | `nix develop -c pnpm check` passes |
-| Request normalization and responder (`docs/08` accept rules R1–R15, emit rules E1–E13) | Unit tests per rule |
+| Request normalization and responder (`docs/08` accept rules R1–R15, emit rules E1–E16) | Unit tests per rule E1–E13; E14–E16 are conflicts the owning track decides (T1, T3, T7) |
 | `errors.ts` with every ErrorCode in `docs/02` | A test asserts one entry per documented code |
 | Auth: server token, account token, `POSTMARK_API_TEST`, 401/10 | Unit tests |
 | State types for every entity in `docs/03`–`docs/07`; `Store`; clock; ids | Typecheck; the types cover every response schema in `docs/08` |
 | Contracts: `submitOutbound()` signature, event bus, route registry, control API skeleton (`reset`, `seed`, `clock/advance`, `faults`, `messages`) | Stub implementations; `GET /server` works end to end |
 | postmark.js conformance runner: `pnpm conformance postmark.js` starts postmock with a seed, runs the suite with the preload shim, writes `conformance/results/postmark.js.json` | Runs the suite; the report lists pass/fail per test; `Server` tests pass |
-| Result ratchet: `pnpm conformance:check` fails when a test in `baseline.json` stops passing | Unit test on the comparer |
+| Result ratchet: `pnpm conformance:check` fails when a test in `conformance/<sdk>/baseline/` stops passing, or the results are stale | Unit test on the comparer |
 
 W0 fixes the contracts that tracks share. It is the only serial step.
 
@@ -91,8 +91,8 @@ Dependencies inside W1:
 | Run every suite on `main` | `pnpm conformance all` |
 | Triage | Map each failing test file to its track (table §3.2). Group failures by cause, not by test. |
 | Fix rounds | One agent per track with failures. At most 3 rounds per track, then escalate with the remaining failures listed. |
-| Conflicts | A test that needs Postmark state the mock cannot know (real delivery, DNS for DKIM, external timing) goes to `SKIPS.md` with the reason. Two SDKs that assert opposite behavior: follow B3, skip the other, and record the conflict in `docs/08`. |
-| Ratchet | Update `baseline.json` only upward. |
+| Conflicts | A test that needs Postmark state the mock cannot know (real delivery, DNS for DKIM, external timing) goes to `skips/<test file>.md` with the reason. Two SDKs that assert opposite behavior: follow B3, skip the other, and record the conflict in `docs/08`. |
+| Ratchet | Update baseline files only upward. |
 
 ### 3.4 W3 — Packaging and CI
 
@@ -100,6 +100,7 @@ Dependencies inside W1:
 | --- | --- |
 | `Dockerfile` (distroless Node 24), `compose.yaml` with network aliases `api.postmarkapp.com` and `smtp.postmarkapp.com`, CA generation script | `examples/node` passes inside Compose with no base-URL option (`docs/01` option B) |
 | npm package `@benclmnt/postmock` with CLI `postmock --seed <name>` | `npx` smoke test |
+| Build step for the package: compiled JavaScript, with discovery (`src/discover.ts`) and the seed loader (`src/control/seed.ts`) reading `.js` files. Today both read `.ts` and need Node type stripping on the sources. | The installed package starts without the sources |
 | GitHub Actions: `pnpm check`, vitest, and a matrix job per SDK suite using the flake | All green on a clean runner |
 | README usage for each routing option; SDK compatibility table from the results files | Links resolve |
 
@@ -124,7 +125,9 @@ Failures that come from postmock go back to W2 as issues.
 | --- | --- |
 | Integrator | One owner merges branches in order, reruns `conformance:check`, and owns W0 contracts. |
 | Contract change | A track proposes it in its branch. The integrator applies it on `main` first. The other tracks rebase. |
-| Shared files | `src/control/index.ts` and `seeds/conformance.ts` register per-track files by import only. A track adds a line; it never edits another track's lines. |
+| Shared files | None to edit. postmock loads `src/api/*/routes.ts`, `src/control/endpoints/*.ts` and `seeds/conformance/*.ts` from disk in filename order. A track adds its own files. |
+| Seed IDs | A seed part claims fixed IDs (`store.useId`), so its IDs do not depend on the parts other tracks add. |
+| Baselines | One file per SDK test file: `conformance/<sdk>/baseline/<test file>.json`, and `skips/<test file>.md`. A track edits only the files of the tests it owns (§3.2). |
 | Docs | A track that finds a doc wrong fixes the doc in the same branch and cites the SDK live test (B3). |
 
 ## 6. Agent budget
@@ -140,7 +143,7 @@ Failures that come from postmock go back to W2 as issues.
 
 | Risk | Mitigation |
 | --- | --- |
-| SDK suites assume real Postmark state (existing domains, delivered mail, inbound mail) | The `conformance` seed; control-API toggles; `SKIPS.md` with reasons |
+| SDK suites assume real Postmark state (existing domains, delivered mail, inbound mail) | The `conformance` seed; control-API toggles; `skips/<test file>.md` with reasons |
 | Exact-string assertions in SDK tests (`docs/08` §5.2 blockers) | B3: the live test text wins; cite it in `errors.ts` |
 | Count-sensitive dotnet tests running in parallel | A fresh postmock per test class, or a serial xUnit run (`docs/08` §5.3) |
 | PHP suite requires port 80 and sleeps 180 s | Run it in a container on port 80; the control-API clock does not shorten a client `sleep`, so allow the time in CI |

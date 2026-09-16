@@ -162,7 +162,7 @@ The mock serves both families. Each family accepts only its own token header (§
 
 SDK tests only show `ErrorCode: 10` with an invented message.
 `sdk/postmark-python/tests/test_server_client.py:132-150` SDK.
-The mock must not invent the message. It uses the captured text.
+Until a capture gives the text, the mock sends the §4.4 table text for ErrorCode 10 (INFERRED). A capture replaces it.
 
 ---
 
@@ -544,7 +544,7 @@ Docs show several shapes. The mock needs one shape per field, taken from a captu
 - [ ] Accept `Accept: application/json` and `Content-Type: application/json` on every method. postmark.js sends `Content-Type` on GET. (§2.5)
 - [ ] Parse query strings with case-insensitive keys. (§7.3, INFERRED)
 - [ ] Read `X-Postmark-Server-Token` with a case-insensitive header name. (§3.1)
-- [ ] Return 401 + `{"ErrorCode":10,"Message":<captured text>}` + `X-PM-ApiErrorCode: 10` for a missing token, an unknown token, or an account token on a server endpoint. (§3.4)
+- [ ] Return 401 + `{"ErrorCode":10,"Message":<text>}` (§3.4: table text until captured) + `X-PM-ApiErrorCode: 10` for a missing token, an unknown token, or an account token on a server endpoint. (§3.4)
 - [ ] Treat `POSTMARK_API_TEST` as a valid server token: validate fully, return `"Test job accepted"` on `POST /email`, record no delivery. (§3.3)
 - [ ] Return status 200 for every success. Never 201 or 204. (§4.2, §5.2)
 - [ ] Send every error as `application/json` with `ErrorCode` (number) and `Message` (string), and the `X-PM-ApiErrorCode` header. (§4.1)
