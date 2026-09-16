@@ -26,7 +26,9 @@
     "@biomejs/biome": "^2.5.13",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^24.13.4",
+    "@types/nodemailer": "^8.0.1",
     "@types/smtp-server": "^3.5.13",
+    "nodemailer": "^9.1.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
   }
