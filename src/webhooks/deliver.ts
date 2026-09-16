@@ -90,10 +90,10 @@ async function attempt(
   const { target, policy } = event;
   const remaining = policy.delaysMin.length - (n - 1);
   const { url, headers } = request(target, traceId, policy.retriesHeader ? remaining : null);
+  const at = runtime.clock.now();
   const outcome = await post(url, headers, body, policy.timeoutMs);
   const verdict = policy.classify(outcome);
   const result: AttemptResult = verdict === "retry" && remaining === 0 ? "exhausted" : verdict;
-  const at = runtime.clock.now();
   const delayMs = result === "retry" ? (policy.delaysMin[n - 1] as number) * 60_000 : null;
   runtime.store.state.webhookAttempts.push({
     id: runtime.store.nextId("webhookAttempt"),
@@ -110,8 +110,10 @@ async function attempt(
     result,
     nextAttemptAt: delayMs === null ? null : new Date(at.getTime() + delayMs),
   });
+  // Retry delays count from the attempt's start, so the schedule does not drift by request time.
   if (delayMs !== null) {
-    runtime.clock.schedule(delayMs, () => attempt(runtime, event, body, traceId, n + 1));
+    const wait = Math.max(0, at.getTime() + delayMs - runtime.clock.now().getTime());
+    runtime.clock.schedule(wait, () => attempt(runtime, event, body, traceId, n + 1));
   }
   event.onResult?.(result);
 }
