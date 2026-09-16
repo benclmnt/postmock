@@ -5,24 +5,38 @@ import type { OutboundMessage } from "./state/types.ts";
 describe("EventBus", () => {
   const message = { MessageID: "m" } as OutboundMessage;
 
-  it("delivers to listeners of that event until unsubscribed", () => {
+  it("delivers to listeners of that event until unsubscribed", async () => {
     const bus = new EventBus();
     const sent = vi.fn();
     const opened = vi.fn();
     const off = bus.on("sent", sent);
     bus.on("opened", opened);
-    bus.emit("sent", { message });
+    await bus.emit("sent", { message });
     off();
-    bus.emit("sent", { message });
+    await bus.emit("sent", { message });
     expect(sent).toHaveBeenCalledExactlyOnceWith({ message });
     expect(opened).not.toHaveBeenCalled();
   });
 
-  it("lets a listener error reach the emitter", () => {
+  it("resolves after async listeners finish, in order", async () => {
     const bus = new EventBus();
+    const order: string[] = [];
+    bus.on("sent", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      order.push("slow");
+    });
     bus.on("sent", () => {
+      order.push("fast");
+    });
+    await bus.emit("sent", { message });
+    expect(order).toEqual(["slow", "fast"]);
+  });
+
+  it("lets a listener error reach the emitter", async () => {
+    const bus = new EventBus();
+    bus.on("sent", async () => {
       throw new Error("boom");
     });
-    expect(() => bus.emit("sent", { message })).toThrow("boom");
+    await expect(bus.emit("sent", { message })).rejects.toThrow("boom");
   });
 });

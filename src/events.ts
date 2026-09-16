@@ -23,9 +23,13 @@ export interface EventMap {
 }
 
 export type EventName = keyof EventMap;
-type Listener<K extends EventName> = (payload: EventMap[K]) => void;
+type Listener<K extends EventName> = (payload: EventMap[K]) => void | Promise<void>;
 
-/** Synchronous bus. A listener that throws fails the emitting request (AGENTS.md rule 5). */
+/**
+ * `emit` awaits each listener in subscription order, so a request or control call that emits returns
+ * after every listener finished. A listener that needs later work (a webhook retry) schedules it on
+ * the clock. A listener that throws fails the emitter (AGENTS.md rule 5).
+ */
 export class EventBus {
   private listeners: { [K in EventName]?: Set<Listener<K>> } = {};
 
@@ -36,7 +40,9 @@ export class EventBus {
     return () => set.delete(listener);
   }
 
-  emit<K extends EventName>(name: K, payload: EventMap[K]): void {
-    for (const listener of this.listeners[name] ?? []) (listener as Listener<K>)(payload);
+  async emit<K extends EventName>(name: K, payload: EventMap[K]): Promise<void> {
+    for (const listener of [...(this.listeners[name] ?? [])]) {
+      await (listener as Listener<K>)(payload);
+    }
   }
 }

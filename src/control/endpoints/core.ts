@@ -52,9 +52,9 @@ async function seedAtomically(
 defineControl({
   method: "POST",
   path: "/control/clock/advance",
-  handler: (ctx) => {
+  handler: async (ctx) => {
     const { ms } = controlInput(z.object({ ms: z.int().nonnegative() }), ctx.body);
-    ctx.clock.advance(ms);
+    await ctx.clock.advance(ms);
     return { now: formatTimestamp(ctx.clock.now(), "utc") };
   },
 });

@@ -51,7 +51,10 @@ export type SubmitResult =
  * Validate → suppression check → store → emit events (docs/11 §2).
  * W0 stub: no validation or suppression check; stores the message and emits `sent`. T1 owns the body.
  */
-export function submitOutbound(runtime: Runtime, submission: Submission): SubmitResult {
+export async function submitOutbound(
+  runtime: Runtime,
+  submission: Submission,
+): Promise<SubmitResult> {
   const { auth, draft } = submission;
   const now = runtime.clock.now();
   if (auth.kind === "test") {
@@ -86,6 +89,6 @@ export function submitOutbound(runtime: Runtime, submission: Submission): Submit
     templateId: submission.templateId,
   };
   runtime.store.state.outbound.set(message.MessageID, message);
-  runtime.events.emit("sent", { message });
+  await runtime.events.emit("sent", { message });
   return { outcome: "accepted", message };
 }

@@ -133,7 +133,7 @@ describe("GET /control/messages", () => {
       TrackLinks: undefined,
       MessageStream: undefined,
     };
-    submitOutbound(runtime, {
+    await submitOutbound(runtime, {
       auth: { kind: "server", server },
       channel: "rest",
       draft,
