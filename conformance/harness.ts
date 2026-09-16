@@ -120,7 +120,7 @@ export const PROBE_HOST = "postmock-probe.invalid";
 /** A running postmock seen through a counting front, plus the trap. */
 export interface Sandbox {
   mock: RunningPostmock;
-  /** `http://127.0.0.1:<port>`: plain http front of the REST listener. */
+  /** `http://<front host>:<port>`: plain http front of the REST listener. */
   httpUrl: string;
   httpPort: number;
   /** TLS front with the test certificate for `api.postmarkapp.com`, when `tls` was given. */
@@ -148,12 +148,14 @@ export interface Sandbox {
 
 /**
  * Starts postmock with the `conformance` seed on ephemeral ports, a counting front, and the trap.
- * Everything binds 127.0.0.1; Docker Desktop containers reach it as `host.docker.internal`.
+ * postmock and the trap bind 127.0.0.1. The fronts bind `frontHost` (default 127.0.0.1): the address
+ * a container gateway reaches (`conformance/docker.ts`).
  */
 export async function startSandbox(
-  options: { tls?: { cert: string; key: string } } = {},
+  options: { tls?: { cert: string; key: string }; frontHost?: string } = {},
 ): Promise<Sandbox> {
   const host = "127.0.0.1";
+  const frontHost = options.frontHost ?? host;
   const mock = await startPostmock({ host, apiPort: 0, controlPort: 0, seed: "conformance" });
   const apiListener = mock.listeners.api;
   if (apiListener === undefined) throw new Error("postmock started without an api listener");
@@ -180,7 +182,7 @@ export async function startSandbox(
     req.pipe(upstream);
   };
   const front = http.createServer(forward);
-  const httpPort = await listen(front, host);
+  const httpPort = await listen(front, frontHost);
   const servers: http.Server[] = [front];
 
   let httpsPort: number | undefined;
@@ -189,7 +191,7 @@ export async function startSandbox(
       { cert: readFileSync(options.tls.cert), key: readFileSync(options.tls.key) },
       forward,
     );
-    httpsPort = await listen(secure, host);
+    httpsPort = await listen(secure, frontHost);
     servers.push(secure);
   }
 
@@ -208,7 +210,7 @@ export async function startSandbox(
 
   const sandbox: Sandbox = {
     mock,
-    httpUrl: `http://${host}:${httpPort}`,
+    httpUrl: `http://${frontHost}:${httpPort}`,
     httpPort,
     ...(httpsPort === undefined ? {} : { httpsPort }),
     trapUrl,

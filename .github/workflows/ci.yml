@@ -1,0 +1,68 @@
+# Gates for every push and pull request. No job needs a secret. No job reaches real Postmark: the
+# conformance runners prove their route before and after each suite (TESTING.md "Routing proof"),
+# and the Compose example runs on an internal network.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - run: nix develop -c pnpm install --frozen-lockfile
+      - run: nix develop -c pnpm check
+      - name: npm package smoke test
+        run: nix develop -c tools/pack-smoke.sh
+
+  compose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: examples/node through DNS aliases and the test CA
+        run: docker compose run --rm --build example-node
+      - if: always()
+        run: docker compose --profile example down -v
+
+  runners:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      sdks: ${{ steps.list.outputs.sdks }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: list
+        name: every conformance/<sdk>/run.ts
+        run: echo "sdks=$(printf '%s\n' conformance/*/run.ts | cut -d/ -f2 | jq -Rnc '[inputs]')" >>"$GITHUB_OUTPUT"
+
+  conformance:
+    needs: runners
+    runs-on: ubuntu-24.04
+    # postmark-php sleeps 180 s once; the first run downloads every toolchain and image.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        sdk: ${{ fromJSON(needs.runners.outputs.sdks) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+      - run: tools/fetch-sources.sh
+      - run: nix develop -c pnpm install --frozen-lockfile
+      - run: nix develop -c pnpm conformance ${{ matrix.sdk }}
+      - run: nix develop -c pnpm conformance:check ${{ matrix.sdk }}
+      - if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: conformance-${{ matrix.sdk }}
+          path: conformance/results/${{ matrix.sdk }}.json
+          if-no-files-found: ignore

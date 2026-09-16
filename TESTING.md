@@ -35,7 +35,21 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 | `nix develop -c tools/pack-smoke.sh` | `npm pack`, install the tarball outside the repo, `npm exec postmock`: `GET /server` answers 200, SMTP accepts a nodemailer send | A change to the build, `package.json` or discovery |
 | `pnpm conformance <sdk>` | Runs that SDK suite against a fresh postmock; writes `conformance/results/<sdk>.json` | Before merge, for the suites the track touches |
 | `pnpm conformance all` | Every runner | Integration (W2) |
-| `pnpm conformance:check` | The results file comes from the current postmock source, and every baseline test passes in it | Before merge; no regression |
+| `pnpm conformance:check [sdk]` | The results file comes from the current postmock source, and every baseline test passes in it; no argument checks every runner | Before merge; no regression |
+
+## CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request.
+It needs no secret. Actions are pinned by commit SHA; images by digest.
+
+| Job | Runs |
+| --- | --- |
+| `check` | `nix develop -c pnpm check`, then `tools/pack-smoke.sh` |
+| `compose` | `docker compose run --rm --build example-node`: `examples/node/default-hosts.ts` on the internal network, no base-URL option (`docs/01` §3.3 option B) |
+| `runners` | Lists every `conformance/<sdk>/run.ts` for the matrix |
+| `conformance` (one per SDK) | `tools/fetch-sources.sh`, `nix develop -c pnpm conformance <sdk>`, `pnpm conformance:check <sdk>`; uploads `conformance/results/<sdk>.json` |
+
+The container runners (php, java, cli) run on the Linux runner's Docker Engine: see the `host-gateway` trap below.
 
 ## Conformance files
 
@@ -134,5 +148,5 @@ Notes per runner:
 | A guard in `Net::HTTP#connect` never runs in postmark-gem: its spec helper loads FakeWeb, which aliases `connect`. A probe then reached the real host. | Guard `TCPSocket.open` and `TCPSocket.new`. `IO.open` does not dispatch to a Ruby-level `new`, so guard both. Probe `postmock-probe.invalid`, never a Postmark host. |
 | postmark-rails resolves json 3, which breaks ActiveSupport 7.2 and 8.1: encoding passes `quirks_mode`, decoding passes a second argument to `JSON.parse`. Every delivery raises `ArgumentError`, and RSpec's JSON formatter crashes. | `runRspec` pins `json < 3` in a wrapper Gemfile (`.work/Gemfile`) that evaluates the suite Gemfile. |
 | The MCP stdio transport starts the server with a filtered env, so `NODE_OPTIONS` and the fetch shim do not reach it. | The shim wraps `child_process.spawn` and adds `NODE_OPTIONS` and `POSTMOCK_API_URL` back. |
-| A container on the internal network reaches the sandbox through `host.docker.internal`. Docker Desktop forwards that to host loopback; Linux `host-gateway` is the bridge address, which a `127.0.0.1` listener does not serve. The php, java and cli runners then stop at the gateway check. | Not fixed yet (W3 CI): bind the sandbox fronts to the bridge address on Linux. |
+| A container on the internal network reaches the sandbox through `host.docker.internal`. Docker Desktop and OrbStack forward that to host loopback; Docker Engine on Linux maps `host-gateway` to the default bridge gateway, which a `127.0.0.1` listener does not serve. | `withContainerSandbox` binds the sandbox fronts to the bridge gateway when that address belongs to the host (Docker Engine on Linux), else to `127.0.0.1`. postmock and the trap stay on `127.0.0.1`. A daemon with another `host-gateway-ip` stops at the gateway check. |
 | PHPUnit JUnit `<error>` text starts with `<class>::<test>`. | The php runner takes the first other line. |

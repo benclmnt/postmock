@@ -1,4 +1,4 @@
-// `pnpm conformance:check`: fails when a baseline test (`conformance/<sdk>/baseline/`) does not pass
+// `pnpm conformance:check [sdk]`: fails when a baseline test (`conformance/<sdk>/baseline/`) does not pass
 // in `conformance/results/<sdk>.json`, or when that results file is stale (docs/11 §3.1, §4).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readBaseline, readSkips, skippedAndBaselined } from "./baseline.ts";
@@ -7,10 +7,17 @@ import { currentStamp, sdkCommit } from "./stamp.ts";
 
 const root = new URL("./", import.meta.url);
 let failed = false;
-const sdks = readdirSync(root, { withFileTypes: true })
+const runners = readdirSync(root, { withFileTypes: true })
   .filter((d) => d.isDirectory() && existsSync(new URL(`${d.name}/run.ts`, root)))
   .map((d) => d.name)
   .sort();
+// No argument checks every runner; `<sdk>` checks one, as a CI job per suite does.
+const arg = process.argv[2];
+if (arg !== undefined && !runners.includes(arg)) {
+  console.error(`usage: pnpm conformance:check [${runners.join("|")}]`);
+  process.exit(2);
+}
+const sdks = arg === undefined ? runners : [arg];
 
 for (const sdk of sdks) {
   const resultsUrl = new URL(`results/${sdk}.json`, root);

@@ -1,9 +1,9 @@
 // The container route (docs/01 §3.3 option B): the suite runs on an internal Docker network with no
 // way out. A gateway container on that network answers to the given host names on ports 80 and 443
 // and forwards raw TCP to the sandbox fronts on the host. TLS ends at the host front, which serves
-// the test certificate.
+// the test certificate. On Docker Engine for Linux the fronts bind the bridge gateway (`gatewayTarget`).
 import { randomBytes } from "node:crypto";
-import { userInfo } from "node:os";
+import { networkInterfaces, userInfo } from "node:os";
 import { type ExecResult, exec, mustExec, type Sandbox, startSandbox } from "./harness.ts";
 
 /** Images by digest, so a moved tag cannot change a stamped run. */
@@ -95,7 +95,10 @@ export async function withContainerSandbox<T>(
 ): Promise<T> {
   const name = `postmock-${options.sdk.replace(/[^a-z0-9]/gi, "-")}-${randomBytes(4).toString("hex")}`;
   const gateway = `${name}-gateway`;
-  const sandbox = await startSandbox(options.tls ? { tls: options.tls } : {});
+  const sandbox = await startSandbox({
+    ...(options.tls ? { tls: options.tls } : {}),
+    frontHost: await gatewayTarget(),
+  });
   const removeDocker = async () => {
     // A suite container ignores the signal its `docker run` client forwards (PID 1 has no handler),
     // so remove every container on the network, not only the gateway.
@@ -160,6 +163,28 @@ export async function withContainerSandbox<T>(
     await removeDocker();
     await sandbox.close();
   }
+}
+
+/**
+ * The host address behind `host.docker.internal:host-gateway`. Docker Engine on Linux maps it to
+ * the default bridge gateway, an address of this host, and a 127.0.0.1 listener is not reachable
+ * there: the fronts bind the bridge gateway. Docker Desktop and OrbStack run the engine in a VM and
+ * forward it to host loopback: the bridge gateway is not a local address, and the fronts bind
+ * 127.0.0.1. The gateway check fails when neither holds.
+ */
+async function gatewayTarget(): Promise<string> {
+  const output = await mustExec(
+    "docker",
+    ["network", "inspect", "bridge", "--format", "{{range .IPAM.Config}}{{.Gateway}} {{end}}"],
+    { quiet: true },
+  );
+  const gateway = output.split(/\s+/).find((address) => /^\d+\.\d+\.\d+\.\d+$/.test(address));
+  if (gateway === undefined)
+    throw new Error(`docker bridge network has no IPv4 gateway: ${output}`);
+  const local = Object.values(networkInterfaces())
+    .flat()
+    .some((i) => i?.address === gateway);
+  return local ? gateway : "127.0.0.1";
 }
 
 /**
