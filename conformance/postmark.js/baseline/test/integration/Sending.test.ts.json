@@ -1,1 +1,9 @@
-{ "passing": ["Sending sendEmail", "Sending sendEmailBatch", "Sending invalid sendEmail"] }
+{
+  "passing": [
+    "Sending sendEmail",
+    "Sending sendEmailBatch",
+    "Sending bulk sendBulkEmail",
+    "Sending bulk getBulkEmailStatus",
+    "Sending invalid sendEmail"
+  ]
+}

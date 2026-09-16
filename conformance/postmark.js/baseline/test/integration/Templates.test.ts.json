@@ -1,0 +1,16 @@
+{
+  "passing": [
+    "Client - Templates getTemplates",
+    "Client - Templates getTemplate",
+    "Client - Templates getTemplate - layout",
+    "Client - Templates createTemplate",
+    "Client - Templates createTemplate - layout",
+    "Client - Templates editTemplate",
+    "Client - Templates deleteTemplate",
+    "Client - Templates validateTemplate",
+    "Client - Templates validateTemplate - layout",
+    "Client - Templates editTemplate - layout valid",
+    "Client - Templates editTemplate - layout invalid",
+    "Client - Templates sending sendEmailWithTemplate"
+  ]
+}
