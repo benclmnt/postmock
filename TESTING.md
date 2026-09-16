@@ -52,7 +52,7 @@ A test id is `<file> > <full title>`, e.g. `test/integration/Server.test.ts > Se
 The results list every test in the suite, also the tests a failed hook stopped (`error: "not run: …"`).
 
 Ratchet rules:
-- `conformance:check` fails when a results file is stale: its `sdkCommit` differs from `sdk/<sdk>`, or its `sourceHash` differs. The hash covers the content of `src/`, `seeds/`, `conformance/*.ts`, the runner folder without `baseline/` and `skips/`, `package.json` and `pnpm-lock.yaml`. A commit of the tested files or a docs edit keeps results fresh.
+- `conformance:check` fails when a results file is stale: its `sdkCommit` differs from `sdk/<sdk>`, or its `sourceHash` differs. The hash covers the content of `src/`, `seeds/`, `conformance/*.ts`, `tools/test-ca.sh`, the runner folder without `baseline/` and `skips/`, `package.json`, `pnpm-lock.yaml`, `flake.nix` and `flake.lock`. A commit of the tested files or a docs edit keeps results fresh.
 - It fails when a test is in both a baseline file and a skip file.
 - It fails when a baseline test fails, skips or is missing. It prints tests that pass but are not in the baseline.
 - Add newly passing tests to the baseline file of their test file. Only add; never remove a test to make the check pass.
@@ -64,7 +64,6 @@ Ratchet rules:
 - `mocha -r ts-node/register -r fetch-shim.cjs` runs `test/integration/**/*.test.ts`. The shim sends every `api.postmarkapp.com` request to postmock and throws for any other host.
 - The suite reads its tokens from env vars (`testing_keys.json`).
 - The runner drops the suite's `--retries 1`. postmock is deterministic, so a test that passes only on a retry shows a postmock bug.
-- Current result: 80 tests; `Server getServer` passes; the rest wait for tracks.
 
 ### Routing proof
 
@@ -74,7 +73,8 @@ No suite may reach real Postmark. Every runner except postmark.js starts postmoc
 | --- | --- |
 | Counting front | No request reached postmock during the suite run (`no request reached postmock`). |
 | Trap proxy | Any request reached the trap: it left the route. The runner passes the trap as `HTTP(S)_PROXY` to proxy-aware clients (.NET, httpx). |
-| Guard probe | Before the suite, a probe in the suite's runtime and routing requests a target that cannot be Postmark (`postmock-probe.invalid`, or `1.1.1.1` in a container). It must fail through the guard: the trap records it, or the output shows the shim refusal or `Network is unreachable`. |
+| Guard probe | Before the suite, a probe in the suite's runtime and routing requests a target that cannot be Postmark (`postmock-probe.invalid`, or `1.1.1.1` in a container). Where a proxy guards the route, the probe goes through the SDK's own client. It must fail through the guard: the trap records it, or the output shows the shim refusal or an unreachable network (`Network is unreachable`, `ENETUNREACH`). |
+| Gateway check | A container route fails at once when the gateway cannot open a TCP connection to the sandbox front. |
 
 ### Runners
 
@@ -92,7 +92,10 @@ No suite may reach real Postmark. Every runner except postmark.js starts postmoc
 
 Notes per runner:
 - Installs run on the host from `nix develop` (`dotnet build`, `composer install`, `bundle install`, `npm ci`, `poetry install`), except Maven, which resolves in the same image on the default network before the offline run. Every run installs again; the package caches make it quick.
-- The container images, the gateway image `node:24-alpine` and every package registry need network access on the first run. The suite run itself needs none.
+- Container images are pinned by digest (`conformance/docker.ts`). Containers run as the host user with `HOME=/tmp`, so files they write to the suite copy stay removable. Networks and containers carry the label `postmock-conformance`; the runner removes them on exit, SIGINT and SIGTERM.
+- The images and every package registry need network access on the first run. The suite run itself needs none.
+- Composer (php), and bundler without a lock file (gem, rails), resolve dependencies at run time. The stamp does not cover what they resolve.
+- The results list every test: a runner lists the tests first (`mocha --dry-run`, `dotnet test --list-tests`, `phpunit --list-tests-xml`, `rspec --dry-run`) and fails a listed test that the run never reported with `not run: <why>`. java has no listing: a test class without a surefire report fails as `<file> > <Class>`. mcp and python have no listing: see their notes.
 - postmark-dotnet: the fixture finds `testing_keys.json` in a folder above the test assembly, so the runner copies it into the suite root.
 - postmark-php: `PostmarkClientBounceTest` sleeps 180 s once sending works; allow it.
 - postmark-java: the maven run needs `unit.PostmarkTest` online first. Surefire fetches its JUnit 5 provider only when a test runs.
@@ -103,7 +106,7 @@ Notes per runner:
 ### Add a runner
 
 1. Create `conformance/<sdk>/run.ts` that exports `run(): Promise<ResultsFile>` (`conformance/results.ts`). Name the folder like its `sdk/` folder.
-2. Use `conformance/harness.ts`: `stamp(sdk)` before the run, `copySuite` into `.work/suite`, `startSandbox`, `assertGuarded` before the suite and `assertRouted` after it. Use `conformance/docker.ts` when the client hard-codes the host or port.
+2. Use `conformance/harness.ts`: `stamp(sdk)` before the run, `copySuite` into `.work/suite`, `startSandbox`, `assertGuarded` before the suite, `assertRouted` after it, and `completeResults` over a test listing. Use `withContainerSandbox` (`conformance/docker.ts`) when the client hard-codes the host or port.
 3. Add `testing_keys.json` (`conformance/keys.test.ts` checks its tokens against the seed). Add `baseline/<test file>.json` and `skips/<test file>.json` when a test first passes or needs a skip.
 4. Keep the suite unmodified. Put shims, keys and host routing in the runner folder.
 
@@ -129,5 +132,5 @@ Notes per runner:
 | A guard in `Net::HTTP#connect` never runs in postmark-gem: its spec helper loads FakeWeb, which aliases `connect`. A probe then reached the real host. | Guard `TCPSocket.open` and `TCPSocket.new`. `IO.open` does not dispatch to a Ruby-level `new`, so guard both. Probe `postmock-probe.invalid`, never a Postmark host. |
 | postmark-rails resolves json 3, which breaks ActiveSupport 7.2 and 8.1: encoding passes `quirks_mode`, decoding passes a second argument to `JSON.parse`. Every delivery raises `ArgumentError`, and RSpec's JSON formatter crashes. | `runRspec` pins `json < 3` in a wrapper Gemfile (`.work/Gemfile`) that evaluates the suite Gemfile. |
 | The MCP stdio transport starts the server with a filtered env, so `NODE_OPTIONS` and the fetch shim do not reach it. | The shim wraps `child_process.spawn` and adds `NODE_OPTIONS` and `POSTMOCK_API_URL` back. |
-| A container on the internal network reaches the sandbox through `host.docker.internal`. Docker Desktop forwards that to host loopback; Linux `host-gateway` is the bridge address, which a `127.0.0.1` listener does not serve. | On Linux (W3 CI), bind the sandbox fronts to the bridge address. |
+| A container on the internal network reaches the sandbox through `host.docker.internal`. Docker Desktop forwards that to host loopback; Linux `host-gateway` is the bridge address, which a `127.0.0.1` listener does not serve. The php, java and cli runners then stop at the gateway check. | Not fixed yet (W3 CI): bind the sandbox fronts to the bridge address on Linux. |
 | PHPUnit JUnit `<error>` text starts with `<class>::<test>`. | The php runner takes the first other line. |
