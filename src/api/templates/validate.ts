@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiError } from "../../errors.ts";
-import { absent, objectOrEmptyArray } from "../../http/normalize.ts";
+import { absent } from "../../http/normalize.ts";
 import {
   mergeModels,
   type ParsedTemplate,
@@ -18,6 +18,7 @@ import {
   layoutRuleError,
   parseOrReject,
   parseTemplateType,
+  templateModelField,
 } from "./templates.ts";
 
 // `POST /templates/validate` (docs/06 §3.3; refs/api_templates-api.md:779-887).
@@ -28,10 +29,7 @@ const validateBody = z.object({
   Subject: text,
   HtmlBody: text,
   TextBody: text,
-  TestRenderModel: z.preprocess(
-    (v) => (v === null ? undefined : v),
-    objectOrEmptyArray(z.record(z.string(), z.unknown())).optional(),
-  ),
+  TestRenderModel: templateModelField,
   InlineCssForHtmlTestRender: absent(z.boolean()),
   TemplateType: text,
   LayoutTemplate: text,
@@ -97,7 +95,7 @@ export function validateTemplate(state: State, serverId: number, body: unknown) 
     results.set(part, { ContentIsValid: true, ValidationErrors: [], RenderedContent: rendered });
   }
 
-  // A part not sent is null (INFERRED from sdk/postmark-python/tests/test_templates.py:373-375).
+  // A part not sent is null (INFERRED from sdk/postmark-python/tests/test_templates.py:374-375).
   return {
     AllContentIsValid: [...results.values()].every((r) => r.ContentIsValid),
     HtmlBody: results.get("HtmlBody") ?? null,

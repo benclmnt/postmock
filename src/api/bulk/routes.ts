@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { apiError, type ErrorBody } from "../../errors.ts";
-import { absent, intLike, objectOrEmptyArray, parseBody, queryInt } from "../../http/normalize.ts";
+import { ApiError, apiError, type ErrorBody } from "../../errors.ts";
+import { absent, parseBody, queryInt } from "../../http/normalize.ts";
 import { Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
 import type { OutboundDraft } from "../../pipeline/submit.ts";
@@ -9,13 +9,15 @@ import { newMessageId } from "../../state/ids.ts";
 import { findStream, type TestTokenContext } from "../../state/servers.ts";
 import type { State } from "../../state/store.ts";
 import type { BulkRequest, Template } from "../../state/types.ts";
+import { formatTimestamp } from "../../time.ts";
 import { renderContent } from "../templates/content.ts";
 import {
-  activeLayout,
-  activeTemplate,
   type Content,
   invalidField,
-  templateNotFound,
+  nullable,
+  sendTemplate,
+  templateIdField,
+  templateModelField,
 } from "../templates/templates.ts";
 import { type BulkJob, bulkStatusJson, scheduleBulk } from "./bulk.ts";
 
@@ -32,8 +34,6 @@ function requireBulkApproval(state: State): void {
 }
 
 const header = z.object({ Name: z.string(), Value: z.unknown().optional() });
-const nullable = <S extends z.ZodType>(schema: S) =>
-  z.preprocess((v) => (v === null ? undefined : v), schema.optional());
 const metadata = nullable(z.record(z.string(), z.unknown()));
 const headers = nullable(z.array(header));
 const passed = z.unknown().optional();
@@ -42,7 +42,7 @@ const bulkMessage = z.object({
   To: passed,
   Cc: passed,
   Bcc: passed,
-  TemplateModel: nullable(objectOrEmptyArray(z.record(z.string(), z.unknown()))),
+  TemplateModel: templateModelField,
   Metadata: metadata,
   Headers: headers,
 });
@@ -53,7 +53,7 @@ const bulkBody = z.object({
   Subject: absent(z.string()),
   HtmlBody: absent(z.string()),
   TextBody: absent(z.string()),
-  TemplateId: z.preprocess((v) => (v === 0 || v === null ? undefined : v), intLike.optional()),
+  TemplateId: templateIdField,
   TemplateAlias: absent(z.string()),
   InlineCss: absent(z.boolean()),
   Tag: passed,
@@ -96,7 +96,7 @@ async function checkMessages(ctx: RequestContext, auth: ServerAuth, drafts: Outb
     server: auth.server,
     streams: [...ctx.store.state.streams.values()].filter((s) => s.ServerID === auth.server.ID),
   };
-  const errors = new Map<string, { field: string; error: ErrorBody }>();
+  const errors = new Map<string, ErrorBody>();
   for (const draft of drafts) {
     const result = await submitOutbound(ctx, {
       auth: dryRun,
@@ -107,18 +107,18 @@ async function checkMessages(ctx: RequestContext, auth: ServerAuth, drafts: Outb
       templateId: null,
     });
     if (result.outcome !== "rejected" || result.error.ErrorCode === 406) continue;
-    const field = errorField(result.error);
-    errors.set(`${field}/${result.error.ErrorCode}/${result.error.Message}`, {
-      field,
-      error: result.error,
-    });
+    errors.set(`${result.error.ErrorCode}/${result.error.Message}`, result.error);
   }
   const found = [...errors.values()];
   const [only] = found;
   if (only === undefined) return;
-  if (found.length === 1) throw apiError(only.error.ErrorCode, { message: only.error.Message });
+  // Every send rejection is HTTP 422 (docs/03 §3.1).
+  if (found.length === 1) throw new ApiError(422, only);
   const Errors: Record<string, ErrorBody[]> = {};
-  for (const { field, error } of found) Errors[field] = [...(Errors[field] ?? []), error];
+  for (const error of found) {
+    const field = errorField(error);
+    Errors[field] = [...(Errors[field] ?? []), error];
+  }
   throw apiError(11, {
     message: "Multiple errors occurred. Inspect the Errors property for more information.",
     extra: { Errors },
@@ -156,19 +156,10 @@ defineRoute({
           message: "Subject, HtmlBody and TextBody cannot be used when sending with a template.",
         });
       }
-      // TemplateId wins over TemplateAlias (refs/api_templates-api.md:181-182, INFERRED for bulk).
-      const reference =
-        input.TemplateId === undefined ? (input.TemplateAlias ?? "") : String(input.TemplateId);
-      const template = activeTemplate(state, auth.server.ID, reference);
-      if (template.TemplateType !== "Standard") {
-        throw templateNotFound(input.TemplateId === undefined ? "Alias" : "TemplateId");
-      }
-      content = template;
-      templateId = template.TemplateId;
-      layout =
-        template.LayoutTemplate === null
-          ? null
-          : activeLayout(state, auth.server.ID, template.LayoutTemplate);
+      const sent = sendTemplate(state, auth.server.ID, input);
+      content = sent.template;
+      templateId = sent.template.TemplateId;
+      layout = sent.layout;
     }
 
     // Absent: the default broadcast stream (refs/api_bulk-email.md:81; docs/04 Q7 for its ID).
@@ -236,6 +227,7 @@ defineRoute({
       PercentageCompleted: 0,
       ReleasedCount: 0,
       FailedCount: 0,
+      // A templated request has no request Subject, so the key is omitted (INFERRED).
       Subject: input.Subject ?? null,
       messageIds: [],
     };
@@ -260,9 +252,13 @@ defineRoute({
   },
 });
 
-// PaginationKey: unpadded base64 of the next page's first Id, URL-safe so a client can send it as-is
-// (refs/api_bulk-email.md:386-395; alphabet and content INFERRED).
-const encodeKey = (id: string) => Buffer.from(JSON.stringify({ Id: id })).toString("base64url");
+// PaginationKey: unpadded base64 of the next page's first request, like the doc example
+// `{"SubmittedAt":…}` (refs/api_bulk-email.md:380, :395). postmock adds its Id and uses the URL-safe
+// alphabet, so the key needs no escaping in a query string (INFERRED).
+const encodeKey = (bulk: BulkRequest) =>
+  Buffer.from(
+    JSON.stringify({ SubmittedAt: formatTimestamp(bulk.SubmittedAt, "utc"), Id: bulk.Id }),
+  ).toString("base64url");
 
 defineRoute({
   method: "GET",
@@ -284,14 +280,14 @@ defineRoute({
     const key = query.get("paginationKey");
     let start = 0;
     if (key !== undefined) {
-      start = requests.findIndex((b) => encodeKey(b.Id) === key);
+      start = requests.findIndex((b) => encodeKey(b) === key);
       if (start === -1) throw apiError(13);
     }
     const page = requests.slice(start, start + paging.data.count);
     const next = requests[start + paging.data.count];
     return {
       Requests: page.map(bulkStatusJson),
-      ...(next !== undefined && { PaginationKey: encodeKey(next.Id) }),
+      ...(next !== undefined && { PaginationKey: encodeKey(next) }),
     };
   },
 });

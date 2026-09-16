@@ -1,11 +1,11 @@
 import { z } from "zod";
 import { ApiError, apiError } from "../../errors.ts";
-import { absent, intLike, objectOrEmptyArray } from "../../http/normalize.ts";
+import { absent } from "../../http/normalize.ts";
 import type { RequestContext, ServerAuth } from "../../http/routes.ts";
 import { type OutboundDraft, type SubmitResult, submitOutbound } from "../../pipeline/submit.ts";
 import { formatTimestamp } from "../../time.ts";
 import { renderContent } from "./content.ts";
-import { activeLayout, activeTemplate, parseOrReject, templateNotFound } from "./templates.ts";
+import { parseOrReject, sendTemplate, templateIdField, templateModelField } from "./templates.ts";
 
 // `/email/withTemplate` and `/email/batchWithTemplates` (docs/03 §1.4–§1.5, docs/06 §3.6).
 
@@ -29,14 +29,10 @@ const passed = Object.fromEntries(
   PASSED_FIELDS.map((key) => [key, z.unknown().optional()]),
 ) as Record<(typeof PASSED_FIELDS)[number], z.ZodOptional<z.ZodUnknown>>;
 
-/** php sends `TemplateId: 0` beside an alias and `TemplateModel: []` (docs/08 R10). */
 const templatedMessage = z.object({
-  TemplateId: z.preprocess((v) => (v === 0 || v === null ? undefined : v), intLike.optional()),
+  TemplateId: templateIdField,
   TemplateAlias: absent(z.string()),
-  TemplateModel: z.preprocess(
-    (v) => (v === null ? undefined : v),
-    objectOrEmptyArray(z.record(z.string(), z.unknown())).optional(),
-  ),
+  TemplateModel: templateModelField,
   InlineCss: absent(z.boolean()),
   Subject: absent(z.unknown()),
   HtmlBody: absent(z.unknown()),
@@ -45,20 +41,15 @@ const templatedMessage = z.object({
 });
 
 /**
- * Renders one templated message and submits it. Check order is INFERRED: template reference (1101),
- * templated vs content fields (1123), lookup (1101), model (1120), then the pipeline checks.
+ * Renders one templated message and submits it. Check order is INFERRED: templated vs content
+ * fields (1123), template (1101), model (1120), then the pipeline checks.
  */
 async function submitTemplated(
   ctx: RequestContext,
   auth: ServerAuth,
   raw: unknown,
-): Promise<SubmitResult> {
+): Promise<{ result: SubmitResult; to: unknown }> {
   const message = parseOrReject(templatedMessage, raw);
-  const { state } = ctx.store;
-  const serverId = auth.server.ID;
-  if (message.TemplateId === undefined && message.TemplateAlias === undefined) {
-    throw templateNotFound("TemplateId");
-  }
   for (const part of ["Subject", "HtmlBody", "TextBody"] as const) {
     if (message[part] !== undefined) {
       throw apiError(1123, {
@@ -66,21 +57,10 @@ async function submitTemplated(
       });
     }
   }
-  // TemplateId wins over TemplateAlias (refs/api_templates-api.md:181-182).
-  const template =
-    message.TemplateId === undefined
-      ? activeTemplate(state, serverId, message.TemplateAlias ?? "")
-      : activeTemplate(state, serverId, String(message.TemplateId));
-  if (template.TemplateType !== "Standard") {
-    throw templateNotFound(message.TemplateId === undefined ? "Alias" : "TemplateId");
-  }
+  const { template, layout } = sendTemplate(ctx.store.state, auth.server.ID, message);
   if (message.TemplateModel === undefined) {
     throw apiError(1120, { message: "The 'TemplateModel' field is required." });
   }
-  const layout =
-    template.LayoutTemplate === null
-      ? null
-      : activeLayout(state, serverId, template.LayoutTemplate);
   const rendered = renderContent(
     template,
     layout,
@@ -94,7 +74,7 @@ async function submitTemplated(
     HtmlBody: rendered.content.HtmlBody ?? undefined,
     TextBody: rendered.content.TextBody ?? undefined,
   } as OutboundDraft;
-  return submitOutbound(ctx, {
+  const result = await submitOutbound(ctx, {
     auth,
     channel: "rest",
     draft,
@@ -102,14 +82,14 @@ async function submitTemplated(
     bulkRequestId: null,
     templateId: template.TemplateId,
   });
+  return { result, to: message.To };
 }
 
 /**
  * The `/email` response of one message (docs/03 §1.2), or its `{ErrorCode, Message}`. Some
  * recipients suppressed still answers 406 (docs/03 §3.2, INFERRED).
  */
-function resultJson(result: SubmitResult, raw: unknown) {
-  const To = (raw as Record<string, unknown>).To;
+function resultJson(result: SubmitResult, To: unknown) {
   switch (result.outcome) {
     case "accepted":
       return {
@@ -134,11 +114,12 @@ function resultJson(result: SubmitResult, raw: unknown) {
 }
 
 export async function sendWithTemplate(ctx: RequestContext, auth: ServerAuth, raw: unknown) {
-  const result = await submitTemplated(ctx, auth, raw);
+  const { result, to } = await submitTemplated(ctx, auth, raw);
+  // Every send rejection is HTTP 422 (docs/03 §3.1).
   if (result.outcome === "rejected" || result.outcome === "partiallySuppressed") {
-    throw apiError(result.error.ErrorCode, { message: result.error.Message });
+    throw new ApiError(422, result.error);
   }
-  return resultJson(result, raw);
+  return resultJson(result, to);
 }
 
 const batchBody = z.object({ Messages: z.array(z.unknown()) });
@@ -150,8 +131,8 @@ export async function sendBatchWithTemplates(ctx: RequestContext, auth: ServerAu
   const results: unknown[] = [];
   for (const raw of Messages) {
     try {
-      const result = await submitTemplated(ctx, auth, raw);
-      results.push(resultJson(result, raw));
+      const { result, to } = await submitTemplated(ctx, auth, raw);
+      results.push(resultJson(result, to));
     } catch (error) {
       if (!(error instanceof ApiError)) throw error;
       results.push({ ErrorCode: error.body.ErrorCode, Message: error.body.Message });

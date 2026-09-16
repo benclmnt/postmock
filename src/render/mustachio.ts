@@ -134,11 +134,9 @@ export function parseTemplate(source: string): ParseResult {
       const body = inner.slice(1).trim();
       const each = sigil === "#" ? /^each\s+(.+)$/.exec(body) : null;
       const raw = each ? (each[1] ?? "").trim() : body;
-      const path = parsePath(raw);
-      if (!path) {
-        fail(messages.path(raw), at);
-        continue;
-      }
+      // A bad path still opens a block, so its close tag adds no second error.
+      const path = parsePath(raw) ?? { raw, up: 0, keys: [] };
+      if (path.keys.length === 0 && raw !== ".") fail(messages.path(raw), at);
       const node: Open["node"] = each
         ? { kind: "each", path, children: [] }
         : { kind: "section", path, inverted: sigil === "^", children: [] };
@@ -268,7 +266,8 @@ function inferInto(template: ParsedTemplate, into: Inferred): void {
       });
       if (node.kind === "value") continue;
       if (target === null || node.path.keys.length === 0) {
-        walk(node.children, [...scopes, node.kind === "each" ? null : target, target]);
+        const inner = node.kind === "each" ? [null, target] : [target];
+        walk(node.children, [...scopes, ...inner]);
         continue;
       }
       if (node.kind === "each") {

@@ -83,20 +83,21 @@ defineRoute({
   auth: "server",
   handler: ({ store, params, auth }) => {
     const template = findTemplate(store.state, auth.server.ID, params.idOrAlias ?? "");
-    if (template === undefined) throw notFound(params.idOrAlias ?? "");
+    if (template === undefined) throw templateNotFound(params.idOrAlias ?? "");
     return templateJson(template);
   },
 });
-
-const notFound = (idOrAlias: string) =>
-  templateNotFound(/^\d+$/.test(idOrAlias) ? "TemplateId" : "Alias");
 
 defineRoute({
   method: "POST",
   path: "/templates",
   auth: "server",
   handler: ({ store, body, auth }) => {
-    const input = parseOrReject(templateBody, body ?? {});
+    // An empty body is 1109 (refs/api_overview.md:86; INFERRED trigger).
+    if (body === undefined || JSON.stringify(body) === "{}") {
+      throw apiError(1109);
+    }
+    const input = parseOrReject(templateBody, body);
     const { state } = store;
     checkCanCreate(state, auth.server.ID);
     const template: Template = {

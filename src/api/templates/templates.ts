@@ -1,6 +1,6 @@
-import type { z } from "zod";
+import { z } from "zod";
 import { apiError } from "../../errors.ts";
-import { parseBody } from "../../http/normalize.ts";
+import { intLike, objectOrEmptyArray, parseBody } from "../../http/normalize.ts";
 import { Unsupported } from "../../http/respond.ts";
 import { parseTemplate } from "../../render/mustachio.ts";
 import type { State } from "../../state/store.ts";
@@ -64,22 +64,23 @@ export function findTemplate(
  * 1101. The alias text is SDK-quoted (sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:248);
  * the ID text follows it (INFERRED, docs/06 Q9).
  */
-export const templateNotFound = (field: "Alias" | "TemplateId") =>
+const notFoundField = (idOrAlias: string) => (/^\d+$/.test(idOrAlias) ? "TemplateId" : "Alias");
+
+export const templateNotFound = (idOrAlias: string) =>
   apiError(1101, {
-    message: `The Template's '${field}' associated with this request is not valid or was not found.`,
+    message: `The Template's '${notFoundField(idOrAlias)}' associated with this request is not valid or was not found.`,
   });
 
 export function activeTemplate(state: State, serverId: number, idOrAlias: string): Template {
   const template = findTemplate(state, serverId, idOrAlias);
-  if (template?.Active !== true)
-    throw templateNotFound(/^\d+$/.test(idOrAlias) ? "TemplateId" : "Alias");
+  if (template?.Active !== true) throw templateNotFound(idOrAlias);
   return template;
 }
 
 /** An active layout by alias; a missing or standard one is 1101 (refs/api_overview.md:84). */
 export function activeLayout(state: State, serverId: number, alias: string): Template {
   const layout = findTemplate(state, serverId, alias);
-  if (layout?.Active !== true || layout.TemplateType !== "Layout") throw templateNotFound("Alias");
+  if (layout?.Active !== true || layout.TemplateType !== "Layout") throw templateNotFound(alias);
   return layout;
 }
 
@@ -220,3 +221,37 @@ export const templateSummaryJson = (t: Template) => ({
   TemplateType: t.TemplateType,
   LayoutTemplate: t.LayoutTemplate,
 });
+
+/** A nullable optional value: null is absent (docs/08 R9). */
+export const nullable = <S extends z.ZodType>(schema: S) =>
+  z.preprocess((v) => (v === null ? undefined : v), schema.optional());
+
+/** php sends `TemplateId: 0` beside an alias (docs/08 R10). */
+export const templateIdField = z.preprocess(
+  (v) => (v === 0 || v === null ? undefined : v),
+  intLike.optional(),
+);
+
+/** php sends an empty model as `[]` (docs/08 R10). */
+export const templateModelField = nullable(objectOrEmptyArray(z.record(z.string(), z.unknown())));
+
+/**
+ * The standard template and layout a send names. `TemplateId` wins over `TemplateAlias`
+ * (refs/api_templates-api.md:181-182). A layout or no reference is 1101 (INFERRED).
+ */
+export function sendTemplate(
+  state: State,
+  serverId: number,
+  reference: { TemplateId?: number | undefined; TemplateAlias?: string | undefined },
+): { template: Template; layout: Template | null } {
+  const idOrAlias =
+    reference.TemplateId === undefined ? reference.TemplateAlias : String(reference.TemplateId);
+  if (idOrAlias === undefined) throw templateNotFound("0");
+  const template = activeTemplate(state, serverId, idOrAlias);
+  if (template.TemplateType !== "Standard") throw templateNotFound(idOrAlias);
+  const layout =
+    template.LayoutTemplate === null
+      ? null
+      : activeLayout(state, serverId, template.LayoutTemplate);
+  return { template, layout };
+}

@@ -84,6 +84,8 @@ describe("syntax errors", () => {
     expect(parseTemplate("{{#each a}}{{/a}}").ok).toBe(false);
     expect(parseTemplate("<p>{{unclosed").ok).toBe(false);
     expect(parseTemplate("{{#each a}}{{/each}}").ok).toBe(true);
+    const badPath = parseTemplate("{{#bad path}}x{{/bad path}}");
+    expect(badPath.ok === false && badPath.errors.length).toBe(1);
   });
 });
 

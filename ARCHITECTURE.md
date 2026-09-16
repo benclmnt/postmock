@@ -1,9 +1,9 @@
 # Architecture
 
-Status: W0 (foundation) is built.
+Status: W0 (foundation) is built. T3 adds templates, the Mustachio renderer and bulk sends.
 Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the postmark.js conformance runner.
 Built by T6: the SMTP listener (`src/smtp/`, plugin `src/plugins/smtp.ts`).
-Design: every other endpoint, the send pipeline body, REST TLS, the webhook emitter and inbound processing.
+Design: the other endpoints, REST TLS, the webhook emitter and inbound processing.
 Tracks T1–T8 build the design parts (`docs/11` §3.2).
 
 postmock is one Node 24 process with one in-memory state.

@@ -38,7 +38,8 @@ export const bulkStatusJson = (bulk: BulkRequest) => ({
  * Accepted → Processing → Completed. A message with every recipient suppressed, or one that failed
  * to render, counts in `FailedCount`; the rest in `ReleasedCount` (refs/api_bulk-email.md:303-316).
  * A message with only some recipients suppressed counts as released (INFERRED, docs/03 Q21).
- * A cancelled request releases nothing more.
+ * A cancelled request releases nothing more. A pipeline `Unsupported` inside a job crashes postmock:
+ * a job runs on the clock, where no request can carry the 501.
  */
 export function scheduleBulk(
   runtime: Runtime,

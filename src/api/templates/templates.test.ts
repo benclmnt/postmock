@@ -95,6 +95,10 @@ describe("templates CRUD (docs/06 §3.1–§3.2)", () => {
     expect(res.json.Message).toContain("The layout content placeholder must be present");
   });
 
+  it("answers an empty create body with 1109", async () => {
+    expect((await setup().call("POST", "/templates", {})).json.ErrorCode).toBe(1109);
+  });
+
   it("answers bad paging with 1100", async () => {
     expect((await setup().call("GET", "/templates?offset=0")).json.ErrorCode).toBe(1100);
   });
@@ -162,7 +166,8 @@ describe("templated sends (docs/03 §1.4–§1.5)", () => {
     });
     // php: TemplateId 0 beside the alias, TemplateModel as [] (docs/08 R10).
     const res = await call("POST", "/email/withTemplate", {
-      ...message,
+      From: message.From,
+      to: message.To,
       TemplateId: 0,
       TemplateAlias: "welcome",
       TemplateModel: { name: "<Ann>" },

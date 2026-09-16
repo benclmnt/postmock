@@ -272,7 +272,7 @@ Response:
 | `SuggestedTemplateModel` | every key found in the template; placeholder value `<key>_Value`; merged with `TestRenderModel` | `:844`, `:873-878` **DOC** |
 
 A list key gets three items in `SuggestedTemplateModel`. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:193-205` **SDK** (live-API test). The doc example shows one item (`refs/api_templates-api.md:880-884`); the live test wins (`docs/11` B3).
-A part that the request does not send is `null` in the response. **INFERRED** from a unit fixture, `sdk/postmark-python/tests/test_templates.py:373-375`.
+A part that the request does not send is `null` in the response. **INFERRED** from a unit fixture, `sdk/postmark-python/tests/test_templates.py:374-375`.
 
 Validate with a layout: `RenderedContent` is the layout with `{{{ @content }}}` replaced by the template. `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:219-221` **SDK**
 
