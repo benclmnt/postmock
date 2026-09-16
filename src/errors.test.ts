@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ApiError, apiError, ERROR_TABLE, errorBody } from "./errors.ts";
+import { ApiError, apiError, apiErrorOf, ERROR_TABLE, errorBody } from "./errors.ts";
 
 // Parses the docs/02 §4.4 table: section rows `| **Family** |` and code rows `| code | HTTP | Meaning | cite |`.
 function documentedRows() {
@@ -116,5 +116,21 @@ describe("errorBody / apiError", () => {
     const message = "Multiple errors occurred. Inspect the Errors property for more information.";
     const error = apiError(11, { message, extra: { Errors: { From: [] } } });
     expect(error.body.Errors).toEqual({ From: [] });
+  });
+});
+
+describe("apiErrorOf", () => {
+  it("answers a built body with the one status of its code, under any family", () => {
+    const body = errorBody(614, { family: "senders", message: "Signature limit reached." });
+    expect(apiErrorOf(body)).toMatchObject({ status: 422, body });
+  });
+
+  it("refuses a code with several statuses or only a 200 status", () => {
+    expect(() => apiErrorOf({ ErrorCode: 501, Message: "Signature not found." })).toThrow(
+      "ErrorCode 501 has no single HTTP status",
+    );
+    expect(() => apiErrorOf({ ErrorCode: 1406, Message: "x" })).toThrow(
+      "ErrorCode 1406 has no single HTTP status",
+    );
   });
 });

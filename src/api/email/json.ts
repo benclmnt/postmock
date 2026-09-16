@@ -1,4 +1,4 @@
-import { apiError } from "../../errors.ts";
+import { apiErrorOf } from "../../errors.ts";
 import { batchItemError } from "../../pipeline/inactive.ts";
 import type { SubmitResult } from "../../pipeline/submit.ts";
 import { formatTimestamp } from "../../time.ts";
@@ -29,7 +29,7 @@ function success(result: Success, to: string) {
 /** The `POST /email` response, or the error envelope (HTTP 422 for every send code). */
 export function sendResponse(result: SubmitResult, to: string) {
   if (result.outcome === "rejected" || result.outcome === "partiallySuppressed") {
-    throw apiError(result.error.ErrorCode, { message: result.error.Message });
+    throw apiErrorOf(result.error);
   }
   return success(result, to);
 }

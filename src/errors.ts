@@ -726,3 +726,18 @@ export function apiError(
   }
   return new ApiError(status, { ...errorBody(code, options), ...options.extra });
 }
+
+/**
+ * The HTTP error for a body `errorBody` built earlier, such as a send rejection. The code may sit
+ * under several families; every row of it must use the same single status.
+ */
+export function apiErrorOf(body: ErrorBody): ApiError {
+  const rows = ERROR_TABLE.filter((r) => r[0] === body.ErrorCode);
+  if (rows.length === 0) throw new Error(`ErrorCode ${body.ErrorCode} is not in docs/02 §4.4`);
+  const statuses = new Set(rows.flatMap((r) => r[2]).filter((s) => s !== 200));
+  const [status, ...others] = statuses;
+  if (status === undefined || others.length > 0) {
+    throw new Error(`ErrorCode ${body.ErrorCode} has no single HTTP status`);
+  }
+  return new ApiError(status, body);
+}
