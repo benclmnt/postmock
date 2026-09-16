@@ -1,4 +1,5 @@
 import type { Runtime } from "../runtime.ts";
+import type { TestTokenContext } from "../state/servers.ts";
 import type { Server } from "../state/types.ts";
 import type { Query } from "./normalize.ts";
 
@@ -58,7 +59,8 @@ const shapeOf = (segments: Segment[]): string =>
 
 /**
  * - `server`: a server token; `POSTMARK_API_TEST` answers 501 until its behavior there is known.
- * - `serverOrTest`: a server token or `POSTMARK_API_TEST` (docs/02 §3.3).
+ * - `serverOrTest`: a server token or `POSTMARK_API_TEST` (docs/02 §3.3), which gets a
+ *   `TestTokenContext`.
  * - `account`: an account token.
  */
 export type AuthRequirement = "server" | "serverOrTest" | "account";
@@ -66,7 +68,7 @@ export type AuthRequirement = "server" | "serverOrTest" | "account";
 export type ServerAuth = { kind: "server"; server: Server };
 export type AuthResult = {
   server: ServerAuth;
-  serverOrTest: ServerAuth | { kind: "test" };
+  serverOrTest: ServerAuth | TestTokenContext;
   account: { kind: "account" };
 };
 

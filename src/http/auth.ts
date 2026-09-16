@@ -1,4 +1,5 @@
 import { apiError } from "../errors.ts";
+import { testTokenContext } from "../state/servers.ts";
 import type { State } from "../state/store.ts";
 import { Unsupported } from "./respond.ts";
 import type { AuthRequirement, AuthResult } from "./routes.ts";
@@ -17,6 +18,7 @@ export function authenticate<A extends AuthRequirement>(
   headers: Headers,
   state: State,
   routeName: string,
+  now: Date,
 ): AuthResult[A] {
   if (requirement === "account") {
     const token = headers.get("X-Postmark-Account-Token");
@@ -28,7 +30,7 @@ export function authenticate<A extends AuthRequirement>(
   const token = headers.get("X-Postmark-Server-Token");
   if (token === null) throw apiError(10);
   if (same(token, TEST_TOKEN)) {
-    if (requirement === "serverOrTest") return { kind: "test" } as AuthResult[A];
+    if (requirement === "serverOrTest") return testTokenContext(now) as AuthResult[A];
     throw new Unsupported(`${TEST_TOKEN} on ${routeName}: behavior not captured (docs/02 §9 Q8)`);
   }
   for (const server of state.servers.values()) {

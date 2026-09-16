@@ -133,9 +133,9 @@ describe("GET /control/messages", () => {
     if (!server) throw new Error("seed has no server");
     const draft = {
       From: "sender@example.com",
-      To: [{ Email: "A@example.com", Name: null }],
-      Cc: [],
-      Bcc: [],
+      To: "A@example.com",
+      Cc: undefined,
+      Bcc: undefined,
       ReplyTo: undefined,
       Subject: "Hi",
       HtmlBody: undefined,

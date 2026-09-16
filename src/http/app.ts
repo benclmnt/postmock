@@ -29,6 +29,7 @@ export function createApiApp(runtime: Runtime): Hono<{ Bindings: HttpBindings }>
         request.headers,
         runtime.store.state,
         `${route.method} ${route.path}`,
+        runtime.clock.now(),
       );
       const body = decodeJsonBody(await request.arrayBuffer());
       const result = await route.handler({

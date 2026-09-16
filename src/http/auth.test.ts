@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../errors.ts";
-import { createServer } from "../state/servers.ts";
+import { createServer, findStream } from "../state/servers.ts";
 import { Store } from "../state/store.ts";
 import { authenticate } from "./auth.ts";
 import { Unsupported } from "./respond.ts";
@@ -28,7 +28,10 @@ describe("server token", () => {
   it("resolves the server; header name and value match without case (docs/02 §3.1)", () => {
     const { state, server } = setup();
     const h = headers({ "x-postmark-server-token": "SERVER-TOKEN" });
-    expect(authenticate("server", h, state, "GET /server")).toEqual({ kind: "server", server });
+    expect(authenticate("server", h, state, "GET /server", new Date())).toEqual({
+      kind: "server",
+      server,
+    });
   });
 
   it.each([
@@ -39,7 +42,9 @@ describe("server token", () => {
     ["only the account header", { "X-Postmark-Account-Token": "account-token" }],
   ])("answers 401/10 when %s", (_, h) => {
     const { state } = setup();
-    expect(errorCodeOf(() => authenticate("server", headers(h), state, "GET /server"))).toEqual({
+    expect(
+      errorCodeOf(() => authenticate("server", headers(h), state, "GET /server", new Date())),
+    ).toEqual({
       status: 401,
       code: 10,
     });
@@ -50,13 +55,17 @@ describe("account token", () => {
   it("accepts the account token", () => {
     const { state } = setup();
     const h = headers({ "X-Postmark-Account-Token": "Account-Token" });
-    expect(authenticate("account", h, state, "GET /servers")).toEqual({ kind: "account" });
+    expect(authenticate("account", h, state, "GET /servers", new Date())).toEqual({
+      kind: "account",
+    });
   });
 
   it("answers 401/10 for a server token (docs/02 §3.4)", () => {
     const { state } = setup();
     const h = headers({ "X-Postmark-Server-Token": "server-token" });
-    expect(errorCodeOf(() => authenticate("account", h, state, "GET /servers"))).toEqual({
+    expect(
+      errorCodeOf(() => authenticate("account", h, state, "GET /servers", new Date())),
+    ).toEqual({
       status: 401,
       code: 10,
     });
@@ -66,21 +75,26 @@ describe("account token", () => {
 describe("R15 POSTMARK_API_TEST", () => {
   const h = headers({ "X-Postmark-Server-Token": "POSTMARK_API_TEST" });
 
-  it("is a test identity where the route accepts it", () => {
+  it("gets a stored-nowhere server with the default streams where the route accepts it", () => {
     const { state } = setup();
-    expect(authenticate("serverOrTest", h, state, "POST /email")).toEqual({ kind: "test" });
+    const auth = authenticate("serverOrTest", h, state, "POST /email", new Date());
+    if (auth.kind !== "test") throw new Error("expected the test context");
+    expect(auth.server).toMatchObject({ ID: 0, DeliveryType: "Live", TrackLinks: "None" });
+    expect(findStream(state, auth, "outbound")?.MessageStreamType).toBe("Transactional");
+    expect(findStream(state, auth, "nope")).toBeUndefined();
+    expect(state.servers.has(0)).toBe(false);
   });
 
   it("is Unsupported where its behavior is not captured", () => {
     const { state } = setup();
-    expect(() => authenticate("server", h, state, "GET /server")).toThrow(Unsupported);
+    expect(() => authenticate("server", h, state, "GET /server", new Date())).toThrow(Unsupported);
   });
 
   it("is not an account token", () => {
     const { state } = setup();
     const account = headers({ "X-Postmark-Account-Token": "POSTMARK_API_TEST" });
-    expect(errorCodeOf(() => authenticate("account", account, state, "GET /servers")).code).toBe(
-      10,
-    );
+    expect(
+      errorCodeOf(() => authenticate("account", account, state, "GET /servers", new Date())).code,
+    ).toBe(10);
   });
 });
