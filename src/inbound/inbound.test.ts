@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createControlApp } from "../control/app.ts";
 import webhooksPlugin from "../plugins/webhooks.ts";
 import { createRuntime } from "../runtime.ts";
+import { Clock } from "../state/clock.ts";
 import { createServer } from "../state/servers.ts";
 import { apiClient } from "../webhooks/test-api.ts";
 import { startReceiver } from "../webhooks/test-receiver.ts";
@@ -15,7 +16,8 @@ afterEach(async () => {
 async function setup(answer?: Parameters<typeof startReceiver>[0]) {
   const receiver = await startReceiver(answer);
   closers.push(receiver.close);
-  const runtime = createRuntime([webhooksPlugin]);
+  // Real time stands still, so `advance` alone moves the clock and due times are exact.
+  const runtime = createRuntime([webhooksPlugin], new Clock(() => 1_800_000_000_000));
   const server = createServer(runtime.store, runtime.clock.now(), {
     ApiTokens: ["token"],
     InboundHash: "abc123",
@@ -195,9 +197,9 @@ describe("inbound", () => {
     const res = await inbound(mail);
     const id = res.json.Messages[0]?.MessageID ?? "";
     expect(runtime.store.state.inbound.get(id)?.Status).toBe("Scheduled");
-    await runtime.clock.advance(621 * MINUTE - 1000);
+    await runtime.clock.advance(621 * MINUTE - 1);
     expect(receiver.received).toHaveLength(10);
-    await runtime.clock.advance(1000);
+    await runtime.clock.advance(1);
     expect(receiver.received).toHaveLength(11);
     expect(runtime.store.state.inbound.get(id)?.Status).toBe("Failed");
     expect((await api("PUT", `/messages/inbound/${id}/retry`)).json.Message).toBe(

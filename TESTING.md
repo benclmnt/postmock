@@ -88,5 +88,4 @@ Ratchet rules:
 | `clock.reset()` throws during an advance. | Await `clock.idle()` first; `POST /control/reset` does. |
 | A file in `src/api/<group>/`, `src/control/endpoints/`, `src/plugins/` or `seeds/conformance/` loads without any import. A stray file there registers too. A group folder without `routes.ts` throws. | Keep only real route, endpoint, plugin and seed-part files there; tests end in `.test.ts`; names starting with `.` are skipped. |
 | A handler that returns a raw `Date` gets a 500 (`unformatted Date at key …`). | Format dates with `src/time.ts` in the API group. |
-| `clock.now()` is real time plus an offset. An `advance(n)` right after a request lands a few real ms past `n`, so a boundary check to the millisecond flakes. | Leave a second of slack around a due time (`src/webhooks/emitter.test.ts`). |
 | A fault stays active until its `times` run out. A later test in the same process sees it. | Call `POST /control/reset` between tests. |

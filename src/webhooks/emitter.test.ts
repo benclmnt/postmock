@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import webhooksPlugin from "../plugins/webhooks.ts";
 import { createRuntime, type Runtime } from "../runtime.ts";
+import { Clock } from "../state/clock.ts";
 import { newMessageId } from "../state/ids.ts";
 import { createServer } from "../state/servers.ts";
 import type {
@@ -21,7 +22,8 @@ afterEach(async () => {
 async function setup(answer?: Parameters<typeof startReceiver>[0]) {
   const receiver = await startReceiver(answer);
   closers.push(receiver.close);
-  const runtime = createRuntime([webhooksPlugin]);
+  // Real time stands still, so `advance` alone moves the clock and due times are exact.
+  const runtime = createRuntime([webhooksPlugin], new Clock(() => 1_800_000_000_000));
   const server = createServer(runtime.store, runtime.clock.now(), { ApiTokens: ["token"] });
   return { runtime, server, receiver };
 }
@@ -142,10 +144,9 @@ describe("webhook emitter", () => {
     await deliver(runtime, server.ID);
     const counts = [receiver.received.length];
     for (const minutes of [1, 5, 10, 10, 10, 15, 24 * 60]) {
-      // The clock runs on real time too; a second of slack absorbs the request time.
-      await runtime.clock.advance(minutes * MINUTE - 1000);
+      await runtime.clock.advance(minutes * MINUTE - 1);
       counts.push(receiver.received.length);
-      await runtime.clock.advance(1000);
+      await runtime.clock.advance(1);
       counts.push(receiver.received.length);
     }
     expect(counts).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7]);
