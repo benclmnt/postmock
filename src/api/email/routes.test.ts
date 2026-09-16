@@ -190,6 +190,16 @@ describe("POST /email/batch", () => {
     expect([...runtime.store.state.outbound.keys()]).toEqual([ok?.MessageID]);
   });
 
+  it("answers 501 and stores nothing for an item with a data error and the sender error", async () => {
+    const { runtime, post } = setup();
+    const res = await post("/email/batch", [
+      message(),
+      message({ From: "probe@elsewhere.org", TextBody: undefined }),
+    ]);
+    expect(res.status).toBe(501);
+    expect(runtime.store.state.outbound.size).toBe(0);
+  });
+
   it("answers per-message results for POSTMARK_API_TEST (gem api_client_messages_spec)", async () => {
     const res = await setup().post("/email/batch", [message(), message()], "POSTMARK_API_TEST");
     expect((await items(res)).map((i) => i.Message)).toEqual([

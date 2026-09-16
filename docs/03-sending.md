@@ -144,6 +144,7 @@ A single validation error returns its own code, not 11. `refs/api_bulk-email.md:
 `GET /email/bulk/{id}`: same status object. Other server or unknown id → HTTP 404, ErrorCode 12. Absent values are omitted, not `null`. `Subject` absent if none. `refs/api_bulk-email.md` **DOC**
 Status values: `Accepted` `Processing` `Completed` `Cancelled`. `refs/api_bulk-email.md` **DOC**
 Invariant: `ReleasedCount + FailedCount ≤ TotalMessages`; equal once `Completed`. `refs/api_bulk-email.md` **DOC**
+postmock checks each message again when it releases it (`src/api/bulk/bulk.ts`). A sender that lost authorization since submit (the 400 case, §3.4) counts in `FailedCount`. A sender in a 501 state (§3.4) stops the request: it stays `Processing`, and `GET /control/bulk/{id}` shows why. **INFERRED**
 
 Disagreements:
 
@@ -214,6 +215,7 @@ Applies to `/email/batch` and `/email/batchWithTemplates`.
 | Per-item errors seen | 300, 400, 406, 1101 | `refs/api_email-api.md` **DOC**; `captures/20260916T231736Z-from-verification/02-batch-unverified-domain` **CAPTURED**; `ClientTemplateTests.cs:247` **SDK** |
 | Whole-request errors | 401 token, 402 invalid JSON, 410 > 500 items, 413 > 50 MB | `refs/api_overview.md` **DOC**; split rule **INFERRED** |
 | Stream error 1235 in a batch | Unknown: per item or whole request. postmock answers 501 and sends nothing; no SDK live test asserts either. | open question (Q14) |
+| A batch item in a sender 501 state (§3.4), or with a data error and the sender error | The whole request answers 501 and stores nothing. | not captured (§3.4, Q3) |
 
 ## 3. Validation errors
 
@@ -312,8 +314,8 @@ Capture: `captures/20260916T231736Z-from-verification/`. The account had a verif
 | `POSTMARK_API_TEST` skips the check | `sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10`, `:45-48` and `sdk/postmark-java/src/test/java/integration/MessageTest.java:27-36` **SDK** (both send from an address no account holds and expect success); `docs/10` C7 open |
 | A message that fails a data check (300, 403, 411, 1101, 1120, 1123, 1226, 1235, 1236) and the sender check: 501. A malformed `From` (300) is a data error alone. | order not captured; the same rule as a 1235 item in a batch |
 | The sender check runs before account approval (412, 413) and suppressions (406) | **INFERRED** |
-| Applies to `/email`, `/email/batch`, `/email/withTemplate`, `/email/batchWithTemplates`, and each `/email/bulk` message (one error: 422 / 400; with others: ErrorCode 11) | send paths share `validateOutbound`; template and bulk paths **INFERRED** |
-| Bulk checks the sender at submit and again when each message is released. A sender that loses authorization before release counts in `FailedCount`; one that reaches a 501 state stops the request (§1.6). | **INFERRED** |
+| Applies to `/email`, `/email/batch`, `/email/withTemplate`, `/email/batchWithTemplates`, and `/email/bulk`, whose `From` is request-level (422 / 400 alone; beside any data error: 501) | send paths share `validateOutbound`; template and bulk paths **INFERRED** |
+| Bulk checks the sender at submit and again when each message is released | §1.6; `src/api/bulk/bulk.ts` **INFERRED** |
 | SMTP: the message is accepted and becomes an `SMTPApiError` bounce with ErrorCode 400 | error model `refs/user-guide_send-email-with-smtp.md:56`, `:87` **DOC**; sender case **INFERRED** (`docs/07` Q3, `docs/10` C60) |
 
 ## 4. Test token and sandbox
