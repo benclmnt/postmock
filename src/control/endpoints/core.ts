@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { apiError, type ErrorFamily } from "../../errors.ts";
 import { formatTimestamp } from "../../time.ts";
-import { type ControlContext, ControlError, controlInput, defineControl } from "../registry.ts";
-import { applySeed, seedNames } from "../seed.ts";
+import { ControlError, controlInput, defineControl } from "../registry.ts";
+import { seedAtomically } from "../seeding.ts";
 
 // docs/09 §5: reset, seed, clock, faults, messages.
 
@@ -14,8 +14,7 @@ defineControl({
       z.object({ seed: z.string().optional() }),
       ctx.body,
     );
-    await seedAtomically(ctx, seed, () => ctx.store.reset());
-    ctx.clock.reset();
+    await seedAtomically(ctx, seed, { reset: true });
     return { seed };
   },
 });
@@ -25,29 +24,10 @@ defineControl({
   path: "/control/seed",
   handler: async (ctx) => {
     const { name } = controlInput(z.object({ name: z.string() }), ctx.body);
-    await seedAtomically(ctx, name, () => {});
+    await seedAtomically(ctx, name, { reset: false });
     return { seed: name };
   },
 });
-
-/** Runs `prepare` and the seed, or neither: a failing seed restores the state and answers 400. */
-async function seedAtomically(
-  ctx: ControlContext,
-  name: string,
-  prepare: () => void,
-): Promise<void> {
-  if (!seedNames().includes(name)) {
-    throw new ControlError(`unknown seed '${name}'; seeds: ${seedNames().join(", ")}`);
-  }
-  const before = structuredClone(ctx.store.state);
-  try {
-    prepare();
-    await applySeed(ctx, name);
-  } catch (error) {
-    ctx.store.state = before;
-    throw new ControlError(`seed '${name}' failed: ${(error as Error).message}`);
-  }
-}
 
 defineControl({
   method: "POST",

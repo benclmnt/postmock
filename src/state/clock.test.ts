@@ -84,4 +84,64 @@ describe("Clock", () => {
     await expect(new Clock().advance(-1)).rejects.toThrow();
     await expect(new Clock().advance(1.5)).rejects.toThrow();
   });
+
+  it("serializes concurrent advances; each computes its target when it starts", async () => {
+    const clock = new Clock(() => 0);
+    const ran: number[] = [];
+    for (const due of [50, 150]) {
+      clock.schedule(due, async () => {
+        await new Promise((resolve) => setImmediate(resolve));
+        ran.push(clock.now().getTime());
+      });
+    }
+    await Promise.all([clock.advance(100), clock.advance(100)]);
+    expect(ran).toEqual([50, 150]);
+    expect(clock.now().getTime()).toBe(200);
+  });
+
+  it("runs a real-timer task after a running advance, not inside it", async () => {
+    vi.useFakeTimers();
+    const clock = new Clock();
+    const order: string[] = [];
+    clock.schedule(10, async () => {
+      order.push("A start");
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      order.push("A end");
+    });
+    clock.schedule(50, () => {
+      order.push("B");
+    });
+    const advancing = clock.advance(10);
+    await vi.advanceTimersByTimeAsync(100);
+    await advancing;
+    await clock.idle();
+    expect(order).toEqual(["A start", "A end", "B"]);
+  });
+
+  it("refuses reset during an advance", async () => {
+    const clock = new Clock(() => 0);
+    let resetError: unknown;
+    clock.schedule(1, () => {
+      try {
+        clock.reset();
+      } catch (error) {
+        resetError = error;
+      }
+    });
+    await clock.advance(1);
+    expect(String(resetError)).toContain("during an advance");
+  });
+
+  it("restores offset and pending tasks from a checkpoint", async () => {
+    const clock = new Clock(() => 0);
+    await clock.advance(1_000);
+    const run = vi.fn();
+    clock.schedule(500, run);
+    const restore = clock.checkpoint();
+    clock.reset();
+    restore();
+    expect(clock.now().getTime()).toBe(1_000);
+    await clock.advance(500);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
 });

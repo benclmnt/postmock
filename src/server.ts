@@ -64,6 +64,7 @@ export async function startPostmock(config: PostmockConfig): Promise<RunningPost
     listeners: Object.fromEntries(started.map((l) => [l.name, l.url])),
     close: async () => {
       await Promise.all(started.map((l) => l.close()));
+      await runtime.clock.idle();
       runtime.clock.reset();
     },
   };
