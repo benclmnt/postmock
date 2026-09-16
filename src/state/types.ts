@@ -353,6 +353,8 @@ export interface BulkRequest {
   FailedCount: number;
   Subject: string | null;
   messageIds: string[];
+  /** Why processing stopped on behavior postmock does not know (`Unsupported`), or null. */
+  unsupported: string | null;
 }
 
 // docs/05 §1.2.
