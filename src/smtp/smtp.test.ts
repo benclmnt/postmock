@@ -35,13 +35,16 @@ const transport = (options: Record<string, unknown> = {}, port = mock.port) =>
     ...options,
   } as TransportOptions);
 
-const messages = (): OutboundMessage[] => [...mock.runtime.store.state.outbound.values()];
+// The conformance seed stores REST history; these tests look at SMTP traffic only.
+const messages = (): OutboundMessage[] =>
+  [...mock.runtime.store.state.outbound.values()].filter((message) => message.channel === "smtp");
 const only = (): OutboundMessage => {
   const all = messages();
   expect(all).toHaveLength(1);
   return all[0] as OutboundMessage;
 };
-const bounces = (): Bounce[] => [...mock.runtime.store.state.bounces.values()];
+const bounces = (): Bounce[] =>
+  [...mock.runtime.store.state.bounces.values()].filter((bounce) => bounce.Type === "SMTPApiError");
 
 describe("transport and EHLO", () => {
   it("advertises AUTH PLAIN LOGIN CRAM-MD5 and SIZE, and no STARTTLS without a cert", async () => {
@@ -91,7 +94,9 @@ describe("transport and EHLO", () => {
           auth: { user: TOKEN, pass: TOKEN },
         });
         await mailer.sendMail({ from: FROM, to: TO, subject: "tls", text: "Hi" });
-        expect(tls.runtime.store.state.outbound.size).toBe(1);
+        expect(
+          [...tls.runtime.store.state.outbound.values()].filter((m) => m.channel === "smtp"),
+        ).toHaveLength(1);
       } finally {
         await tls.close();
       }
