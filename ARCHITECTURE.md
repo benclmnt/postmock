@@ -1,7 +1,7 @@
 # Architecture
 
 Status: W0 (foundation) is built.
-Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the control API skeleton, and the postmark.js conformance runner.
+Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the postmark.js conformance runner.
 Design: every other endpoint, the send pipeline body, SMTP, TLS, the webhook emitter and inbound processing.
 Tracks T1–T8 build the design parts (`docs/11` §3.2).
 
@@ -36,11 +36,11 @@ A misrouted request gets 401 from real Postmark and sends nothing.
 | REST, plain http | `127.0.0.1:8080` | `POSTMOCK_HOST`, `POSTMOCK_API_PORT` | Server-token and account-token API on any host, at `/` | built |
 | REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
-| SMTP | 25, 587, 2525 | — | Postmark SMTP (`docs/07`) | design (T6) |
-| Webhook emitter | outbound | — | Every RecordType, retries on the clock (`docs/05`) | design (T5) |
+| SMTP | 25, 587, 2525 | `POSTMOCK_SMTP_*` (plugin) | Postmark SMTP (`docs/07`) | design (T6, `src/plugins/`) |
+| Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_*` (plugin) | Every RecordType, retries on the clock (`docs/05`) | design (T5, `src/plugins/`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
-Port `0` picks a free port; startup prints the URLs.
+Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
 
 ## Request flow (REST)
 
@@ -61,7 +61,8 @@ The handler cannot choose another success status.
 | --- | --- | --- |
 | `src/main.ts` | Reads env, starts postmock | built |
 | `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (SMTP, TLS: design) |
-| `src/runtime.ts` | `Runtime`: store, events, clock | built |
+| `src/runtime.ts` | `Runtime`: store, events, clock; `createRuntime()` installs every plugin | built |
+| `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (no plugin yet) |
 | `src/errors.ts` | ErrorCode table (`docs/02` §4.4), `apiError`, `errorBody` | built |
 | `src/time.ts` | Eastern-time parse and the timestamp formats of `docs/02` §7.1 | built |
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
@@ -74,8 +75,8 @@ The handler cannot choose another success status.
 | `src/pipeline/submit.ts` | `submitOutbound` | contract + stub (body: T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer | design (T3) |
-| `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules | design (T5) |
-| `src/smtp/` | SMTP listener | design (T6) |
+| `src/webhooks/`, `src/inbound/` | Emitter, inbound parse and rules; wired by a plugin | design (T5) |
+| `src/smtp/` | SMTP listener; started by a plugin | design (T6) |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for postmark.js |
 
@@ -88,18 +89,19 @@ A change to a contract below goes through the integrator.
 | --- | --- | --- |
 | API route | `src/http/routes.ts` | `defineRoute({ method, path: "/templates/:idOrAlias", auth: "server" \| "serverOrTest" \| "account", handler(ctx) })`. The handler returns the 200 body or throws `ApiError`/`Unsupported`. `ctx` has `store`, `events`, `clock`, `params`, `query`, `body`, `headers`, `auth`. |
 | API group registration | `src/api/<group>/routes.ts` | The file exists; `src/api/index.ts` imports it |
-| Errors | `src/errors.ts` | `apiError(code, { family?, status?, message? \| params?, extra? })`; `errorBody(code, …)` for a batch item. A `summary` row needs `message`, used verbatim; `params` fill `{name}` only in a `message` row. |
+| Errors | `src/errors.ts` | `apiError(code, { family?, status?, message? \| params?, extra? })`; `errorBody(code, …)` for a batch item. A `summary` row needs `message`, used verbatim; `params` fill `{name}` only in a `message` row; `extra` cannot set `ErrorCode` or `Message`. `isSummaryRow`, `ERROR_FAMILIES`. |
 | Normalization | `src/http/normalize.ts` | `ctx.query.get/all/prefixed/pick(schema)`; codecs `queryBool`, `queryInt`, `queryDate`; `parseBody(schema, ctx.body)`; codecs `absent`, `intLike`, `objectOrEmptyArray`, `base64` |
 | Responses | `src/http/respond.ts` | `paged(key, items, count, offset)`; `Unsupported` |
-| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, bulkRequestId, templateId }): Promise<SubmitResult>`. The draft holds the sender's raw values (address lists as strings); `submitOutbound` owns every send check and ErrorCode. |
+| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, bulkRequestId, templateId }): Promise<SubmitResult>`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). `submitOutbound` owns every type, syntax and limit check and each ErrorCode. |
 | Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `await events.emit(name, payload)` awaits each listener in order. Listeners may be async; later work goes on the clock. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
-| Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)`; `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
-| Servers | `src/state/servers.ts` | `createServer(store, now, settings)` (refuses a duplicate token); `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
+| Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)` (throws while seeding); `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
+| Servers | `src/state/servers.ts` | `createServer(store, now, settings)` and `addAccountToken(store, token)` refuse a token held twice (without case) and `POSTMARK_API_TEST`; `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
 | Entities | `src/state/types.ts` | PascalCase fields are wire fields; camelCase fields are internal; dates are `Date` |
-| Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule |
+| Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule. Advances and real-timer tasks run one at a time; `await clock.idle()` waits for them. `reset()` throws during an advance; `checkpoint()` returns a restore function. |
 | Control endpoint | `src/control/registry.ts` | `defineControl({ method, path: "/control/…", handler(ctx) })`; `controlInput(schema, ctx.body)`; throw `ControlError` for 400 |
 | Control registration | `src/control/endpoints/<topic>.ts` | The file exists; `src/control/index.ts` imports it |
-| Seed part | `seeds/conformance/<NN-part>.ts` | Default export `Seed = (runtime) => void \| Promise<void>`. It claims fixed IDs, so its IDs do not depend on other parts. |
+| Seed part | `seeds/conformance/<NN-part>.ts` | Default export `Seed = (runtime) => void \| Promise<void>`. It claims fixed IDs from its track's range (`docs/11` §5). |
+| Plugin | `src/plugins/<name>.ts` (`src/plugins.ts`) | Default export `{ install?(runtime), start?(runtime, host): Promise<{ name, url, close() }> }`. `install` runs on every runtime before the seed; `start` runs after the seed; `close` runs on shutdown. The plugin reads its own env keys. |
 
 ## Deviations from real Postmark
 
