@@ -3,7 +3,12 @@ import { ApiError, apiError, type ErrorBody } from "../../errors.ts";
 import { absent, parseBody, queryInt } from "../../http/normalize.ts";
 import { Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
-import { draftFromJson, type OutboundDraft, validateOutbound } from "../../pipeline/submit.ts";
+import {
+  draftFromJson,
+  type OutboundDraft,
+  refuseSenderAfterDataError,
+  validateOutbound,
+} from "../../pipeline/submit.ts";
 import { newMessageId } from "../../state/ids.ts";
 import { findStream } from "../../state/servers.ts";
 import type { State } from "../../state/store.ts";
@@ -114,6 +119,58 @@ const withContent = (draft: OutboundDraft, content: Content): OutboundDraft => (
   TextBody: content.TextBody ?? undefined,
 });
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+interface BulkRequestChecks {
+  input: z.output<typeof bulkBody>;
+  content: Content;
+  layout: Template | null;
+  templateId: number | null;
+  streamId: string;
+}
+
+/** The request-level checks: body fields, template, stream. */
+function checkRequest(state: State, auth: ServerAuth, body: unknown): BulkRequestChecks {
+  const parsed = parseBody(bulkBody, body ?? {});
+  if (!parsed.success) {
+    const path = parsed.error.issues[0]?.path ?? [];
+    throw invalidField(String(path.findLast((p) => typeof p === "string")));
+  }
+  const input = parsed.data;
+  if (input.Messages.length === 0) throw new Unsupported("a bulk request with no Messages");
+
+  const templated = input.TemplateId !== undefined || input.TemplateAlias !== undefined;
+  let content: Content = {
+    Subject: input.Subject ?? null,
+    HtmlBody: input.HtmlBody ?? null,
+    TextBody: input.TextBody ?? null,
+  };
+  let layout: Template | null = null;
+  let templateId: number | null = null;
+  if (templated) {
+    // Content beside a template: 1123, as on /email/withTemplate (INFERRED).
+    if (Object.values(content).some((v) => v !== null)) {
+      throw apiError(1123, {
+        message: "Subject, HtmlBody and TextBody cannot be used when sending with a template.",
+      });
+    }
+    const sent = sendTemplate(state, auth.server.ID, input);
+    content = sent.template;
+    templateId = sent.template.TemplateId;
+    layout = sent.layout;
+  }
+
+  // Absent: the default broadcast stream (refs/api_bulk-email.md:81; docs/04 Q7 for its ID).
+  const streamId = input.MessageStream ?? "broadcast";
+  const stream = findStream(state, auth, streamId);
+  if (stream === undefined) throw apiError(1226, { family: "streams" });
+  if (stream.MessageStreamType !== "Broadcasts") {
+    throw new Unsupported(`bulk sends on a ${stream.MessageStreamType} stream are not captured`);
+  }
+  return { input, content, layout, templateId, streamId };
+}
+
 defineRoute({
   method: "POST",
   path: "/email/bulk",
@@ -122,42 +179,16 @@ defineRoute({
     const { store, auth } = ctx;
     const { state } = store;
     requireBulkApproval(state);
-    const parsed = parseBody(bulkBody, ctx.body ?? {});
-    if (!parsed.success) {
-      const path = parsed.error.issues[0]?.path ?? [];
-      throw invalidField(String(path.findLast((p) => typeof p === "string")));
-    }
-    const input = parsed.data;
-    if (input.Messages.length === 0) throw new Unsupported("a bulk request with no Messages");
-
-    const templated = input.TemplateId !== undefined || input.TemplateAlias !== undefined;
-    let content: Content = {
-      Subject: input.Subject ?? null,
-      HtmlBody: input.HtmlBody ?? null,
-      TextBody: input.TextBody ?? null,
-    };
-    let layout: Template | null = null;
-    let templateId: number | null = null;
-    if (templated) {
-      // Content beside a template: 1123, as on /email/withTemplate (INFERRED).
-      if (Object.values(content).some((v) => v !== null)) {
-        throw apiError(1123, {
-          message: "Subject, HtmlBody and TextBody cannot be used when sending with a template.",
-        });
+    let request: BulkRequestChecks;
+    try {
+      request = checkRequest(state, auth, ctx.body);
+    } catch (error) {
+      if (error instanceof ApiError && isObject(ctx.body)) {
+        refuseSenderAfterDataError(ctx, auth, draftFromJson(ctx.body).From);
       }
-      const sent = sendTemplate(state, auth.server.ID, input);
-      content = sent.template;
-      templateId = sent.template.TemplateId;
-      layout = sent.layout;
+      throw error;
     }
-
-    // Absent: the default broadcast stream (refs/api_bulk-email.md:81; docs/04 Q7 for its ID).
-    const streamId = input.MessageStream ?? "broadcast";
-    const stream = findStream(state, auth, streamId);
-    if (stream === undefined) throw apiError(1226, { family: "streams" });
-    if (stream.MessageStreamType !== "Broadcasts") {
-      throw new Unsupported(`bulk sends on a ${stream.MessageStreamType} stream are not captured`);
-    }
+    const { input, content, layout, templateId, streamId } = request;
 
     // Body keys arrive in any case (docs/08 R8); `request` keeps each entry as sent.
     const rawMessages = Object.entries(ctx.body as Record<string, unknown>).find(

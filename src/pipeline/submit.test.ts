@@ -5,6 +5,7 @@ import { Unsupported } from "../http/respond.ts";
 import { createRuntime } from "../runtime.ts";
 import { createServer, type ServerSettings, testTokenContext } from "../state/servers.ts";
 import { streamKey, suppressionKey } from "../state/store.ts";
+import type { Domain } from "../state/types.ts";
 import { batchItemError } from "./inactive.ts";
 import {
   draftFromJson,
@@ -402,11 +403,9 @@ describe("submitOutbound", () => {
       const { send } = setup();
       expect((await send({ From: "never-registered@example.com" })).outcome).toBe("accepted");
       expect((await send({ From: "Someone <X@EXAMPLE.COM>" })).outcome).toBe("accepted");
-      expect(await send({ From: "a@sub.example.com" })).toEqual(notASignature("a@sub.example.com"));
     });
 
-    it("accepts a domain once DKIM or its Return-Path is verified", async () => {
-      const { runtime, send } = setup();
+    const unverifiedDomain = (runtime: ReturnType<typeof setup>["runtime"]) => {
       const domain = newDomain(
         runtime.store.nextId("domain"),
         "new.org",
@@ -414,9 +413,31 @@ describe("submitOutbound", () => {
         runtime.clock.now(),
       );
       runtime.store.state.domains.set(domain.ID, domain);
-      expect(await send({ From: "a@new.org" })).toEqual(notASignature("a@new.org"));
-      domain.ReturnPathDomainVerified = true;
-      expect((await send({ From: "a@new.org" })).outcome).toBe("accepted");
+      return domain;
+    };
+
+    it("accepts a domain once DKIM is verified", async () => {
+      const { runtime, send } = setup();
+      const domain = unverifiedDomain(runtime);
+      domain.DKIMVerified = true;
+      expect((await send({ From: "a@NEW.org" })).outcome).toBe("accepted");
+    });
+
+    it.each([
+      ["no verification", {}],
+      ["Return-Path only", { ReturnPathDomainVerified: true }],
+      ["SPF only", { SPFVerified: true }],
+    ] as Array<[string, Partial<Domain>]>)(
+      "refuses to guess the answer for an account domain with %s",
+      async (_, verified) => {
+        const { runtime, send } = setup();
+        Object.assign(unverifiedDomain(runtime), verified);
+        await expect(send({ From: "a@new.org" })).rejects.toBeInstanceOf(Unsupported);
+      },
+    );
+
+    it("refuses to guess the answer for a subdomain of an account domain", async () => {
+      await expect(setup().send({ From: "a@sub.example.com" })).rejects.toBeInstanceOf(Unsupported);
     });
 
     it("accepts a confirmed signature's own address, without case", async () => {
@@ -432,10 +453,17 @@ describe("submitOutbound", () => {
       await expect(send({ From: "me@signed.org" })).rejects.toBeInstanceOf(Unsupported);
     });
 
-    it("runs after the data checks", async () => {
-      expect(
-        await setup().send({ From: "probe@elsewhere.org", TextBody: undefined }),
-      ).toMatchObject({ error: { ErrorCode: 300 } });
+    it("refuses to guess the answer when a data check fails too", async () => {
+      const { send } = setup();
+      await expect(
+        send({ From: "probe@elsewhere.org", TextBody: undefined }),
+      ).rejects.toBeInstanceOf(Unsupported);
+      await expect(send({ From: "probe@elsewhere.org", Subject: 5 })).rejects.toBeInstanceOf(
+        Unsupported,
+      );
+      // An authorized sender keeps the data error; a malformed From is a data error alone.
+      expect(await send({ TextBody: undefined })).toMatchObject({ error: { ErrorCode: 300 } });
+      expect(await send({ From: "test" })).toMatchObject({ error: { ErrorCode: 300 } });
     });
 
     it("does not check the test token", async () => {

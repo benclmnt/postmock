@@ -7,6 +7,8 @@ import {
   acceptOutbound,
   acceptOutbounds,
   draftFromJson,
+  type OutboundDraft,
+  refuseSenderAfterDataError,
   type SubmitResult,
   type Validation,
   validateOutbound,
@@ -43,8 +45,22 @@ function validateTemplated(
   auth: ServerAuth,
   raw: Record<string, unknown>,
 ): Validation {
-  const message = parseOrReject(templateFields, raw);
   const draft = draftFromJson(raw);
+  try {
+    return validateRendered(ctx, auth, raw, draft);
+  } catch (error) {
+    if (error instanceof ApiError) refuseSenderAfterDataError(ctx, auth, draft.From);
+    throw error;
+  }
+}
+
+function validateRendered(
+  ctx: RequestContext,
+  auth: ServerAuth,
+  raw: Record<string, unknown>,
+  draft: OutboundDraft,
+): Validation {
+  const message = parseOrReject(templateFields, raw);
   for (const part of CONTENT_PARTS) {
     // R9: null and "" are absent (docs/08).
     if (draft[part] !== undefined && draft[part] !== null && draft[part] !== "") {

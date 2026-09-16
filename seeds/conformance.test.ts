@@ -69,12 +69,8 @@ describe("conformance seed", () => {
         bulkRequestId: null,
         templateId: null,
       }).outcome;
-    // dotnet and php create `sender+<token>@example.com`; python start_here.py sends from its placeholder.
-    for (const address of [
-      CONFORMANCE.senderEmail,
-      "sender+token@example.com",
-      `you@${CONFORMANCE.exampleDomain}`,
-    ]) {
+    // python start_here.py sends from its placeholder domain.
+    for (const address of [CONFORMANCE.senderEmail, `you@${CONFORMANCE.exampleDomain}`]) {
       expect(from(address), address).toBe("valid");
     }
     expect(from("sender@elsewhere.org")).toBe("rejected");

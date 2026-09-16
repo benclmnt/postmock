@@ -8,7 +8,7 @@ import { CONFORMANCE } from "../lib/conformance.ts";
  * The account the SDK suites ran against: server deletion enabled, verified domains, and a
  * confirmed sender signature. The dotnet, java and php suites read the first domain and signature
  * (sdk/postmark-java/src/test/java/integration/DomainTest.java:36-41). A send needs a `From` on a
- * verified domain or a confirmed signature (docs/03 §3.1).
+ * verified domain or a confirmed signature (docs/03 §3.4).
  */
 const account: Seed = ({ store, clock }) => {
   const now = clock.now();

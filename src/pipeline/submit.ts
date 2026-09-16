@@ -154,11 +154,50 @@ export type Validation =
   | { outcome: "rejected"; field: string; error: ErrorBody };
 
 /**
- * The data checks of a send, with no state change: field types, size, stream, addresses,
- * recipients, content, limits, attachments, sender. Check order follows docs/03 §3.3 (INFERRED). Account
- * approval and suppressions belong to `acceptOutbound`. Throws `Unsupported` for uncaptured cases.
+ * The checks of a send, with no state change: the data checks (field types, size, stream,
+ * addresses, recipients, content, limits, attachments) and the sender check. Account approval and
+ * suppressions belong to `acceptOutbound`. Throws `Unsupported` for uncaptured cases.
  */
 export function validateOutbound(runtime: Runtime, submission: Submission): Validation {
+  const data = checkData(runtime, submission);
+  if (data.outcome === "rejected") {
+    refuseSenderAfterDataError(runtime, submission.auth, submission.draft.From);
+    return data;
+  }
+  if (submission.auth.kind === "test") return data;
+  const { from, draft, recipients } = data.outbound;
+  if (!senderAuthorized(runtime.store.state, from)) {
+    return reject("From", errorBody(400, { params: { from: from.Email } }));
+  }
+  // A fake bounce type with an uncaptured effect answers 501 before anything is stored. It runs
+  // after the sender check, so an unknown sender keeps the captured 400.
+  testBounces(draft.Headers ?? [], recipients);
+  return data;
+}
+
+/**
+ * Which error Postmark answers for a message that fails a data check and the sender check is not
+ * captured (docs/03 §3.4). A caller that answers a data error calls this first. The test token
+ * belongs to no account and has no sender check (sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10,
+ * :45-48; sdk/postmark-java/src/test/java/integration/MessageTest.java:27-36).
+ */
+export function refuseSenderAfterDataError(
+  runtime: Runtime,
+  auth: Submission["auth"],
+  rawFrom: unknown,
+): void {
+  if (auth.kind === "test" || typeof rawFrom !== "string") return;
+  const [from, ...more] = parseAddressList(rawFrom) ?? [];
+  if (from === undefined || more.length > 0) return;
+  if (!senderAuthorized(runtime.store.state, from)) {
+    throw new Unsupported(
+      `a message that fails a data check and the sender check for ${from.Email} (docs/03 §3.4)`,
+    );
+  }
+}
+
+/** The data checks; check order follows docs/03 §3.3 (INFERRED). */
+function checkData(runtime: Runtime, submission: Submission): Validation {
   const parsed = draftSchema(submission.channel).safeParse(submission.draft);
   // ErrorCode 403 for a field of the wrong type is INFERRED (docs/02 §9 Q13); text shape from
   // refs/api_overview.md:43-50. The first failing field is named.
@@ -210,14 +249,6 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
       return reject("Attachments", errorBody(411));
     }
   }
-  // The test token belongs to no account; the gem live suite sends from an address no account
-  // holds (sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10).
-  // Check order after the data checks is INFERRED (docs/03 §3.4).
-  if (submission.auth.kind === "server" && !senderAuthorized(runtime.store.state, from)) {
-    return reject("From", errorBody(400, { params: { from: from.Email } }));
-  }
-  // A fake bounce type with an uncaptured effect answers 501 before anything is stored.
-  if (submission.auth.kind !== "test") testBounces(draft.Headers ?? [], recipients);
   return {
     outcome: "valid",
     outbound: {
@@ -447,26 +478,34 @@ const domainOf = (address: Address): string =>
   (address.Email.split("@").at(-1) as string).toLowerCase();
 
 /**
- * A verified Domain authorizes every local part (CAPTURED: captures/20260916T231736Z-from-verification/03).
- * A Domain is verified once DKIM or its Return-Path is verified; an exact domain match only, no
- * subdomains (both INFERRED). A confirmed Sender Signature authorizes its own address, without case
- * (docs/03 §3.4). An unconfirmed one has no captured error (docs/03 Q3).
+ * True for a `From` on a DKIM-verified account Domain (any local part, CAPTURED:
+ * captures/20260916T231736Z-from-verification/03) or a confirmed Sender Signature's address. False
+ * only where the captured 400 applies: no account Domain and no Signature matches the `From`
+ * (captures/20260916T231736Z-from-verification/01). Names match without case. Every other state
+ * is not captured and throws `Unsupported` (docs/03 §3.4).
  */
 function senderAuthorized(state: State, from: Address): boolean {
   const domain = domainOf(from);
-  for (const d of state.domains.values()) {
-    if (d.Name.toLowerCase() === domain && (d.DKIMVerified || d.ReturnPathDomainVerified)) {
-      return true;
-    }
-  }
   const email = from.Email.toLowerCase();
   const signatures = [...state.senders.values()].filter(
     (s) => s.EmailAddress.toLowerCase() === email,
   );
-  if (signatures.some((s) => s.Confirmed)) return true;
+  const domains = [...state.domains.values()].filter((d) => d.Name.toLowerCase() === domain);
+  if (signatures.some((s) => s.Confirmed) || domains.some((d) => d.DKIMVerified)) return true;
   if (signatures.length > 0) {
     throw new Unsupported(
       `a send from the unconfirmed sender signature ${from.Email} (docs/03 Q3)`,
+    );
+  }
+  if (domains.length > 0) {
+    throw new Unsupported(`a send from the domain ${domain} without verified DKIM (docs/03 Q3)`);
+  }
+  const parent = [...state.domains.values()].find((d) =>
+    domain.endsWith(`.${d.Name.toLowerCase()}`),
+  );
+  if (parent !== undefined) {
+    throw new Unsupported(
+      `a send from ${domain}, a subdomain of the domain ${parent.Name} (docs/03 Q3)`,
     );
   }
   return false;
