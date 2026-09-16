@@ -10,9 +10,9 @@ export interface Runtime {
   clock: Clock;
 }
 
-/** A runtime with every plugin installed. */
-export function createRuntime(plugins: readonly Plugin[] = PLUGINS): Runtime {
-  const runtime: Runtime = { store: new Store(), events: new EventBus(), clock: new Clock() };
+/** A runtime with every plugin installed. Tests pass a `Clock` with a frozen real time. */
+export function createRuntime(plugins: readonly Plugin[] = PLUGINS, clock = new Clock()): Runtime {
+  const runtime: Runtime = { store: new Store(), events: new EventBus(), clock };
   for (const plugin of plugins) plugin.install?.(runtime);
   return runtime;
 }
