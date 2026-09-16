@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { apiError } from "../errors.ts";
 import { createRuntime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
@@ -118,6 +118,7 @@ describe("emit rules", () => {
   });
 
   it("refuses to serialize an unformatted Date (docs/02 §7.1)", async () => {
+    vi.spyOn(console, "error").mockImplementationOnce(() => {});
     const res = await setup().request("/test/date");
     expect(res.status).toBe(500);
     expect(await res.text()).toContain("unformatted Date at key 'At'");
