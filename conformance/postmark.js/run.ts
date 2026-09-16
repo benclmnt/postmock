@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startPostmock } from "../../src/server.ts";
-import { type ResultsFile, type TestResult, totals } from "../results.ts";
+import { type MochaReport, mochaResults } from "../mocha.ts";
+import { type ResultsFile, totals } from "../results.ts";
 import { currentStamp, sdkCommit } from "../stamp.ts";
 
 // Runs the postmark.js live integration suite, unmodified, against postmock (docs/08 §5.2).
@@ -14,18 +15,6 @@ const sdkDir = path("../../sdk/postmark.js");
 const workDir = path(".work");
 const keys = JSON.parse(readFileSync(path("testing_keys.json"), "utf8")) as Record<string, string>;
 const SUITE = "test/integration/**/*.test.ts";
-
-interface MochaTest {
-  fullTitle: string;
-  file: string;
-  err: { message?: string } | Record<string, never>;
-}
-interface MochaReport {
-  tests: MochaTest[];
-  passes: MochaTest[];
-  pending: MochaTest[];
-  failures: MochaTest[];
-}
 
 function prepare(): void {
   execFileSync("rsync", [
@@ -81,10 +70,6 @@ function mocha(args: string[], env: NodeJS.ProcessEnv, output: string): Promise<
   });
 }
 
-const idOf = (t: MochaTest) => `${t.file.slice(workDir.length + 1)} > ${t.fullTitle}`;
-const firstLine = (t: MochaTest) =>
-  ("message" in t.err ? (t.err.message ?? "") : "").split("\n")[0];
-
 export async function run(): Promise<ResultsFile> {
   const commit = sdkCommit("postmark.js");
   const postmock = currentStamp("postmark.js");
@@ -106,23 +91,7 @@ export async function run(): Promise<ResultsFile> {
     const listed = await mocha(["--dry-run"], env, `${workDir}/.postmock-list.json`);
     const report = await mocha([], env, `${workDir}/.postmock-report.json`);
 
-    const passed = new Set(report.passes.map(idOf));
-    const pending = new Set(report.pending.map(idOf));
-    const failures = new Map(report.failures.map((t) => [idOf(t), t]));
-    // A failed hook stops the tests after it; they are failures with the hook's error.
-    const hookFailure = (file: string) =>
-      report.failures.find((f) => f.file === file && f.fullTitle.includes('" hook'));
-
-    const tests: TestResult[] = listed.tests.map((t) => {
-      const id = idOf(t);
-      if (passed.has(id)) return { id, state: "pass" };
-      if (pending.has(id)) return { id, state: "skip" };
-      const failure = failures.get(id) ?? hookFailure(t.file);
-      const error = failure
-        ? `${failure === failures.get(id) ? "" : "not run: "}${firstLine(failure)}`
-        : "not run";
-      return { id, state: "fail", error };
-    });
+    const tests = mochaResults(listed, report, workDir);
     return {
       sdk: "postmark.js",
       sdkCommit: commit,
