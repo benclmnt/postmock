@@ -11,7 +11,7 @@ Tests then read what was sent, seed suppressions and bounces, inject faults, and
 W0 to W3 are built: REST and account APIs, SMTP, webhooks, the control API, a conformance runner for every official SDK, the npm package, the Docker image and CI.
 [`docs/11`](docs/11-build-plan.md) is the build plan; [`ARCHITECTURE.md`](ARCHITECTURE.md) marks what is built.
 The docs record Postmark's behavior from its public docs, its Swagger specs, and the official SDKs.
-Nothing is CAPTURED from real Postmark yet; [`docs/10`](docs/10-live-capture-plan.md) is a later fidelity pass.
+One behavior is CAPTURED from real Postmark so far: the sender check ([`docs/03`](docs/03-sending.md) §3.4). [`docs/10`](docs/10-live-capture-plan.md) plans the rest.
 
 ## Run
 
@@ -68,6 +68,18 @@ Set the client's own host option to postmock's REST listener, here `127.0.0.1:80
 | postmark-mcp | none: use option B |
 
 Cites and per-SDK transport details: [`docs/01`](docs/01-client-reachability.md) §2.1, [`docs/08`](docs/08-sdk-client-matrix.md).
+
+### Sender addresses
+
+As on Postmark, a send `From` must be on a verified domain or be a confirmed sender signature.
+Any other `From` gets HTTP 422 with ErrorCode 400 (on SMTP: an `SMTPApiError` bounce).
+The `POSTMARK_API_TEST` token skips this check.
+
+| Need | How |
+| --- | --- |
+| Send from `example.com` | The `conformance` seed verifies `example.com` and `your-verified-domain.com` |
+| Send from another domain | `POST /domains` with the account token, then `POST /control/domains/<ID>/verify` with `{"dkim": true}` ([`CONTROL-API.md`](CONTROL-API.md)) |
+| Send from one address | `POST /senders` with the account token, then `POST /control/senders/<ID>/confirm` |
 
 ### Option B: DNS and a test CA, with Compose
 

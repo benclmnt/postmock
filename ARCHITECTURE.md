@@ -83,7 +83,7 @@ The handler cannot choose another success status.
 | `src/api/inbound/` | `PUT /messages/inbound/{id}/bypass`, `/retry` | built (T5) |
 | `src/state/` | Entity types, `Store` (incl. `stats` facts), ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
-| `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
+| `src/pipeline/` | `validateOutbound` (data checks and the sender check, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
 | `src/control/` | Control registry, app, seed loader; endpoints in `endpoints/*.ts` | built (more endpoints: tracks) |
 | `src/render/` | Mustachio renderer: parse errors, render, suggested model | built (T3) |
 | `src/tracking.ts` | Recipient actions: delivery (writes the `Delivered` event), open, click; refuses what a real recipient could not do | built (T4) |
@@ -109,7 +109,7 @@ A change to a contract below goes through the integrator.
 | Errors | `src/errors.ts` | `apiError(code, { family?, status?, message? \| params?, extra? })`; `errorBody(code, …)` for a batch item; `apiErrorOf(body)` answers a body built earlier (a send rejection) with the one status of its code. A `summary` row needs `message`, used verbatim; `params` fill `{name}` only in a `message` row; `extra` cannot set `ErrorCode` or `Message`. `isSummaryRow`, `ERROR_FAMILIES`. |
 | Normalization | `src/http/normalize.ts` | `ctx.query.get/all/prefixed/pick(schema)`; codecs `queryBool`, `queryInt`, `queryDate`; `parseBody(schema, ctx.body)`; codecs `absent`, `intLike`, `objectOrEmptyArray`, `base64` |
 | Responses | `src/http/respond.ts` | `paged(key, items, count, offset)`; `Unsupported` |
-| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, rawSource (SMTP only), bulkRequestId, templateId }): Promise<SubmitResult>` = `validateOutbound(runtime, submission): Validation` then `await acceptOutbound(runtime, outbound)`. `validateOutbound` runs every type, syntax and limit check with no state change; a rejection names its `field` (for the bulk `Errors` map). `acceptOutbound` / `acceptOutbounds` apply account approval and suppressions, store every message, then emit `sent` for each. JSON channels build the draft with `draftFromJson`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). For REST the pipeline writes the MIME source from the draft (INFERRED layout). |
+| Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, rawSource (SMTP only), bulkRequestId, templateId }): Promise<SubmitResult>` = `validateOutbound(runtime, submission): Validation` then `await acceptOutbound(runtime, outbound)`. `validateOutbound` runs every type, syntax and limit check, then the sender check (`docs/03` §3.4), with no state change; a rejection names its `field` (for the bulk `Errors` map). `acceptOutbound` / `acceptOutbounds` apply account approval and suppressions, store every message, then emit `sent` for each. JSON channels build the draft with `draftFromJson`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). For REST the pipeline writes the MIME source from the draft (INFERRED layout). |
 | Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `await events.emit(name, payload)` awaits each listener in order. Listeners may be async; later work goes on the clock. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
 | Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)` (throws while seeding); `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
 | Suppressions | `src/state/suppressions.ts` | `suppressedAddresses(state, serverId, streamId, emails)`, the one read path for the send-side 406 check; `findSuppression`. A stored message keeps the recipients it skipped in `suppressedRecipients`. Writes go through `src/recipients/`. |
@@ -129,7 +129,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | --- | --- | --- |
 | Unknown route | 404, plain text | `docs/02` §9 Q9 |
 | `POSTMARK_API_TEST` on a route that does not accept it yet | 501, plain text | `docs/02` §9 Q8 |
-| A send `From` that no sender signature or domain covers | accepted: postmock does not check senders | `docs/03` §8 Q3 |
+| A send `From` whose only cover is an unconfirmed sender signature | 501, plain text | `docs/03` §3.4, §8 Q3 |
 | A message over 10 MB, a body part over 5 MB, a batch over 50 MB (HTTP 413) | 501, plain text | `docs/02` §9 Q10 |
 | A send to an archived stream | 501, plain text | `docs/04` Q15 |
 | An `/email` body that is not a JSON object; a batch body that is not an array of objects | 501, plain text | `docs/02` §9 Q16 |

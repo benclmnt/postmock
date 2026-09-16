@@ -2,7 +2,8 @@
 
 Scope: the Postmark send endpoints, their validation, and what happens to a message after accept.
 Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (see `AGENTS.md` rule 6).
-No capture exists yet. Every "exact" string below comes from docs or SDK tests, not from the wire.
+One capture exists: `captures/20260916T231736Z-from-verification/` (the sender check, §3.4).
+Every other "exact" string below comes from docs or SDK tests, not from the wire.
 
 ## 0. Surface
 
@@ -41,7 +42,7 @@ Request body. Sources: `refs/api_email-api.md`, `refs/user-guide_send-email-with
 
 | Field | Type | Required | Limit / rule | Source |
 | --- | --- | --- | --- | --- |
-| `From` | string | yes | Confirmed Sender Signature or verified domain. Max 255 chars (UTF-16 code units). `Name <addr>` allowed. | `refs/api_email-api.md`; `refs/user-guide_send-email-with-api_send-a-single-email.md` **DOC** |
+| `From` | string | yes | Confirmed Sender Signature or verified domain (§3.4). Max 255 chars (UTF-16 code units). `Name <addr>` allowed. | `refs/api_email-api.md`; `refs/user-guide_send-email-with-api_send-a-single-email.md` **DOC**; domain rule `captures/20260916T231736Z-from-verification/03-single-verified-domain-random-local` **CAPTURED** |
 | `To` | string | yes | Comma-separated. To+Cc+Bcc ≤ 50. | `refs/api_email-api.md` **DOC** |
 | `Cc` | string | no | Comma-separated. Counts toward 50. | `refs/api_email-api.md` **DOC** |
 | `Bcc` | string | no | Comma-separated. Counts toward 50. | `refs/api_email-api.md` **DOC** |
@@ -112,7 +113,7 @@ Response = §1.2 response. `refs/api_templates-api.md` **DOC**.
 
 | Field | Type | Required | Rule |
 | --- | --- | --- | --- |
-| `From` | string | yes | Confirmed signature |
+| `From` | string | yes | Confirmed signature or verified domain (§3.4) |
 | `ReplyTo`, `Subject`, `HtmlBody`, `TextBody` | string | content or template | Mustache `{{var}}` from `TemplateModel` |
 | `TemplateId` / `TemplateAlias` | int / string | alt. to content | |
 | `InlineCss` | boolean | no | |
@@ -209,8 +210,8 @@ Applies to `/email/batch` and `/email/batchWithTemplates`.
 | --- | --- | --- |
 | HTTP status with per-item errors | 200 | `refs/api_email-api.md`; `refs/api_templates-api.md` **DOC** |
 | Result order | Same as request | same **DOC** |
-| Error item shape | `{ErrorCode, Message}`; no `MessageID`, `SubmittedAt`, `To`. postmock keeps this shape (`docs/08` E14). | `refs/api_email-api.md` (406 example) **DOC**; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:246-249` (MessageID empty GUID) **SDK** |
-| Per-item errors seen | 300, 406, 1101 | `refs/api_email-api.md` **DOC**; `ClientTemplateTests.cs:247` **SDK** |
+| Error item shape | `{ErrorCode, Message}`; no `MessageID`, `SubmittedAt`, `To`. postmock keeps this shape (`docs/08` E14). | `refs/api_email-api.md` (406 example) **DOC**; `captures/20260916T231736Z-from-verification/02-batch-unverified-domain/response.body` (a 400 item) **CAPTURED**; `sdk/postmark-dotnet/src/Postmark.Tests/ClientTemplateTests.cs:246-249` (MessageID empty GUID) **SDK** |
+| Per-item errors seen | 300, 400, 406, 1101 | `refs/api_email-api.md` **DOC**; `captures/20260916T231736Z-from-verification/02-batch-unverified-domain` **CAPTURED**; `ClientTemplateTests.cs:247` **SDK** |
 | Whole-request errors | 401 token, 402 invalid JSON, 410 > 500 items, 413 > 50 MB | `refs/api_overview.md` **DOC**; split rule **INFERRED** |
 | Stream error 1235 in a batch | Unknown: per item or whole request. postmock answers 501 and sends nothing; no SDK live test asserts either. | open question (Q14) |
 
@@ -226,8 +227,8 @@ Applies to `/email/batch` and `/email/batchWithTemplates`.
 | 300 | 422 | Invalid `To` | `Invalid 'To' address: 'test'.` | `refs/api_bulk-email.md` **DOC** |
 | 300 | 422 | No `TextBody` and no `HtmlBody` | not documented; SDK integration test sees 300 | `sdk/postmark.js/test/integration/Sending.test.ts:61-71` **SDK** |
 | 300 | 422 | Zero recipients; > 50 recipients; metadata, attachment size, header limits | not documented | `refs/api_overview.md` **DOC** |
-| 400 | — | Sender signature not found | Not in current code table | open question |
-| 401 | — | Sender signature not confirmed | Not in current code table; 401 is an HTTP status for auth | open question |
+| 400 | 422 | `From` on no verified domain and no Sender Signature | `The 'From' address you supplied (probe-20260916T231736Z@example.com) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.` | `captures/20260916T231736Z-from-verification/01-single-unverified-domain` **CAPTURED** |
+| 401 | — | Sender signature not confirmed | not captured; postmock answers 501 (§3.4) | open question (Q3) |
 | 402 | 422 | Invalid JSON | `Invalid JSON.` (table text) | `refs/api_overview.md` **DOC** |
 | 403 | 422 | Unknown/invalid field | `Invalid request field(s): 'From'.` | `refs/api_overview.md` **DOC** |
 | 406 | 422 | Every recipient inactive | see §3.2 | §3.2 |
@@ -247,7 +248,9 @@ Applies to `/email/batch` and `/email/batchWithTemplates`.
 | 1236 | 422 | Stream type cannot send (e.g. inbound) | `Sending is not supported for this stream type.` (table text) | `refs/api_overview.md` **DOC** |
 | 1480 | 422 | IP not allowlisted | `You are not authorized to send emails from your current IP address: 'IP Address'.` | `refs/api_overview.md` **DOC** |
 
-The fetched code table has no 400, 401, or 409 entries. `refs/api_overview.md` **DOC**. Older Postmark docs used 400 "Sender signature not found", 401 "Sender signature not confirmed", 409 "JSON required". **INFERRED** (memory, no ref). The live code is unknown. Capture it (§8).
+The fetched code table has no 400, 401, or 409 entries. `refs/api_overview.md` **DOC**.
+The wire uses 400 for an unknown sender. **CAPTURED** (§3.4).
+Older Postmark docs used 401 "Sender signature not confirmed" and 409 "JSON required". **INFERRED** (memory, no ref). The live codes are unknown (§8).
 
 "Table text" means the one-line code description. The real `Message` may be longer. **INFERRED**
 
@@ -285,7 +288,29 @@ Notes:
 
 No source gives the order. Proposed mock order: token (401) → headers (415) → size (413) → JSON (402) → unknown fields (403) → batch count (410) → per-message: stream (1235/1236) → From signature → address syntax (300) → recipient count (300) → body present (300) → metadata/tag/subject limits (300) → attachments (411, 300) → template (11xx) → suppression (406). **INFERRED**
 
-postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → `To` present (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → end of `validateOutbound`; test token stops here → account approval (413, 412) → suppression (406). postmock does not check `From` against sender signatures (Q3). **INFERRED**
+postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → `To` present (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → sender (400, §3.4; not for the test token) → end of `validateOutbound`; test token stops here → account approval (413, 412) → suppression (406). **INFERRED**
+
+### 3.4 Sender check
+
+Capture: `captures/20260916T231736Z-from-verification/`. The account had a verified Domain; `example.com` was not on the account.
+
+| Rule | Source |
+| --- | --- |
+| `POST /email` from an address on a domain that is not on the account: HTTP 422, ErrorCode 400 | `01-single-unverified-domain/response.status`, `response.body` **CAPTURED** |
+| The 400 body has only `ErrorCode` and `Message`: no `To`, `SubmittedAt`, `MessageID` | `01-single-unverified-domain/response.body` **CAPTURED** |
+| `Message` = `The 'From' address you supplied (<address>) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.` | `01-single-unverified-domain/response.body` **CAPTURED** |
+| `<address>` for a bare `From` is the address as sent | `01-single-unverified-domain/request.body` **CAPTURED** |
+| `<address>` for a named `From` (`Name <addr>`) is the bare address | **INFERRED** |
+| `POST /email/batch` with that message: HTTP 200, item `{ErrorCode: 400, Message}` with the same text, no other keys | `02-batch-unverified-domain` **CAPTURED** |
+| A verified Domain authorizes any local part: a never-registered local part sends (200, `OK`) | `03-single-verified-domain-random-local` **CAPTURED** |
+| A Domain is verified when `DKIMVerified` or `ReturnPathDomainVerified` is true. `SPFVerified` does not count (SPF is deprecated). | fields `refs/api_domains-api.md:44-47` **DOC**; rule **INFERRED** |
+| A Domain covers its own name only, not subdomains; the match ignores case | **INFERRED** |
+| A confirmed Sender Signature authorizes its `EmailAddress`; the match ignores case | "registered and confirmed Sender Signature" `refs/api_email-api.md:42` **DOC**; case **INFERRED** |
+| An unconfirmed Sender Signature, with no verified Domain for its address | DOC says rejected (`refs/api_email-api.md:42`); code and text not captured: postmock answers 501 (Q3) |
+| `POSTMARK_API_TEST` skips the check: the gem live suite sends from `sender@postmarkapp.com` with it and expects success | `sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10` **SDK**; `docs/10` C7 open |
+| Check order: after every data check (300, 403, 411, 1235, 1236), before account approval (412, 413) and suppressions (406) | **INFERRED** |
+| Applies to `/email`, `/email/batch`, `/email/withTemplate`, `/email/batchWithTemplates`, and each `/email/bulk` message (one error: 422 / 400; with others: ErrorCode 11) | send paths share `validateOutbound`; template and bulk paths **INFERRED** |
+| SMTP: the message is accepted and becomes an `SMTPApiError` bounce with ErrorCode 400 | error model `refs/user-guide_send-email-with-smtp.md:56`, `:87` **DOC**; sender case **INFERRED** (`docs/07` Q3, `docs/10` C60) |
 
 ## 4. Test token and sandbox
 
@@ -442,7 +467,7 @@ The SDK class depends on HTTP status first, ErrorCode second. A 406 with HTTP 20
 - [ ] Return `SubmittedAt` as ISO 8601 with 7 fractional digits and an offset.
 - [ ] Return `MessageID` as a fresh lowercase v4 UUID.
 - [ ] Default `MessageStream` to `outbound`; return 1235 with `The stream provided: '<id>' does not exist on this server.` for an unknown stream; 1236 for an Inbound stream.
-- [ ] Validate `From` against configured signatures/domains; return the capture-confirmed code (§3.1 open).
+- [ ] Validate `From` against verified domains and confirmed signatures; return 422 / 400 (§3.4).
 - [ ] Parse `Name <addr>`, quoted names, and comma lists; return 300 `Invalid 'To' address: '<value>'.` on a bad address.
 - [ ] Enforce To+Cc+Bcc ≤ 50, Subject ≤ 2000, From ≤ 255 (UTF-16 units), Tag ≤ 1000 → 300.
 - [ ] Require `HtmlBody` or `TextBody` → 300.
@@ -513,7 +538,7 @@ Use the `POSTMARK_API_TEST` token first; use a sandbox server where the test tok
 | --- | --- | --- |
 | 1 | Exact 406 text for single send. SDK fixture: "recipient(s) that have been"; DOC shows "a recipient that has been" only for a batch item. | Regex in postmark.js fills `InactiveRecipientsError.recipients` |
 | 2 | Partial suppression (active To, suppressed Bcc): HTTP status, ErrorCode, Message, and does it still return `MessageID`? | Only an unverified integrator report; SDK has a second regex for "Message OK, but will not deliver" |
-| 3 | Codes and messages for unknown `From` and unconfirmed `From` (old 400/401?) | Not in current table |
+| 3 | Unknown `From`: answered (§3.4, 400). Still open: unconfirmed signature code and text; named `From` in the message; subdomain of a verified Domain; order against 300 and 406 | Not in current table |
 | 4 | Message text for: no body, zero recipients, > 50 recipients, Subject > 2000, Tag > 1000, Metadata key/value/count, duplicate metadata key | 300 texts undocumented |
 | 5 | Invalid `TrackLinks` value on `/email`: 300, 403, or 612? | Code table lists 612 under Servers |
 | 6 | Unknown JSON field: ignored or 403? `Content-Type` missing: 415 body? | Field tolerance |

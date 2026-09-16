@@ -142,6 +142,7 @@ Notes per runner:
 | `defineRoute` registers into a module-level table. A duplicate method and path throws at import. | Vitest isolates modules per test file, so a test file can register test-only routes. |
 | `conformance:check` says `stale` after you edit a stamped file or check out another SDK commit. | Run `pnpm conformance <sdk>` again. Baseline and docs edits keep results fresh; a skip edit does not. |
 | A seed part that calls `createServer` without `ID` throws `needs a fixed ID while seeding`. | Pass a fixed ID from the track's range (`docs/11` §5). |
+| A unit test send answers 422 / 400: the runtime has no verified domain or confirmed signature for its `From`. | Call `addVerifiedDomain` (`src/api/account/domains.ts`) in the setup, or apply the `conformance` seed. |
 | `clock.reset()` throws during an advance. | Await `clock.idle()` first; `POST /control/reset` does. |
 | A file in `src/api/<group>/`, `src/control/endpoints/`, `src/plugins/` or `seeds/conformance/` loads without any import. A stray file there registers too. A group folder without `routes.ts` throws. | Keep only real route, endpoint, plugin and seed-part files there; tests end in `.test.ts`; names starting with `.` are skipped. |
 | The installed package finds no route, plugin or seed: discovery reads files with the extension of `src/discover.ts` itself, and `dist/` holds only `.js`. | Build with `pnpm build` (`tsconfig.build.json`); never copy `.ts` files into `dist/`. |

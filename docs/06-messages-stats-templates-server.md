@@ -5,7 +5,7 @@ Sending (`/email`, `/email/batch`) and suppressions belong to other docs.
 
 Every endpoint below is in scope. Server token: §1–§3 and §4.1. Account token: §4.2–§4.4 and `PUT /templates/push`.
 
-Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (see `AGENTS.md` rule 6). No claim below is **CAPTURED**.
+Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (see `AGENTS.md` rule 6). Only §4.5 cites a capture.
 
 ## 0. SDK coverage
 
@@ -421,12 +421,13 @@ Errors 500–508, 520–523. `refs/api_overview.md:161-180` **DOC**
 | `From` must be a registered and confirmed Sender Signature (or a verified domain). | `refs/api_email-api.md:42`, `:176` **DOC** |
 | An account pending approval may send only to recipients on the `From` domain: ErrorCode 412, HTTP 422. | `refs/api_overview.md:75` **DOC** |
 | An unapproved account: ErrorCode 413, HTTP 422. | `refs/api_overview.md:76` **DOC** |
-| Unregistered sender: ErrorCode 400, HTTP 422, "The 'From' address you supplied (…) is not a Sender Signature on your account." | **INFERRED** from past Postmark behavior. The current error table has no 400 or 401 rows. |
-| Unconfirmed sender: ErrorCode 401, HTTP 422, "Sender signature not confirmed". | **INFERRED**. Not in `refs/api_overview.md`. |
+| Unregistered sender: ErrorCode 400, HTTP 422, "The 'From' address you supplied (…) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages." | `captures/20260916T231736Z-from-verification/01-single-unverified-domain` **CAPTURED**. The current error table has no 400 row. |
+| A verified Domain authorizes any local part. | `captures/20260916T231736Z-from-verification/03-single-verified-domain-random-local` **CAPTURED** |
+| Unconfirmed sender: ErrorCode 401, HTTP 422, "Sender signature not confirmed". | **INFERRED**. Not in `refs/api_overview.md`. postmock answers 501 (`docs/03` §3.4). |
 | HTTP 401 (not ErrorCode 401) means a bad token: ErrorCode 10. | `refs/api_overview.md:28`, `:60` **DOC** |
 | postmark.js maps HTTP 422 to `ApiInputError`, and ErrorCode 406/300 to subclasses. ErrorCode 400/401 on HTTP 422 become plain `ApiInputError`. | `sdk/postmark.js/src/client/errors/ErrorHandler.ts:32-41`, `sdk/postmark.js/src/client/errors/Errors.ts:73-94` **SDK** |
 
-The send doc owns the decision on whether the mock checks senders.
+postmock checks senders on every send path. The rules and their marks are in `docs/03` §3.4.
 
 ## 5. Opens and clicks: wire detail
 
@@ -535,7 +536,7 @@ Domains and Sender Signatures (§4.3–§4.4):
 - [ ] CRUD with the account token; list paging max 500.
 - [ ] `verifyDkim`, `verifyReturnPath`, `verifyspf`, `rotatedkim`, `resend`, `requestnewdkim` change only stored flags. No DNS lookup. The control API sets the verified state.
 - [ ] Errors 500–508 (signatures), 510–523 (domains).
-- [ ] Sender checks on `/email` follow the decision in `docs/03`. ErrorCodes 400/401: Q8.
+- [ ] Sender checks on every send path follow `docs/03` §3.4. ErrorCode 401: Q8.
 
 ## 7. Open questions for live capture
 
@@ -548,7 +549,7 @@ Domains and Sender Signatures (§4.3–§4.4):
 | Q5 | Does `/messages/outbound/opens` return one row per recipient (first open) or every open? Is `FirstOpen` present? Is `ReadSeconds` present? | Open counts and field set (§1.7). |
 | Q6 | With `POSTMARK_API_TEST` as the token, what do opens and clicks return? | Safe capture path per `AGENTS.md` rule 7. |
 | Q7 | For `/templates/validate` with a broken template: is `ContentIsValid` false when `ValidationErrors` is non-empty? | Doc example looks inconsistent (§3.3). |
-| Q8 | For `/email` from an unregistered or unconfirmed sender: which ErrorCode (400/401?), HTTP status and message? | Current error table omits them (§4.5). |
+| Q8 | For `/email` from an unconfirmed sender: which ErrorCode (401?), HTTP status and message? The unregistered case is CAPTURED (§4.5). | Current error table omits it (§4.5). |
 | Q9 | For `/email/withTemplate` with an unknown `TemplateId` (not alias): the exact 1101 message. | Only the alias message is known (§3.6). |
 | Q10 | Does the `tag` filter match case-sensitively? | Filter parity on messages, opens, clicks and stats. |
 | Q11 | Is the empty result `{"TotalCount": 0, "Opens": []}` for an unknown tag? | A §5.1 paging loop stops on `TotalCount`. |

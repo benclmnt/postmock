@@ -95,7 +95,7 @@ Headers the gem never forwards as custom `Headers` on REST (a hint of what Postm
 | SMTPApiError bounce type | `SMTPApiError`, TypeCode `100007` | **DOC** `refs/api_bounce-api.md:415` |
 | Stats counters | `SMTPApiErrors` (overview), `SMTPApiError` (bounce stats) | **DOC** `refs/api_stats-api.md:45`, `:198` |
 | Bad credentials, SMTP disabled | AUTH fails (reply code unknown) | fail **DOC** `refs/user-guide_send-email-with-smtp.md:93-95`; code **INFERRED** |
-| Oversize, unverified sender | Doc model says accept + `SMTPApiError` bounce; oversize may still fail at `SIZE`/DATA | **INFERRED** — Q3 |
+| Oversize, unverified sender | Doc model says accept + `SMTPApiError` bounce; oversize may still fail at `SIZE`/DATA. postmock: an unverified sender gets an `SMTPApiError` bounce with the REST ErrorCode 400 and its text (`docs/03` §3.4) | **INFERRED** — Q3 |
 
 ### 1.5 "SMTP API Error" webhook
 
