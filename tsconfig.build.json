@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": ".",
+    "declaration": true
+  },
+  "include": ["src", "seeds"],
+  "exclude": ["**/*.test.ts", "src/**/test-*.ts", "src/recipients/testkit.ts"]
+}

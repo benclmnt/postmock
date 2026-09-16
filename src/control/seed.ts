@@ -1,5 +1,5 @@
 import { existsSync, readdirSync } from "node:fs";
-import { defaultFunction, importAll } from "../discover.ts";
+import { defaultFunction, importAll, MODULE_EXTENSION } from "../discover.ts";
 import type { Runtime } from "../runtime.ts";
 
 /** A seed builds state that real Postmark could hold, directly in the store (CONTROL-API.md). */
@@ -19,13 +19,13 @@ export const seedFromDirectory =
 
 export const seedNames = (): string[] =>
   readdirSync(SEEDS_DIR)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-    .map((f) => f.slice(0, -3))
+    .filter((f) => f.endsWith(MODULE_EXTENSION) && !f.endsWith(`.test${MODULE_EXTENSION}`))
+    .map((f) => f.slice(0, -MODULE_EXTENSION.length))
     .sort();
 
-/** Loads `seeds/<name>.ts` and applies its default export. */
+/** Loads `seeds/<name>.ts` (`.js` in the package) and applies its default export. */
 export async function applySeed(runtime: Runtime, name: string): Promise<void> {
-  const file = new URL(`${name}.ts`, SEEDS_DIR);
+  const file = new URL(`${name}${MODULE_EXTENSION}`, SEEDS_DIR);
   if (!/^[a-z0-9-]+$/.test(name) || !existsSync(file)) {
     throw new Error(`unknown seed '${name}'; seeds: ${seedNames().join(", ")}`);
   }

@@ -1,3 +1,4 @@
+import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
 import { type ServerType, serve } from "@hono/node-server";
 import { createControlApp } from "./control/app.ts";
@@ -11,6 +12,8 @@ export interface PostmockConfig {
   /** Plain-http REST port; 0 picks a free port. */
   apiPort: number;
   controlPort: number;
+  /** REST over TLS for DNS routing (docs/01 §3.3 option B): PEM key and cert for the Postmark host names. */
+  https?: { port: number; key: string; cert: string };
   seed: string;
   /** Defaults to every plugin in `src/plugins/`. */
   plugins?: readonly Plugin[];
@@ -18,7 +21,7 @@ export interface PostmockConfig {
 
 export interface RunningPostmock {
   runtime: Runtime;
-  /** URL per listener: `api`, `control`, and one per plugin listener. */
+  /** URL per listener: `api`, `control`, `https` when configured, and one per plugin listener. */
   listeners: Record<string, string>;
   close(): Promise<void>;
 }
@@ -28,15 +31,21 @@ function listen(
   fetch: Parameters<typeof serve>[0]["fetch"],
   host: string,
   port: number,
+  tls?: { key: string; cert: string },
 ): Promise<StartedListener> {
   return new Promise((resolve) => {
-    const server: ServerType = serve({ fetch, hostname: host, port }, (info: AddressInfo) =>
+    const onListen = (info: AddressInfo) =>
       resolve({
         name,
-        url: `http://${host}:${info.port}`,
+        url: `${tls ? "https" : "http"}://${host}:${info.port}`,
         close: () => new Promise<void>((done, fail) => server.close((e) => (e ? fail(e) : done()))),
-      }),
-    );
+      });
+    const server: ServerType = tls
+      ? serve(
+          { fetch, hostname: host, port, createServer: createHttpsServer, serverOptions: tls },
+          onListen,
+        )
+      : serve({ fetch, hostname: host, port }, onListen);
   });
 }
 
@@ -44,8 +53,9 @@ function listen(
 export async function startPostmock(config: PostmockConfig): Promise<RunningPostmock> {
   const runtime = createRuntime(config.plugins ?? PLUGINS);
   await applySeed(runtime, config.seed);
+  const api = createApiApp(runtime);
   const started = [
-    await listen("api", createApiApp(runtime).fetch, config.host, config.apiPort),
+    await listen("api", api.fetch, config.host, config.apiPort),
     await listen(
       "control",
       createControlApp(runtime, config.seed).fetch,
@@ -53,6 +63,10 @@ export async function startPostmock(config: PostmockConfig): Promise<RunningPost
       config.controlPort,
     ),
   ];
+  if (config.https) {
+    const { port, key, cert } = config.https;
+    started.push(await listen("https", api.fetch, config.host, port, { key, cert }));
+  }
   for (const plugin of config.plugins ?? PLUGINS) {
     if (plugin.start) started.push(await plugin.start(runtime, config.host));
   }

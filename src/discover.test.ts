@@ -31,12 +31,12 @@ describe("importAll", () => {
 
   it("throws for a group folder without the expected file", async () => {
     const dir = fixture({ "server/routes.ts": "export {};", "templates/route.ts": "export {};" });
-    await expect(importAll(dir, "routes.ts")).rejects.toThrow("templates has no routes.ts");
+    await expect(importAll(dir, "routes")).rejects.toThrow("templates has no routes.ts");
   });
 
   it("ignores dot folders in group mode", async () => {
     const dir = fixture({ "server/routes.ts": "export {};", ".cache/x": "" });
-    expect(await importAll(dir, "routes.ts")).toHaveLength(1);
+    expect(await importAll(dir, "routes")).toHaveLength(1);
   });
 });
 

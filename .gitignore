@@ -4,3 +4,4 @@ node_modules/
 /captures/
 /conformance/results/
 /conformance/*/.work/
+/dist/

@@ -4,12 +4,26 @@
   "description": "A mock Postmark server for testing code that sends email through Postmark",
   "license": "MIT",
   "type": "module",
+  "bin": {
+    "postmock": "dist/src/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/src/server.d.ts",
+      "default": "./dist/src/server.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=24"
   },
   "packageManager": "pnpm@11.22.0",
   "scripts": {
     "start": "node src/main.ts",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "prepack": "pnpm build",
     "check": "biome check . && tsc --noEmit && vitest run",
     "test": "vitest run",
     "conformance": "node conformance/run.ts",

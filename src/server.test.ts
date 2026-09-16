@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync } from "node:fs";
+import https from "node:https";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { CONFORMANCE } from "../seeds/lib/conformance.ts";
 import type { Plugin } from "./plugins.ts";
@@ -87,5 +92,41 @@ describe("plugins", () => {
     await running.close();
     running = undefined;
     expect(events).toEqual(["install", "start", "close"]);
+  });
+
+  it("serves GET /server over https as api.postmarkapp.com to a client that trusts the test CA", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "postmock-https-"));
+    execFileSync(new URL("../tools/test-ca.sh", import.meta.url).pathname, [dir], {
+      stdio: "ignore",
+    });
+    const pem = (name: string) => readFileSync(join(dir, name), "utf8");
+    running = await startPostmock({
+      host: "127.0.0.1",
+      apiPort: 0,
+      controlPort: 0,
+      https: { port: 0, key: pem("key.pem"), cert: pem("cert.pem") },
+      seed: "conformance",
+    });
+    const url = new URL(running.listeners.https as string);
+    expect(url.protocol).toBe("https:");
+    const status = await new Promise<number | undefined>((resolve, reject) => {
+      https
+        .get(
+          {
+            host: url.hostname,
+            port: url.port,
+            path: "/server",
+            servername: "api.postmarkapp.com",
+            ca: pem("ca.pem"),
+            headers: { "X-Postmark-Server-Token": CONFORMANCE.serverToken },
+          },
+          (res) => {
+            res.resume();
+            resolve(res.statusCode);
+          },
+        )
+        .on("error", reject);
+    });
+    expect(status).toBe(200);
   });
 });

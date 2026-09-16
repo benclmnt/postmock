@@ -25,13 +25,14 @@ curl -s localhost:8080/server -H 'X-Postmark-Server-Token: postmock-server-token
 curl -s -X POST localhost:8025/control/reset
 ```
 
-Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SEED`, `POSTMOCK_SMTP_PORTS`, `POSTMOCK_SMTP_TLS_KEY`, `POSTMOCK_SMTP_TLS_CERT` (`ARCHITECTURE.md` "Listeners").
+Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SEED`, `POSTMOCK_HTTPS_PORT`, `POSTMOCK_HTTPS_TLS_KEY`, `POSTMOCK_HTTPS_TLS_CERT`, `POSTMOCK_SMTP_PORTS`, `POSTMOCK_SMTP_TLS_KEY`, `POSTMOCK_SMTP_TLS_CERT`. Each is also a flag: `pnpm start --seed conformance` (`ARCHITECTURE.md` "Listeners").
 
 ## The gates
 
 | Command | Checks | When |
 | --- | --- | --- |
 | `nix develop -c pnpm check` | `biome check .`, `tsc --noEmit`, `vitest run` | Every commit |
+| `nix develop -c tools/pack-smoke.sh` | `npm pack`, install the tarball outside the repo, `npm exec postmock`: `GET /server` answers 200, SMTP accepts a nodemailer send | A change to the build, `package.json` or discovery |
 | `pnpm conformance <sdk>` | Runs that SDK suite against a fresh postmock; writes `conformance/results/<sdk>.json` | Before merge, for the suites the track touches |
 | `pnpm conformance all` | Every runner | Integration (W2) |
 | `pnpm conformance:check` | The results file comes from the current postmock source, and every baseline test passes in it | Before merge; no regression |
@@ -126,6 +127,7 @@ Notes per runner:
 | A seed part that calls `createServer` without `ID` throws `needs a fixed ID while seeding`. | Pass a fixed ID from the track's range (`docs/11` §5). |
 | `clock.reset()` throws during an advance. | Await `clock.idle()` first; `POST /control/reset` does. |
 | A file in `src/api/<group>/`, `src/control/endpoints/`, `src/plugins/` or `seeds/conformance/` loads without any import. A stray file there registers too. A group folder without `routes.ts` throws. | Keep only real route, endpoint, plugin and seed-part files there; tests end in `.test.ts`; names starting with `.` are skipped. |
+| The installed package finds no route, plugin or seed: discovery reads files with the extension of `src/discover.ts` itself, and `dist/` holds only `.js`. | Build with `pnpm build` (`tsconfig.build.json`); never copy `.ts` files into `dist/`. |
 | A handler that returns a raw `Date` gets a 500 (`unformatted Date at key …`). | Format dates with `src/time.ts` in the API group. |
 | A fault stays active until its `times` run out. A later test in the same process sees it. | Call `POST /control/reset` between tests. |
 | The postmark-dotnet test project targets `netcoreapp3.1`, but `xunit.runner.visualstudio` 2.8.2 ships only `net462` and `net6.0` builds. vstest finds no test, or asks for an x64 host on arm64. `DOTNET_ROLL_FORWARD=Major` does not help. | `conformance/postmark-dotnet/Directory.Build.props` restores the test project for `net8.0`; the runner builds with `-p:TargetFramework=net8.0`. The library keeps `netstandard2.0`. |

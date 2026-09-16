@@ -3,7 +3,8 @@
 Status: W0 (foundation) is built. T3 adds templates, the Mustachio renderer and bulk sends.
 Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the conformance runners for every official SDK suite.
 Built by T6: the SMTP listener (`src/smtp/`, plugin `src/plugins/smtp.ts`).
-Design: the other endpoints, REST TLS, the webhook emitter and inbound processing.
+Built by W3: REST over TLS, the `postmock` CLI and the npm package build.
+Design: the other endpoints, the webhook emitter and inbound processing.
 Tracks T1–T8 build the design parts (`docs/11` §3.2).
 
 postmock is one Node 24 process with one in-memory state.
@@ -36,12 +37,13 @@ The conformance runners also prove their route before and after each suite (`TES
 | Listener | Default | Env | Serves | Status |
 | --- | --- | --- | --- | --- |
 | REST, plain http | `127.0.0.1:8080` | `POSTMOCK_HOST`, `POSTMOCK_API_PORT` | Server-token and account-token API on any host, at `/` | built |
-| REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
+| REST, https | off | `POSTMOCK_HTTPS_PORT` + `POSTMOCK_HTTPS_TLS_KEY` + `POSTMOCK_HTTPS_TLS_CERT` (PEM files; all three or none) | Same app as plain http, with a test-CA cert (route B) | built |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
 | SMTP | `127.0.0.1:0` (a free port) | `POSTMOCK_SMTP_PORTS` (comma list; every port serves the same endpoint), `POSTMOCK_SMTP_TLS_KEY` + `POSTMOCK_SMTP_TLS_CERT` (PEM files; offers STARTTLS) | Postmark SMTP (`docs/07`). For Postmark's ports set `2525` and map 25 and 587 to it (`-p 25:2525 -p 587:2525 -p 2525:2525`). | built |
 | Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` (comma-separated hostnames, `*` for all; default: none) | Every RecordType, retries on the clock (`docs/05`). Reaches only loopback hosts (`localhost`, `127.0.0.0/8`, `::1`) and the listed hosts over `http:`/`https:`, also for redirects; an entry with a port fails at start. A refused hop, or a redirect `Location` with userinfo, opens no socket and is logged as a `stop` attempt with no retry (`docs/05` D3). A retry is dropped once its hook changes (`docs/05` D4) | built (`src/plugins/webhooks.ts`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
+Every env key is also a CLI flag: `postmock --seed conformance --api-port 0` sets `POSTMOCK_SEED` and `POSTMOCK_API_PORT` (`postmock --help`).
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
 
 ## Request flow (REST)
@@ -61,14 +63,14 @@ The handler cannot choose another success status.
 
 | Path | Holds | Status |
 | --- | --- | --- |
-| `src/main.ts` | Reads env, starts postmock | built |
-| `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (REST TLS: design; SMTP starts as a plugin) |
+| `src/main.ts` | The `postmock` CLI: flags set env keys, reads env, starts postmock | built |
+| `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (SMTP starts as a plugin) |
 | `src/runtime.ts` | `Runtime`: store, events, clock; `createRuntime()` installs every plugin | built |
 | `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (`smtp.ts`, `stats.ts`, `message-events.ts`) |
 | `src/errors.ts` | ErrorCode table (`docs/02` §4.4), `apiError`, `errorBody` | built |
 | `src/time.ts` | Eastern-time parse and the timestamp formats of `docs/02` §7.1 | built |
 | `src/http/` | Route registry, normalization, auth, responder, faults, app factory | built |
-| `src/discover.ts` | Imports route, control and seed-part files from disk in filename order | built |
+| `src/discover.ts` | Imports route, control and seed-part files from disk in filename order, with its own file extension: `.ts` from the sources, `.js` from `dist/` | built |
 | `src/api/index.ts` | Loads every `src/api/<group>/routes.ts` | built |
 | `src/api/server/` | `GET/PUT /server`; `serverJson`; `PUT` uses `editServer` from `src/api/account/servers.ts` | built |
 | `src/api/account/` | Account-token API: servers, domains, sender signatures, template push | built (T7) |
