@@ -3,6 +3,7 @@ import { createControlApp } from "../../control/app.ts";
 import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
 import { createServer } from "../../state/servers.ts";
+import { addVerifiedDomain } from "../account/domains.ts";
 import { BULK_START_MS, BULK_STEP_MS } from "./bulk.ts";
 
 function setup() {
@@ -10,6 +11,7 @@ function setup() {
   const now = runtime.clock.now();
   createServer(runtime.store, now, { ApiTokens: ["token"] });
   createServer(runtime.store, now, { ApiTokens: ["other"] });
+  addVerifiedDomain(runtime.store.state, runtime.store.nextId("domain"), "example.com", now);
   const app = createApiApp(runtime);
   const control = createControlApp(runtime, "empty");
   const call = async (method: string, path: string, body?: unknown, token = "token") => {
@@ -114,6 +116,13 @@ describe("bulk send (docs/03 §1.6)", () => {
         ],
       },
     });
+    const sender = await call(
+      "POST",
+      "/email/bulk",
+      request([{ To: "a@example.com" }], { From: "probe@elsewhere.org" }),
+    );
+    expect(sender.status).toBe(422);
+    expect(sender.json.ErrorCode).toBe(400);
     expect(runtime.store.state.bulkRequests.size).toBe(0);
   });
 

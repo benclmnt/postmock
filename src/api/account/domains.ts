@@ -3,6 +3,7 @@ import type { State } from "../../state/store.ts";
 import type { Domain } from "../../state/types.ts";
 import {
   authenticationJson,
+  confirmDkim,
   isHostname,
   isSubdomainOf,
   newAuthentication,
@@ -17,6 +18,14 @@ export const newDomain = (id: number, name: string, returnPath: string, now: Dat
   Name: name,
   ...newAuthentication(name, returnPath, now),
 });
+
+/** A domain whose DKIM key Postmark found in DNS, so it authorizes every `From` address on it. */
+export function addVerifiedDomain(state: State, id: number, name: string, now: Date): Domain {
+  const domain = newDomain(id, name, "", now);
+  confirmDkim(domain);
+  state.domains.set(domain.ID, domain);
+  return domain;
+}
 
 /** 510 for an unknown or non-numeric ID. */
 export function findDomain(state: State, id: string): Domain {

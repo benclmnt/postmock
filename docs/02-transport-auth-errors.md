@@ -243,6 +243,7 @@ Some codes use more than one status (501, 1406, 1408).
 | 13 | 422 | Invalid pagination key. | `refs/api_overview.md:67` DOC |
 | 14 | 422 | This endpoint requires approval to access. Contact support to use the Bulk API. | `refs/api_overview.md:68` DOC |
 | 300 | 422 | Send validation. Covers many messages — zero recipients, invalid address, missing `TextBody`/`HtmlBody`, and recipient, metadata, attachment, or header limits. | `refs/api_overview.md:69` DOC |
+| 400 | 422 | The 'From' address you supplied ({from}) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages. | `captures/20260916T231736Z-from-verification/01-single-unverified-domain/response.body` CAPTURED; not in `refs/api_overview.md` |
 | 402 | 422 | Invalid JSON. | `refs/api_overview.md:70` DOC |
 | 403 | 422 | Invalid request field(s). | `refs/api_overview.md:71` DOC |
 | 406 | 422 | Inactive recipient. | `refs/api_overview.md:72` DOC |

@@ -31,7 +31,7 @@ describe("ERROR_TABLE", () => {
   const documented = documentedRows();
 
   it("has one entry per documented row, in doc order", () => {
-    expect(documented.length).toBe(149);
+    expect(documented.length).toBe(150);
     expect(ERROR_TABLE.map(([code, , statuses]) => [code, statuses])).toEqual(
       documented.map((r) => [r.code, r.statuses]),
     );

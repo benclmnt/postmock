@@ -9,6 +9,7 @@ import { testBounces } from "../recipients/test-bounces.ts";
 import type { Runtime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
 import { findStream, type TestTokenContext } from "../state/servers.ts";
+import type { State } from "../state/store.ts";
 import { suppressedAddresses } from "../state/suppressions.ts";
 import type { Address, OutboundMessage } from "../state/types.ts";
 import { parseAddressList } from "./addresses.ts";
@@ -154,7 +155,7 @@ export type Validation =
 
 /**
  * The data checks of a send, with no state change: field types, size, stream, addresses,
- * recipients, content, limits, attachments. Check order follows docs/03 §3.3 (INFERRED). Account
+ * recipients, content, limits, attachments, sender. Check order follows docs/03 §3.3 (INFERRED). Account
  * approval and suppressions belong to `acceptOutbound`. Throws `Unsupported` for uncaptured cases.
  */
 export function validateOutbound(runtime: Runtime, submission: Submission): Validation {
@@ -208,6 +209,12 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
     if (extension !== undefined && FORBIDDEN_EXTENSIONS.has(extension)) {
       return reject("Attachments", errorBody(411));
     }
+  }
+  // The test token belongs to no account; the gem live suite sends from an address no account
+  // holds (sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10).
+  // Check order after the data checks is INFERRED (docs/03 §3.3).
+  if (submission.auth.kind === "server" && !senderAuthorized(runtime.store.state, from)) {
+    return reject("From", errorBody(400, { params: { from: from.Email } }));
   }
   // A fake bounce type with an uncaptured effect answers 501 before anything is stored.
   if (submission.auth.kind !== "test") testBounces(draft.Headers ?? [], recipients);
@@ -438,6 +445,32 @@ function checkLimits(draft: Draft): { field: string; message: string } | undefin
 
 const domainOf = (address: Address): string =>
   (address.Email.split("@").at(-1) as string).toLowerCase();
+
+/**
+ * A verified Domain authorizes every local part (CAPTURED: captures/20260916T231736Z-from-verification/03).
+ * A Domain is verified once DKIM or its Return-Path is verified; an exact domain match only, no
+ * subdomains (both INFERRED). A confirmed Sender Signature authorizes its own address, without case
+ * (docs/03 §3.1). An unconfirmed one has no captured error (docs/03 Q3).
+ */
+function senderAuthorized(state: State, from: Address): boolean {
+  const domain = domainOf(from);
+  for (const d of state.domains.values()) {
+    if (d.Name.toLowerCase() === domain && (d.DKIMVerified || d.ReturnPathDomainVerified)) {
+      return true;
+    }
+  }
+  const email = from.Email.toLowerCase();
+  const signatures = [...state.senders.values()].filter(
+    (s) => s.EmailAddress.toLowerCase() === email,
+  );
+  if (signatures.some((s) => s.Confirmed)) return true;
+  if (signatures.length > 0) {
+    throw new Unsupported(
+      `a send from the unconfirmed sender signature ${from.Email} (docs/03 Q3)`,
+    );
+  }
+  return false;
+}
 
 /** Recipients on the send stream's suppression list; each stream has its own list (docs/04 §3.3). */
 function inactiveRecipients(

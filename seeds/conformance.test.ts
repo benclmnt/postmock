@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { applySeed, seedNames } from "../src/control/seed.ts";
+import { draftFromJson, validateOutbound } from "../src/pipeline/submit.ts";
 import { createRuntime } from "../src/runtime.ts";
 import { streamKey } from "../src/state/store.ts";
 import { CONFORMANCE } from "./lib/conformance.ts";
@@ -52,6 +53,31 @@ describe("conformance seed", () => {
         (id) => streams.get(streamKey(CONFORMANCE.serverId, id))?.MessageStreamType,
       ),
     ).toEqual(["Transactional", "Inbound", "Broadcasts"]);
+  });
+
+  it("authorizes the From addresses the suites send with the server token", async () => {
+    const runtime = createRuntime();
+    await applySeed(runtime, "conformance");
+    const server = runtime.store.state.servers.get(CONFORMANCE.serverId);
+    if (server === undefined) throw new Error("no conformance server");
+    const from = (From: string) =>
+      validateOutbound(runtime, {
+        auth: { kind: "server", server },
+        channel: "rest",
+        draft: draftFromJson({ From, To: CONFORMANCE.recipientEmail, TextBody: "Hi" }),
+        request: {},
+        bulkRequestId: null,
+        templateId: null,
+      }).outcome;
+    // dotnet and php create `sender+<token>@example.com`; python start_here.py sends from its placeholder.
+    for (const address of [
+      CONFORMANCE.senderEmail,
+      "sender+token@example.com",
+      `you@${CONFORMANCE.exampleDomain}`,
+    ]) {
+      expect(from(address), address).toBe("valid");
+    }
+    expect(from("sender@elsewhere.org")).toBe("rejected");
   });
 
   it("is listed with the empty seed", () => {

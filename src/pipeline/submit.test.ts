@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { addVerifiedDomain, newDomain } from "../api/account/domains.ts";
+import { newSender } from "../api/account/senders.ts";
 import { Unsupported } from "../http/respond.ts";
 import { createRuntime } from "../runtime.ts";
 import { createServer, type ServerSettings, testTokenContext } from "../state/servers.ts";
@@ -34,6 +36,12 @@ const draft = (fields: Partial<OutboundDraft>): OutboundDraft => ({
 function setup(settings: ServerSettings = {}) {
   const runtime = createRuntime();
   const server = createServer(runtime.store, runtime.clock.now(), settings);
+  addVerifiedDomain(
+    runtime.store.state,
+    runtime.store.nextId("domain"),
+    "example.com",
+    runtime.clock.now(),
+  );
   const sent: string[] = [];
   runtime.events.on("sent", ({ message }) => void sent.push(message.MessageID));
   const suppress = (email: string, stream = "outbound") =>
@@ -126,6 +134,7 @@ describe("submitOutbound", () => {
     [{ Bcc: "nope" }, 300, "Bcc"],
     [{ TextBody: undefined }, 300, "TextBody"],
     [{ Tag: "x".repeat(1001) }, 300, "Tag"],
+    [{ From: "a@elsewhere.org" }, 400, "From"],
     [{ Metadata: { ["k".repeat(21)]: "v" } }, 300, "Metadata"],
     [{ Attachments: [{ Name: "a.exe", Content: "aGk=", ContentType: "x/y" }] }, 411, "Attachments"],
   ])("a rejected validation names the field for the bulk Errors map: %j", (fields, code, field) => {
@@ -346,6 +355,100 @@ describe("submitOutbound", () => {
       const { send } = setup({ TrackLinks: "HtmlOnly" });
       expect(accepted(await send({})).TrackLinks).toBe("HtmlOnly");
       expect(accepted(await send({ TrackLinks: "None" })).TrackLinks).toBe("None");
+    });
+  });
+
+  describe("sender (400)", () => {
+    const notASignature = (address: string) =>
+      rejected(
+        400,
+        `The 'From' address you supplied (${address}) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.`,
+      );
+    const signature = (runtime: ReturnType<typeof setup>["runtime"], email: string) => {
+      const sender = newSender(
+        runtime.store.nextId("sender"),
+        {
+          FromEmail: email,
+          Name: "s",
+          ReplyToEmail: "",
+          ReturnPathDomain: "",
+          ConfirmationPersonalNote: "",
+        },
+        runtime.clock.now(),
+      );
+      runtime.store.state.senders.set(sender.ID, sender);
+      return sender;
+    };
+
+    it("rejects a From on no domain or signature of the account, on both channels", async () => {
+      const { runtime, send, sent } = setup();
+      expect(await send({ From: "probe@elsewhere.org" })).toEqual(
+        notASignature("probe@elsewhere.org"),
+      );
+      expect(await send({ From: "probe@elsewhere.org" }, "smtp")).toEqual(
+        notASignature("probe@elsewhere.org"),
+      );
+      expect(runtime.store.state.outbound.size).toBe(0);
+      expect(sent).toEqual([]);
+    });
+
+    it("names the bare address of a named From", async () => {
+      expect(await setup().send({ From: "Probe <probe@elsewhere.org>" })).toEqual(
+        notASignature("probe@elsewhere.org"),
+      );
+    });
+
+    it("accepts any local part on a verified domain, without case", async () => {
+      const { send } = setup();
+      expect((await send({ From: "never-registered@example.com" })).outcome).toBe("accepted");
+      expect((await send({ From: "Someone <X@EXAMPLE.COM>" })).outcome).toBe("accepted");
+      expect(await send({ From: "a@sub.example.com" })).toEqual(notASignature("a@sub.example.com"));
+    });
+
+    it("accepts a domain once DKIM or its Return-Path is verified", async () => {
+      const { runtime, send } = setup();
+      const domain = newDomain(
+        runtime.store.nextId("domain"),
+        "new.org",
+        "pm.new.org",
+        runtime.clock.now(),
+      );
+      runtime.store.state.domains.set(domain.ID, domain);
+      expect(await send({ From: "a@new.org" })).toEqual(notASignature("a@new.org"));
+      domain.ReturnPathDomainVerified = true;
+      expect((await send({ From: "a@new.org" })).outcome).toBe("accepted");
+    });
+
+    it("accepts a confirmed signature's own address, without case", async () => {
+      const { runtime, send } = setup();
+      signature(runtime, "Me@Signed.org").Confirmed = true;
+      expect((await send({ From: "me@SIGNED.org" })).outcome).toBe("accepted");
+      expect(await send({ From: "other@signed.org" })).toEqual(notASignature("other@signed.org"));
+    });
+
+    it("refuses to guess the answer for an unconfirmed signature", async () => {
+      const { runtime, send } = setup();
+      signature(runtime, "me@signed.org");
+      await expect(send({ From: "me@signed.org" })).rejects.toBeInstanceOf(Unsupported);
+    });
+
+    it("runs after the data checks", async () => {
+      expect(
+        await setup().send({ From: "probe@elsewhere.org", TextBody: undefined }),
+      ).toMatchObject({ error: { ErrorCode: 300 } });
+    });
+
+    it("does not check the test token", async () => {
+      const runtime = createRuntime();
+      const result = await submitOutbound(runtime, {
+        auth: testTokenContext(runtime.clock.now()),
+        channel: "rest",
+        draft: draft({ From: "sender@postmarkapp.com" }),
+        request: {},
+        bulkRequestId: null,
+        templateId: null,
+      });
+      expect(result.outcome).toBe("validated");
     });
   });
 
