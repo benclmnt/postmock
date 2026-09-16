@@ -282,7 +282,7 @@ Results:
 
 Sandbox and test addresses:
 
-- [ ] Implement `bounce-testing.postmarkapp.com`: local part or `X-PM-Bounce-Type` → bounce type, case-insensitive, default HardBounce, SpamComplaint → HardBounce, HardBounce adds a suppression.
+- [x] Implement `bounce-testing.postmarkapp.com`: local part or `X-PM-Bounce-Type` → bounce type, case-insensitive, default HardBounce, SpamComplaint → HardBounce, HardBounce adds a suppression.
 - [ ] Sandbox server (`DeliveryType: Sandbox`): accept, mark Delivered, fire delivery webhook, never forward.
 - [ ] `POSTMARK_API_TEST` on REST: validate and return a MessageID, record nothing. On SMTP: follow Q4.
 
