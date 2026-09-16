@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startPostmock } from "../../src/server.ts";
 import { type ResultsFile, type TestResult, totals } from "../results.ts";
+import { currentStamp } from "../stamp.ts";
 
 // Runs the postmark.js live integration suite, unmodified, against postmock (docs/08 §5.2).
 // A copy under `.work/` holds the install, so `sdk/` stays untouched.
@@ -91,6 +92,7 @@ const firstLine = (t: MochaTest) =>
   ("message" in t.err ? (t.err.message ?? "") : "").split("\n")[0];
 
 export async function run(): Promise<ResultsFile> {
+  const postmock = currentStamp();
   const sdkCommit = prepare();
   const mock = await startPostmock({
     host: "127.0.0.1",
@@ -129,6 +131,7 @@ export async function run(): Promise<ResultsFile> {
     return {
       sdk: "postmark.js",
       sdkCommit,
+      postmock,
       finishedAt: new Date().toISOString(),
       totals: totals(tests),
       tests,

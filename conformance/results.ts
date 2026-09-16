@@ -6,16 +6,27 @@ export interface TestResult {
   error?: string;
 }
 
+import type { PostmockStamp } from "./stamp.ts";
+
 /** `conformance/results/<sdk>.json`. */
 export interface ResultsFile {
   sdk: string;
   sdkCommit: string;
+  postmock: PostmockStamp;
   finishedAt: string;
   totals: { pass: number; fail: number; skip: number };
   tests: TestResult[];
 }
 
-/** `conformance/<sdk>/baseline.json`: tests that passed once and must keep passing. */
+/**
+ * `conformance/<sdk>/baseline/<test file>.json`: `{"passing": [full titles]}` of tests in that file
+ * that passed once and must keep passing. One file per test file, so tracks never co-edit one.
+ */
+export interface BaselineFile {
+  passing: string[];
+}
+
+/** Every baseline test id (`<test file> > <full title>`) of an SDK. */
 export interface Baseline {
   passing: string[];
 }
@@ -23,6 +34,13 @@ export interface Baseline {
 export function totals(tests: TestResult[]): ResultsFile["totals"] {
   const count = (state: TestResult["state"]) => tests.filter((t) => t.state === state).length;
   return { pass: count("pass"), fail: count("fail"), skip: count("skip") };
+}
+
+/** A reason to distrust a results file: it came from other postmock source than the current one. */
+export function staleReason(results: ResultsFile, current: PostmockStamp): string | undefined {
+  if (results.postmock.sourceHash === current.sourceHash) return undefined;
+  const describe = (s: PostmockStamp) => `${s.commit.slice(0, 7)}${s.dirty ? "+changes" : ""}`;
+  return `results come from postmock ${describe(results.postmock)}, source is now ${describe(current)}`;
 }
 
 /**
