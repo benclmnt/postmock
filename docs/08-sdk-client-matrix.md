@@ -512,6 +512,14 @@ Citations **SDK**:
 - cli: `sdk/postmark-cli/package.json:59-61`, `sdk/postmark-cli/test/integration/shared.ts:4-12,42-57`
 - mcp: `sdk/postmark-mcp/package.json:49-51`, `sdk/postmark-mcp/README.md:93-101`, `sdk/postmark-mcp/.env.example:7-9`
 
+### 5.2a Skips decided for W2
+
+T8 owns the runner folders. W2 writes these skips into `conformance/<sdk>/skips/<test file>.json`.
+
+| SDK | Test | Reason | Source |
+| --- | --- | --- | --- |
+| dotnet | `AdminClientSenderSignatureTests.AdminClient_ShouldProduceErrorStatusForInvalidSenderSignature` | It expects HTTP 422 for a new signature at `example.com`. The conformance sender domain is `example.com`, so postmock accepts it. Postmark's refusal of reserved domains is not captured. | `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientSenderSignatureTests.cs:78-94` **SDK** |
+
 ### 5.3 Harness shape (INFERRED proposal)
 
 - One `conformance/` folder holds the external shims only: `preload.js`, `mock_host.rb`, `fetch-shim.mjs`, and `testing_keys.json` files.
