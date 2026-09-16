@@ -3,7 +3,8 @@
 // and forwards raw TCP to the sandbox fronts on the host. TLS ends at the host front, which serves
 // the test certificate. On Docker Engine for Linux the fronts bind the bridge gateway (`gatewayTarget`).
 import { randomBytes } from "node:crypto";
-import { networkInterfaces, userInfo } from "node:os";
+import { createServer } from "node:net";
+import { userInfo } from "node:os";
 import { type ExecResult, exec, mustExec, type Sandbox, startSandbox } from "./harness.ts";
 
 /** Images by digest, so a moved tag cannot change a stamped run. */
@@ -171,6 +172,8 @@ export async function withContainerSandbox<T>(
  * there: the fronts bind the bridge gateway. Docker Desktop and OrbStack run the engine in a VM and
  * forward it to host loopback: the bridge gateway is not a local address, and the fronts bind
  * 127.0.0.1. The gateway check fails when neither holds.
+ * A bind test decides, not `os.networkInterfaces()`: it omits an interface that is not running, and
+ * `docker0` has no carrier while no container is on the default bridge.
  */
 async function gatewayTarget(): Promise<string> {
   const output = await mustExec(
@@ -181,10 +184,17 @@ async function gatewayTarget(): Promise<string> {
   const gateway = output.split(/\s+/).find((address) => /^\d+\.\d+\.\d+\.\d+$/.test(address));
   if (gateway === undefined)
     throw new Error(`docker bridge network has no IPv4 gateway: ${output}`);
-  const local = Object.values(networkInterfaces())
-    .flat()
-    .some((i) => i?.address === gateway);
-  return local ? gateway : "127.0.0.1";
+  return (await isLocalAddress(gateway)) ? gateway : "127.0.0.1";
+}
+
+function isLocalAddress(address: string): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once("error", (error: NodeJS.ErrnoException) =>
+      error.code === "EADDRNOTAVAIL" ? resolve(false) : reject(error),
+    );
+    server.listen(0, address, () => server.close(() => resolve(true)));
+  });
 }
 
 /**
