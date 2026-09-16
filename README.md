@@ -154,17 +154,17 @@ Each official SDK's own live integration suite runs unmodified against postmock 
 CI runs every suite and fails when this table differs from its results ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 
 <!-- compat-table:start -->
-| SDK | SDK commit | postmock commit | Pass | Fail | Skip | Baseline |
-| --- | --- | --- | --- | --- | --- | --- |
-| postmark-cli | c88a59d | not run | | | | 17 |
-| postmark-dotnet | b4249c5 | 54a4672 | 103/111 | 0 | 8 | 103 |
-| postmark-gem | a50ff39 | 70318d4 | 41/41 | 0 | 0 | 41 |
-| postmark-java | c6c5eb6 | not run | | | | 83 |
-| postmark-mcp | 63ef055 | 70318d4 | 50/50 | 0 | 0 | 50 |
-| postmark-php | ad4b80e | not run | | | | 44 |
-| postmark-python | 620d659 | 70318d4 | 72/174 | 0 | 102 | 72 |
-| postmark-rails | f9e4acc | 70318d4 | 7/7 | 0 | 0 | 7 |
-| postmark.js | f955212 | 70318d4 | 79/80 | 0 | 1 | 79 |
+| SDK | SDK commit | Pass | Fail | Skip | Baseline |
+| --- | --- | --- | --- | --- | --- |
+| postmark-cli | c88a59d | not run | | | 17 |
+| postmark-dotnet | b4249c5 | 103/111 | 0 | 8 | 103 |
+| postmark-gem | a50ff39 | 41/41 | 0 | 0 | 41 |
+| postmark-java | c6c5eb6 | not run | | | 83 |
+| postmark-mcp | 63ef055 | 50/50 | 0 | 0 | 50 |
+| postmark-php | ad4b80e | not run | | | 44 |
+| postmark-python | 620d659 | 72/174 | 0 | 102 | 72 |
+| postmark-rails | f9e4acc | 7/7 | 0 | 0 | 7 |
+| postmark.js | f955212 | 79/80 | 0 | 1 | 79 |
 <!-- compat-table:end -->
 
 ## Why
