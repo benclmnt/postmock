@@ -11,6 +11,7 @@ const messageEvents: Plugin = {
     const add = (message: OutboundMessage | undefined, event: MessageEvent) => {
       message?.MessageEvents.push(event);
     };
+    // A bounce or subscription change can name no stored message (a manual suppression).
     const outbound = (id: string | null) =>
       id === null ? undefined : runtime.store.state.outbound.get(id);
 

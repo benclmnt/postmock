@@ -1,5 +1,6 @@
 import { apiError } from "../../errors.ts";
 import { parseQueryDate, type Query } from "../../http/normalize.ts";
+import { formatEasternDate } from "../../time.ts";
 
 // Paging and filters shared by the Messages API reads (docs/06 §1.1, §1.7).
 // ErrorCode 700 is DOC (refs/api_overview.md:112); its message texts are INFERRED.
@@ -48,11 +49,12 @@ export function dateRange(query: Query): (at: Date) => boolean {
   };
   const from = bound("fromdate");
   const to = bound("todate");
-  const end =
-    to && (to.dateOnly ? to.instant.getTime() + 24 * 60 * 60 * 1000 - 1 : to.instant.getTime());
   return (at) =>
     (from === undefined || at.getTime() >= from.instant.getTime()) &&
-    (end === undefined || at.getTime() <= end);
+    (to === undefined ||
+      (to.dateOnly
+        ? formatEasternDate(at) <= formatEasternDate(to.instant)
+        : at.getTime() <= to.instant.getTime()));
 }
 
 /** A `status` value from `allowed`, matched without case. */

@@ -188,7 +188,7 @@ Rules:
 | Retention | Forever | `refs/api_stats-api.md:4` **DOC** |
 | Days with no data | Omitted from `Days` | `refs/api_stats-api.md:121` **DOC** |
 | Zero keys inside a day | Omitted (e.g. a day with only `Transient`) | `refs/api_stats-api.md:216-218` **DOC** |
-| Errors | 614 not entitled, 900 bad date, 1226 stream not found, 1500 `FromDate` older than 1 year | `refs/api_overview.md:196-199` **DOC** |
+| Errors | 614 not entitled, 900 bad date, 1226 stream not found, 1500 `FromDate` older than 1 year, 1502 `FromDate` after `ToDate` | `refs/api_overview.md:196-201` **DOC** |
 | postmark.js params | `tag`, `fromDate`, `toDate`, `messageStream`; no paging | `sdk/postmark.js/src/client/models/stats/StatsFilteringParameters.ts:1-13` **SDK** |
 
 ### 2.2 Endpoints and shapes

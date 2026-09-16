@@ -59,7 +59,9 @@ const stats: Plugin = {
         at: open.ReceivedAt,
         MessageID: open.MessageID,
         Recipient: open.Recipient,
+        first: open.FirstOpen,
         platform: open.Platform,
+        // Email client and browser keys use Client.Family (INFERRED; doc examples: refs/api_stats-api.md:588, :741).
         client: open.Client?.Family ?? null,
         readSeconds: open.ReadSeconds,
       }),
@@ -73,6 +75,7 @@ const stats: Plugin = {
         at: click.ReceivedAt,
         MessageID: click.MessageID,
         Recipient: click.Recipient,
+        first: runtime.store.state.clicks.includes(click),
         link: click.OriginalLink,
         location: click.ClickLocation,
         platform: click.Platform,

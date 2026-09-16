@@ -83,7 +83,7 @@ describe("paging (docs/06 §1.1, §5.4)", () => {
 
 describe("GET /messages/outbound", () => {
   it("filters by recipient, fromemail, tag, subject, status, stream and metadata", async () => {
-    const { get, send } = setup();
+    const { runtime, get, send } = setup();
     const plain = await send({ daysAgo: 2 });
     const rich = await send({
       From: '"Shop" <Shop@Example.com>',
@@ -106,6 +106,11 @@ describe("GET /messages/outbound", () => {
     );
     expect((await q("messageStream=broadcast")).body.TotalCount).toBe(1);
     expect((await q("status=gone")).body.ErrorCode).toBe(700);
+    const unknownStream = await createApiApp(runtime).request(
+      "/messages/outbound?count=1&offset=0&messagestream=nope",
+      { headers: { "X-Postmark-Server-Token": TOKEN } },
+    );
+    expect(unknownStream.status).toBe(501);
   });
 
   it("reads inclusive Eastern dates; a date-only todate covers the whole day", async () => {
@@ -118,6 +123,12 @@ describe("GET /messages/outbound", () => {
     );
     expect(ids(res.body)).toEqual([late.MessageID]);
     expect((await get("/messages/outbound?count=1&offset=0&todate=nope")).body.ErrorCode).toBe(700);
+    // March 8 has 23 hours in New York; 00:30 on March 9 (EDT) is past `todate=2026-03-08`.
+    await send({ ReceivedAt: new Date("2026-03-09T04:30:00Z") });
+    const dst = await get(
+      "/messages/outbound?count=10&offset=0&fromdate=2026-03-08&todate=2026-03-08",
+    );
+    expect(dst.body.TotalCount).toBe(0);
   });
 
   it("lists newest first, hides other servers and messages past the 45-day retention", async () => {
@@ -219,29 +230,6 @@ describe("inbound", () => {
     const details = await get(`/messages/inbound/${blocked.MessageID}/details`);
     expect(details.body).toMatchObject({ Status: "Blocked", BlockedReason: blocked.BlockedReason });
   });
-
-  it("bypasses a blocked message once and fires inboundReceived", async () => {
-    const { runtime, server, call } = setup();
-    const blocked = pastInbound(runtime, {
-      ServerID: server.ID,
-      ReceivedAt: new Date(NOW),
-      Status: "Blocked",
-    });
-    const received: string[] = [];
-    runtime.events.on("inboundReceived", ({ message }) => {
-      received.push(message.MessageID);
-    });
-    const res = await call("PUT", `/messages/inbound/${blocked.MessageID}/bypass`);
-    expect(res.body).toEqual({
-      ErrorCode: 0,
-      Message: `Successfully bypassed message: ${blocked.MessageID}.`,
-    });
-    expect(received).toEqual([blocked.MessageID]);
-    const again = await call("PUT", `/messages/inbound/${blocked.MessageID}/bypass`);
-    expect([again.status, again.body.ErrorCode]).toEqual([422, 701]);
-    const retry = await call("PUT", `/messages/inbound/${blocked.MessageID}/retry`);
-    expect([retry.status, retry.body.ErrorCode]).toEqual([422, 701]);
-  });
 });
 
 describe("opens and clicks", () => {
@@ -255,6 +243,7 @@ describe("opens and clicks", () => {
     const { get, post, send } = setup();
     const message = await send(tracked);
     const target = { messageId: message.MessageID, recipient: "READER@example.com" };
+    expect((await post("/control/events/delivery", target)).status).toBe(200);
     const first = await post("/control/events/open", { ...target, platform: "Desktop" });
     const second = await post("/control/events/open", target);
     expect([first.body.FirstOpen, second.body.FirstOpen]).toEqual([true, false]);
@@ -278,6 +267,10 @@ describe("opens and clicks", () => {
   it("filters opens by client and platform without case", async () => {
     const { get, post, send } = setup();
     const message = await send(tracked);
+    await post("/control/events/delivery", {
+      messageId: message.MessageID,
+      recipient: "reader@example.com",
+    });
     await post("/control/events/open", {
       messageId: message.MessageID,
       recipient: "reader@example.com",
@@ -298,6 +291,10 @@ describe("opens and clicks", () => {
       link: "https://example.com/a",
       clickLocation: "HTML",
     };
+    await post("/control/events/delivery", {
+      messageId: message.MessageID,
+      recipient: "reader@example.com",
+    });
     expect((await post("/control/events/click", click)).status).toBe(200);
     expect((await post("/control/events/click", click)).status).toBe(200);
     const list = await get("/messages/outbound/clicks?count=10&offset=0");

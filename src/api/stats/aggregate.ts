@@ -33,48 +33,28 @@ export function series(counts: Count[], documentedKeys: readonly string[]) {
   };
 }
 
-/** Facts in time order, the first of each identity marked. */
-function firsts<F extends StatsFact>(facts: F[], identity: (fact: F) => string) {
-  const seen = new Set<string>();
-  return [...facts]
-    .sort((a, b) => a.at.getTime() - b.at.getTime())
-    .map((fact) => {
-      const id = identity(fact);
-      const first = !seen.has(id);
-      seen.add(id);
-      return { fact, first };
-    });
-}
-
 // "Unique" opens are per recipient per message; unique clicks per recipient, message and link
-// (refs/api_stats-api.md:419, :648). A unique count lands on the day of the first event in range.
-const openIdentity = (o: Fact<"open">) => `${o.MessageID}/${o.Recipient.toLowerCase()}`;
-const clickIdentity = (c: Fact<"click">) => `${c.MessageID}/${c.Recipient.toLowerCase()}/${c.link}`;
+// (refs/api_stats-api.md:419, :648). A unique counts on the day of the first event ever, so a range
+// that starts after it has none (INFERRED).
+export const uniqueOpens = (facts: StatsFact[]) => ofKind(facts, "open").filter((o) => o.first);
 
-export const uniqueOpens = (facts: StatsFact[]) =>
-  firsts(ofKind(facts, "open"), openIdentity)
-    .filter((o) => o.first)
-    .map((o) => o.fact);
+const withUnique = (facts: Array<Fact<"open"> | Fact<"click">>, key: string): Count[] =>
+  facts.flatMap((f) => [{ at: f.at, key }, ...(f.first ? [{ at: f.at, key: "Unique" }] : [])]);
 
 export const opensCounts = (facts: StatsFact[]): Count[] =>
-  firsts(ofKind(facts, "open"), openIdentity).flatMap(({ fact, first }) => [
-    { at: fact.at, key: "Opens" },
-    ...(first ? [{ at: fact.at, key: "Unique" }] : []),
-  ]);
+  withUnique(ofKind(facts, "open"), "Opens");
 
 export const clicksCounts = (facts: StatsFact[]): Count[] =>
-  firsts(ofKind(facts, "click"), clickIdentity).flatMap(({ fact, first }) => [
-    { at: fact.at, key: "Clicks" },
-    ...(first ? [{ at: fact.at, key: "Unique" }] : []),
-  ]);
+  withUnique(ofKind(facts, "click"), "Clicks");
 
+// Truncated, not rounded: 64 / 615 is 10.4065 and the doc shows 10.406.
 const rate = (part: number, whole: number) =>
-  whole === 0 ? 0 : Math.round((part / whole) * 100 * 1000) / 1000;
+  whole === 0 ? 0 : Math.floor((part * 100_000) / whole) / 1000;
 
 /**
  * `/stats/outbound` (refs/api_stats-api.md:43-83). The example's arithmetic gives the rules:
  * `Bounced` is hard + soft + transient without SMTP API errors (64 = 12 + 36 + 16, :209-232), and
- * rates are percentages of `Sent` to 3 decimals (10.406 = 64 / 615). `WithReadTimeRecorded` comes
+ * rates are percentages of `Sent` cut to 3 decimals (10.406 = 64 / 615). `WithReadTimeRecorded` comes
  * from the SDK models (sdk/postmark.js/src/client/models/stats/Stats.ts:18). The `With*Recorded`
  * keys count unique opens (INFERRED).
  */

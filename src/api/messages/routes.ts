@@ -3,6 +3,7 @@ import type { Query } from "../../http/normalize.ts";
 import { paged, Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
 import { parseAddressList } from "../../pipeline/addresses.ts";
+import { findStream } from "../../state/servers.ts";
 import type {
   ClickEvent,
   InboundMessage,
@@ -52,6 +53,18 @@ const OUTBOUND_STATUS: Record<string, readonly OutboundStatus[]> = {
   processed: ["Sent", "Processed"],
 };
 
+/**
+ * `messagestream`, default `outbound` (refs/api_messages-api.md:43, :634, :853). Postmark's answer
+ * for a stream the server lacks is not documented.
+ */
+function knownStream({ store, auth, query }: Ctx): string {
+  const stream = query.get("messagestream") ?? "outbound";
+  if (findStream(store.state, auth, stream) === undefined) {
+    throw new Unsupported(`messagestream '${stream}' does not exist on this server`);
+  }
+  return stream;
+}
+
 function outboundMessage({ store, clock, auth, params }: Ctx): OutboundMessage {
   const message = store.state.outbound.get(params.id as string);
   if (
@@ -68,11 +81,12 @@ defineRoute({
   method: "GET",
   path: "/messages/outbound",
   auth: "server",
-  handler: ({ store, clock, auth, query }) => {
+  handler: (ctx) => {
+    const { store, clock, auth, query } = ctx;
     const { count, offset } = paging(query);
     const inRange = dateRange(query);
     const statuses = status(query, OUTBOUND_STATUS);
-    const stream = query.get("messagestream") ?? "outbound";
+    const stream = knownStream(ctx);
     const metadata = Object.entries(query.prefixed("metadata_"));
     // "You can currently only search by a single metadata field at a time"
     // (refs/api_messages-api.md:44). Postmark's answer to two is not known.
@@ -169,48 +183,11 @@ defineRoute({
   handler: (ctx) => inboundDetailsJson(inboundMessage(ctx)),
 });
 
-// Bypass releases a blocked message; retry reschedules a failed one. Either one processes the
-// message again, so `inboundReceived` fires its inbound webhook (docs/05 §4). A message in another
-// status "cannot be bypassed or retried": 701 (refs/api_overview.md:113). Texts:
-// refs/api_messages-api.md:558, :600.
-defineRoute({
-  method: "PUT",
-  path: "/messages/inbound/:id/bypass",
-  auth: "server",
-  handler: async (ctx) => {
-    const message = inboundMessage(ctx);
-    if (message.Status !== "Blocked") {
-      throw apiError(701, { message: "This message cannot be bypassed." });
-    }
-    message.Status = "Processed";
-    await ctx.events.emit("inboundReceived", { message });
-    return { ErrorCode: 0, Message: `Successfully bypassed message: ${message.MessageID}.` };
-  },
-});
-
-defineRoute({
-  method: "PUT",
-  path: "/messages/inbound/:id/retry",
-  auth: "server",
-  handler: async (ctx) => {
-    const message = inboundMessage(ctx);
-    if (message.Status !== "Failed") {
-      throw apiError(701, { message: "This message cannot be retried." });
-    }
-    message.Status = "Processed";
-    await ctx.events.emit("inboundReceived", { message });
-    return {
-      ErrorCode: 0,
-      Message: `Successfully rescheduled failed message: ${message.MessageID}.`,
-    };
-  },
-});
-
 // Opens and clicks (refs/api_messages-api.md:626-653, :835-853). Filter values match without case
 // (INFERRED, docs/06 Q10).
 function trackingFilters<E extends OpenEvent | ClickEvent>(ctx: Ctx, events: E[]): E[] {
   const { query, auth, clock } = ctx;
-  const stream = query.get("messagestream") ?? "outbound";
+  const stream = knownStream(ctx);
   const now = clock.now();
   return events.filter(
     (e) =>

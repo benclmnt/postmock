@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { pastBounce, pastSend } from "../../../seeds/lib/history.ts";
+import { pastBounce, pastSend, pastSmtpApiError } from "../../../seeds/lib/history.ts";
 import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
 import { Clock } from "../../state/clock.ts";
 import { createServer } from "../../state/servers.ts";
 import type { OutboundMessage } from "../../state/types.ts";
-import { recordClick, recordOpen } from "../../tracking.ts";
+import { recordClick, recordDelivery, recordOpen } from "../../tracking.ts";
 
 // biome-ignore lint/suspicious/noExplicitAny: a test reads response JSON loosely
 type Json = any;
@@ -24,7 +24,7 @@ function setup() {
     const res = await api.request(path, { headers: { "X-Postmark-Server-Token": TOKEN } });
     return { status: res.status, body: (await res.json()) as Json };
   };
-  const send = (at: number, fields: Partial<OutboundMessage> = {}) =>
+  const sendOnly = (at: number, fields: Partial<OutboundMessage> = {}) =>
     pastSend(runtime, {
       ServerID: server.ID,
       ReceivedAt: new Date(at),
@@ -34,6 +34,16 @@ function setup() {
       TextBody: "Go https://example.com/1 or https://example.com/2",
       ...fields,
     });
+  const send = async (at: number, fields: Partial<OutboundMessage> = {}) => {
+    const m = await sendOnly(at, fields);
+    const delivered = new Date(at + 60000);
+    await recordDelivery(
+      runtime,
+      { messageId: m.MessageID, recipient: "a@example.com", details: "ok" },
+      delivered,
+    );
+    return m;
+  };
   const agent = {
     UserAgent: "UA",
     Client: { Name: "Apple Mail 16", Company: "Apple", Family: "Apple Mail" },
@@ -86,22 +96,30 @@ describe("counts", () => {
     });
   });
 
-  it("keeps SMTP API errors out of Bounced and rounds rates to 3 decimals", async () => {
+  it("keeps SMTP API errors out of Bounced and cuts rates to 3 decimals", async () => {
     const { get, send, runtime } = setup();
     const messages = [];
     for (let i = 0; i < 3; i++) messages.push(await send(NOW - DAY));
     const at = new Date(NOW - DAY);
     await pastBounce(runtime, messages[0] as OutboundMessage, { id: 1, type: "HardBounce", at });
-    await pastBounce(runtime, messages[1] as OutboundMessage, { id: 2, type: "SMTPApiError", at });
+    await pastBounce(runtime, messages[1] as OutboundMessage, { id: 2, type: "SoftBounce", at });
+    await pastSmtpApiError(runtime, {
+      id: 3,
+      serverId: messages[0]?.ServerID as number,
+      stream: "outbound",
+      email: "a@example.com",
+      tag: null,
+      at,
+    });
     expect((await get("/stats/outbound")).body).toMatchObject({
       Sent: 3,
-      Bounced: 1,
+      Bounced: 2,
       SMTPApiErrors: 1,
-      BounceRate: 33.333,
+      BounceRate: 66.666,
       TotalTrackedLinksSent: 6,
     });
     expect((await get("/stats/outbound/bounces")).body.Days).toEqual([
-      { Date: "2026-06-14", HardBounce: 1, SMTPApiError: 1 },
+      { Date: "2026-06-14", HardBounce: 1, SMTPApiError: 1, SoftBounce: 1 },
     ]);
   });
 
@@ -122,6 +140,8 @@ describe("counts", () => {
       Unique: 1,
     });
     expect((await get("/stats/outbound/clicks")).body).toMatchObject({ Clicks: 3, Unique: 2 });
+    const later = await get("/stats/outbound/opens?fromdate=2026-06-14");
+    expect(later.body).toMatchObject({ Opens: 1, Unique: 0 });
     expect((await get("/stats/outbound/opens/platforms")).body).toMatchObject({
       Desktop: 0,
       Mobile: 1,

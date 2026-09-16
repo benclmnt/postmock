@@ -1,5 +1,6 @@
 import type { Runtime } from "../../src/runtime.ts";
 import { newMessageId } from "../../src/state/ids.ts";
+import { suppressionKey } from "../../src/state/store.ts";
 import type { Bounce, BounceType, InboundMessage, OutboundMessage } from "../../src/state/types.ts";
 
 // Past traffic for seeds and tests: messages accepted and bounced before "now". Each record fires
@@ -59,11 +60,14 @@ export async function pastSend(
   return message;
 }
 
-/** The first To recipient's server bounces the message. `ID` is fixed (docs/11 §5). */
+/**
+ * The first To recipient's server bounces the message. `ID` is fixed (docs/11 §5). A hard bounce
+ * suppresses the address on the message stream (docs/04 §3).
+ */
 export async function pastBounce(
   runtime: Runtime,
   message: OutboundMessage,
-  { id, type, at }: { id: number; type: BounceType; at: Date },
+  { id, type, at }: { id: number; type: Exclude<BounceType, "SMTPApiError">; at: Date },
 ): Promise<Bounce> {
   const bounce: Bounce = {
     ID: runtime.store.useId("bounce", id),
@@ -84,7 +88,62 @@ export async function pastBounce(
     Metadata: message.Metadata,
   };
   runtime.store.state.bounces.set(bounce.ID, bounce);
-  await runtime.events.emit(type === "SMTPApiError" ? "smtpApiError" : "bounced", { bounce });
+  if (type === "HardBounce") {
+    runtime.store.state.suppressions.set(
+      suppressionKey(bounce.ServerID, bounce.MessageStream, bounce.Email),
+      {
+        ServerID: bounce.ServerID,
+        MessageStream: bounce.MessageStream,
+        EmailAddress: bounce.Email,
+        SuppressionReason: "HardBounce",
+        Origin: "Recipient",
+        CreatedAt: at,
+      },
+    );
+  }
+  await runtime.events.emit("bounced", { bounce });
+  return bounce;
+}
+
+/**
+ * An SMTP message to a suppressed address: Postmark accepts no message and records an SMTP API
+ * error bounce (docs/07 §1.4). `email` must be suppressed on `stream`.
+ */
+export async function pastSmtpApiError(
+  runtime: Runtime,
+  fields: {
+    id: number;
+    serverId: number;
+    stream: string;
+    email: string;
+    tag: string | null;
+    at: Date;
+  },
+): Promise<Bounce> {
+  const key = suppressionKey(fields.serverId, fields.stream, fields.email);
+  if (!runtime.store.state.suppressions.has(key)) {
+    throw new Error(`${fields.email} is not suppressed on ${fields.stream}`);
+  }
+  const bounce: Bounce = {
+    ID: runtime.store.useId("bounce", fields.id),
+    ServerID: fields.serverId,
+    MessageStream: fields.stream,
+    MessageID: newMessageId(),
+    Type: "SMTPApiError",
+    Tag: fields.tag,
+    Description: "An error occurred while accepting your message through SMTP.",
+    Details: `You tried to send to recipient(s) that have been marked as inactive. Found inactive addresses: ${fields.email}.`,
+    Email: fields.email,
+    From: "sender@example.com",
+    Subject: "History",
+    BouncedAt: fields.at,
+    Inactive: false,
+    CanActivate: false,
+    Content: "",
+    Metadata: {},
+  };
+  runtime.store.state.bounces.set(bounce.ID, bounce);
+  await runtime.events.emit("smtpApiError", { bounce });
   return bounce;
 }
 

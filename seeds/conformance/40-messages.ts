@@ -1,15 +1,16 @@
 import type { Seed } from "../../src/control/seed.ts";
-import type { BounceType, InboundStatus, OutboundMessage } from "../../src/state/types.ts";
+import type { InboundStatus, OutboundMessage } from "../../src/state/types.ts";
 import { recordClick, recordDelivery, recordOpen } from "../../src/tracking.ts";
 import { CONFORMANCE } from "../lib/conformance.ts";
-import { pastBounce, pastInbound, pastSend } from "../lib/history.ts";
+import { pastBounce, pastInbound, pastSend, pastSmtpApiError } from "../lib/history.ts";
 
 // Message history on server 1 for the read suites (docs/08 §5.3; T4 ID range 4000–4999):
 // ≥ 33 outbound messages in the retention window, some tagged `test_tag`, with deliveries,
 // bounces, opens and clicks; inbound messages in several statuses; and older sends that make the
 // stats windows of the dotnet live test decrease strictly
 // (sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:40-62).
-// Recipients use their own addresses, so a bounce here suppresses nobody another suite sends to.
+// Recipients use their own addresses, so the hard bounce here suppresses nobody another suite sends
+// to. Bounces 4000–4003: hard (suppresses reader-4), soft, transient, SMTP API error.
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -84,22 +85,27 @@ const messages: Seed = async (runtime) => {
     });
   }
 
-  const bounces: Array<[number, BounceType]> = [
-    [4, "HardBounce"],
-    [8, "SoftBounce"],
-    [12, "Transient"],
-    [16, "SMTPApiError"],
-  ];
-  for (const [n, [i, type]] of bounces.entries()) {
-    const message = recent[i] as OutboundMessage;
-    const at = new Date(message.ReceivedAt.getTime() + HOUR);
-    await pastBounce(runtime, message, { id: 4000 + n, type, at });
-  }
+  const minutes = (m: OutboundMessage, n: number) => new Date(m.ReceivedAt.getTime() + n * 60000);
+  const hard = recent[4] as OutboundMessage;
+  await pastBounce(runtime, hard, { id: 4000, type: "HardBounce", at: minutes(hard, 60) });
+  const soft = recent[8] as OutboundMessage;
+  await pastBounce(runtime, soft, { id: 4001, type: "SoftBounce", at: minutes(soft, 60) });
+  // A delay notice comes before the delivery below.
+  const delayed = recent[12] as OutboundMessage;
+  await pastBounce(runtime, delayed, { id: 4002, type: "Transient", at: minutes(delayed, 5) });
+  // A later SMTP send to the address the hard bounce suppressed.
+  await pastSmtpApiError(runtime, {
+    id: 4003,
+    serverId: CONFORMANCE.serverId,
+    stream: "outbound",
+    email: hard.To[0]?.Email as string,
+    tag: null,
+    at: minutes(hard, 120),
+  });
 
-  const bounced = new Set(bounces.filter(([, t]) => t !== "Transient").map(([i]) => i));
   for (const [i, message] of recent.entries()) {
-    if (bounced.has(i)) continue;
-    const later = (minutes: number) => new Date(message.ReceivedAt.getTime() + minutes * 60000);
+    if (message === hard || message === soft) continue;
+    const later = (n: number) => minutes(message, n);
     const target = { messageId: message.MessageID, recipient: message.To[0]?.Email as string };
     await recordDelivery(runtime, { ...target, details: "smtp;250 2.0.0 OK" }, later(15));
     if (!message.TrackOpens || i % 2 === 1) continue;

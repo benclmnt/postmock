@@ -32,6 +32,7 @@ const agentSchema = {
       ip: z.string(),
     })
     .partial()
+    .refine((geo) => Object.keys(geo).length > 0, "geo needs at least one field")
     .optional(),
 };
 

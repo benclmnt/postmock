@@ -51,10 +51,26 @@ describe("recipient events a real recipient could not produce", () => {
     ["click", { link: "https://example.com/b", clickLocation: "HTML" }, {}, "has no tracked link"],
   ])("refuses %s %j on a message with %j", async (kind, body, fields, error) => {
     const { post, runtime } = await setup(fields);
+    await post("delivery", {});
     const res = await post(kind, body);
     expect(res.status).toBe(400);
     expect(res.body.error).toContain(error);
     expect(runtime.store.state.stats.filter((f) => f.kind !== "sent")).toEqual([]);
+  });
+
+  it("refuses an open or click before delivery, and any event on a queued message", async () => {
+    const { post } = await setup();
+    expect((await post("open", {})).body.error).toContain("was not delivered");
+    const click = { link: "https://example.com/a", clickLocation: "HTML" };
+    expect((await post("click", click)).body.error).toContain("was not delivered");
+    const queued = await setup({ Status: "Queued" });
+    expect((await queued.post("delivery", {})).body.error).toContain("is queued");
+  });
+
+  it("refuses an empty geo", async () => {
+    const { post } = await setup();
+    await post("delivery", {});
+    expect((await post("open", { geo: {} })).status).toBe(400);
   });
 
   it("refuses an open after a hard bounce and a second delivery", async () => {
@@ -74,6 +90,7 @@ describe("message events", () => {
         { Email: "gone@example.com", Name: null },
       ],
     });
+    await post("delivery", {});
     await post("open", { userAgent: "Mail/1" });
     await post("open", { userAgent: "Mail/2" });
     const click = { link: "https://example.com/a", clickLocation: "HTML" };
@@ -85,6 +102,7 @@ describe("message events", () => {
       { id: 7, type: "HardBounce", at: runtime.clock.now() },
     );
     expect(message.MessageEvents.map((e) => [e.Type, e.Details])).toEqual([
+      ["Delivered", { DeliveryMessage: "smtp;250 2.0.0 OK" }],
       ["Opened", { Summary: "Email opened with Mail/1" }],
       [
         "LinkClicked",

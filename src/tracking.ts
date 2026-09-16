@@ -42,21 +42,52 @@ export const recipientsOf = (message: OutboundMessage): string[] =>
 
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-/** The delivered recipient of a stored message, spelled as sent. */
-function reachedRecipient(runtime: Runtime, messageId: string, recipient: string) {
+// A bounce of these types means the message never reached the recipient (INFERRED from the type
+// names, refs/api_bounce-api.md). An auto responder or a spam complaint means it did.
+const UNDELIVERED: ReadonlySet<string> = new Set([
+  "HardBounce",
+  "SoftBounce",
+  "BadEmailAddress",
+  "Blocked",
+  "DnsError",
+  "ManuallyDeactivated",
+  "Unconfirmed",
+  "DMARCPolicy",
+  "SMTPApiError",
+  "TemplateRenderingFailed",
+]);
+
+/** A recipient of a stored, sent message, spelled as sent. */
+function messageRecipient(runtime: Runtime, messageId: string, recipient: string) {
   const message = runtime.store.state.outbound.get(messageId);
   if (message === undefined) throw new TrackingRefused(`no outbound message ${messageId}`);
   // A sandbox server delivers nothing (docs/07).
   if (message.Sandboxed) throw new TrackingRefused(`message ${messageId} is sandboxed`);
+  if (message.Status === "Queued") throw new TrackingRefused(`message ${messageId} is queued`);
   const address = recipientsOf(message).find((r) => same(r, recipient));
   if (address === undefined) {
     throw new TrackingRefused(`message ${messageId} was not sent to ${recipient}`);
   }
   const bounced = [...runtime.store.state.bounces.values()].some(
-    (b) => b.MessageID === messageId && same(b.Email, address) && b.Type !== "Transient",
+    (b) => b.MessageID === messageId && same(b.Email, address) && UNDELIVERED.has(b.Type),
   );
   if (bounced) throw new TrackingRefused(`message ${messageId} bounced for ${address}`);
   return { message, address };
+}
+
+/** A recipient whose server accepted the message by `at`: only they can open or click. */
+function deliveredRecipient(runtime: Runtime, messageId: string, recipient: string, at: Date) {
+  const found = messageRecipient(runtime, messageId, recipient);
+  const delivered = found.message.MessageEvents.some(
+    (e) =>
+      e.Type === "Delivered" &&
+      same(e.Recipient, found.address) &&
+      e.ReceivedAt.getTime() <= at.getTime(),
+  );
+  if (!delivered) {
+    throw new TrackingRefused(`message ${messageId} was not delivered to ${found.address}`);
+  }
+  return found;
 }
 
 /** The recipient's mail server accepts the message (docs/05 §2.3). */
@@ -65,7 +96,7 @@ export async function recordDelivery(
   input: { messageId: string; recipient: string; details: string },
   at: Date = runtime.clock.now(),
 ): Promise<{ MessageID: string; Recipient: string; ReceivedAt: Date }> {
-  const { message, address } = reachedRecipient(runtime, input.messageId, input.recipient);
+  const { message, address } = messageRecipient(runtime, input.messageId, input.recipient);
   const delivered = message.MessageEvents.some(
     (e) => e.Type === "Delivered" && same(e.Recipient, address),
   );
@@ -89,7 +120,7 @@ export async function recordOpen(
   input: { messageId: string; recipient: string; agent: RecipientAgent; readSeconds: number },
   at: Date = runtime.clock.now(),
 ): Promise<OpenEvent> {
-  const { message, address } = reachedRecipient(runtime, input.messageId, input.recipient);
+  const { message, address } = deliveredRecipient(runtime, input.messageId, input.recipient, at);
   if (!message.TrackOpens) {
     throw new TrackingRefused(`message ${message.MessageID} has no open tracking`);
   }
@@ -121,7 +152,7 @@ export async function recordClick(
   },
   at: Date = runtime.clock.now(),
 ): Promise<ClickEvent> {
-  const { message, address } = reachedRecipient(runtime, input.messageId, input.recipient);
+  const { message, address } = deliveredRecipient(runtime, input.messageId, input.recipient, at);
   if (!trackedLinks(message, input.location).includes(input.link)) {
     throw new TrackingRefused(
       `message ${message.MessageID} has no tracked link ${input.link} in its ${input.location} body (TrackLinks ${message.TrackLinks})`,
