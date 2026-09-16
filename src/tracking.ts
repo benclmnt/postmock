@@ -1,3 +1,4 @@
+import { recipientsOf } from "./recipients/transitions.ts";
 import type { Runtime } from "./runtime.ts";
 import type { ClickEvent, ClientInfo, Geo, OpenEvent, OutboundMessage } from "./state/types.ts";
 
@@ -36,10 +37,6 @@ export function trackedLinks(message: OutboundMessage, location?: ClickEvent["Cl
   return [...new Set(parts.flatMap((part) => part.match(LINK) ?? []))];
 }
 
-/** Every address the message went to, as sent. */
-export const recipientsOf = (message: OutboundMessage): string[] =>
-  [...message.To, ...message.Cc, ...message.Bcc].map((a) => a.Email);
-
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 // A bounce of these types means the message never reached the recipient (INFERRED from the type
@@ -68,6 +65,10 @@ function messageRecipient(runtime: Runtime, messageId: string, recipient: string
   if (address === undefined) {
     throw new TrackingRefused(`message ${messageId} was not sent to ${recipient}`);
   }
+  // A send skips an address suppressed at send time (docs/04 §3.3).
+  if (message.suppressedRecipients.some((r) => same(r, address))) {
+    throw new TrackingRefused(`${address} was suppressed when ${messageId} was sent`);
+  }
   const bounced = [...runtime.store.state.bounces.values()].some(
     (b) => b.MessageID === messageId && same(b.Email, address) && UNDELIVERED.has(b.Type),
   );
@@ -90,7 +91,10 @@ function deliveredRecipient(runtime: Runtime, messageId: string, recipient: stri
   return found;
 }
 
-/** The recipient's mail server accepts the message (docs/05 §2.3). */
+/**
+ * The recipient's mail server accepts the message (docs/05 §2.3). The `Delivered` message event is
+ * the delivery record that opens and clicks check, so it is written here, not by a listener.
+ */
 export async function recordDelivery(
   runtime: Runtime,
   input: { messageId: string; recipient: string; details: string },
@@ -102,6 +106,13 @@ export async function recordDelivery(
   );
   if (delivered)
     throw new TrackingRefused(`message ${message.MessageID} already reached ${address}`);
+  // DestinationServer and DestinationIP are left out: postmock delivers to no real server.
+  message.MessageEvents.push({
+    Recipient: address,
+    Type: "Delivered",
+    ReceivedAt: at,
+    Details: { DeliveryMessage: input.details },
+  });
   await runtime.events.emit("delivered", {
     message,
     recipient: address,

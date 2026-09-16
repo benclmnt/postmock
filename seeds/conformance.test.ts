@@ -29,12 +29,12 @@ describe("conformance seed", () => {
     }
   });
 
-  it("creates the account token, one server and its three default streams", async () => {
+  it("creates the account token, the conformance server and its three default streams", async () => {
     const runtime = createRuntime();
     await applySeed(runtime, "conformance");
     const { account, servers, streams } = runtime.store.state;
     expect(account.tokens).toEqual([CONFORMANCE.accountToken]);
-    expect([...servers.values()].map((s) => s.ApiTokens)).toEqual([[CONFORMANCE.serverToken]]);
+    expect(servers.get(CONFORMANCE.serverId)?.ApiTokens).toEqual([CONFORMANCE.serverToken]);
     expect(
       ["outbound", "inbound", "broadcast"].map(
         (id) => streams.get(streamKey(CONFORMANCE.serverId, id))?.MessageStreamType,

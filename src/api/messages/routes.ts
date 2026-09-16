@@ -3,6 +3,7 @@ import type { Query } from "../../http/normalize.ts";
 import { paged, Unsupported } from "../../http/respond.ts";
 import { defineRoute, type RequestContext, type ServerAuth } from "../../http/routes.ts";
 import { parseAddressList } from "../../pipeline/addresses.ts";
+import { recipientsOf } from "../../recipients/transitions.ts";
 import { findStream } from "../../state/servers.ts";
 import type {
   ClickEvent,
@@ -12,7 +13,6 @@ import type {
   OutboundMessage,
   OutboundStatus,
 } from "../../state/types.ts";
-import { recipientsOf } from "../../tracking.ts";
 import {
   clickJson,
   inboundDetailsJson,

@@ -1,3 +1,4 @@
+import { recipientsOf } from "../../recipients/transitions.ts";
 import type {
   ClickEvent,
   InboundMessage,
@@ -6,7 +7,6 @@ import type {
   OutboundMessage,
 } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
-import { recipientsOf } from "../../tracking.ts";
 
 // Wire shapes of the Messages API, in doc field order. A null string field is sent as "", as the
 // inbound examples show for `Tag` and `MailboxHash` (INFERRED for outbound).

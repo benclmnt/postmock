@@ -1,16 +1,19 @@
 import type { Seed } from "../../src/control/seed.ts";
+import { createServer } from "../../src/state/servers.ts";
 import type { InboundStatus, OutboundMessage } from "../../src/state/types.ts";
 import { recordClick, recordDelivery, recordOpen } from "../../src/tracking.ts";
 import { CONFORMANCE } from "../lib/conformance.ts";
 import { pastBounce, pastInbound, pastSend, pastSmtpApiError } from "../lib/history.ts";
+import { READ_SERVER } from "../lib/read-server.ts";
 
-// Message history on server 1 for the read suites (docs/08 §5.3; T4 ID range 4000–4999):
+// Message history on the read server for the read suites (docs/08 §5.3; T4 ID range 4000–4999):
 // ≥ 33 outbound messages in the retention window, some tagged `test_tag`, with deliveries,
 // bounces, opens and clicks; inbound messages in several statuses; and older sends that make the
 // stats windows of the dotnet live test decrease strictly
 // (sdk/postmark-dotnet/src/Postmark.Tests/ClientStatisticsTests.cs:40-62).
-// Recipients use their own addresses, so the hard bounce here suppresses nobody another suite sends
-// to. Bounces 4000–4003: hard (suppresses reader-4), soft, transient, SMTP API error.
+// Bounces 4000–4003: hard (suppresses reader-4), soft, transient, SMTP API error.
+// The core conformance server gets one processed inbound message only: postmark.js reads inbound
+// details there (sdk/postmark.js/test/integration/Messages.test.ts:119-133).
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -38,7 +41,7 @@ const send = (
   fields: { to: string[]; cc?: string[]; subject: string; tag: string | null; tracked: boolean },
 ) =>
   pastSend(runtime, {
-    ServerID: CONFORMANCE.serverId,
+    ServerID: READ_SERVER.id,
     ReceivedAt: at,
     From: CONFORMANCE.senderEmail,
     To: fields.to.map((Email) => ({ Email, Name: null })),
@@ -53,6 +56,11 @@ const send = (
   });
 
 const messages: Seed = async (runtime) => {
+  createServer(runtime.store, runtime.clock.now(), {
+    ID: READ_SERVER.id,
+    Name: READ_SERVER.name,
+    ApiTokens: [READ_SERVER.token],
+  });
   const now = runtime.clock.now().getTime();
   const ago = (ms: number) => new Date(now - ms);
 
@@ -96,7 +104,7 @@ const messages: Seed = async (runtime) => {
   // A later SMTP send to the address the hard bounce suppressed.
   await pastSmtpApiError(runtime, {
     id: 4003,
-    serverId: CONFORMANCE.serverId,
+    serverId: READ_SERVER.id,
     stream: "outbound",
     email: hard.To[0]?.Email as string,
     tag: null,
@@ -123,11 +131,16 @@ const messages: Seed = async (runtime) => {
   const statuses: InboundStatus[] = ["Processed", "Processed", "Processed", "Blocked", "Failed"];
   for (const [n, Status] of statuses.entries()) {
     pastInbound(runtime, {
-      ServerID: CONFORMANCE.serverId,
+      ServerID: READ_SERVER.id,
       ReceivedAt: ago((n + 1) * 6 * HOUR),
       Status,
       Subject: `Inbound ${n}`,
     });
   }
+  pastInbound(runtime, {
+    ServerID: CONFORMANCE.serverId,
+    ReceivedAt: ago(2 * HOUR),
+    Status: "Processed",
+  });
 };
 export default messages;

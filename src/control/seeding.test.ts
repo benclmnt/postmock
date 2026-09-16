@@ -30,7 +30,7 @@ describe("seedAtomically", () => {
     await expect(seedAtomically(runtime, "conformance", { reset: true }, failing)).rejects.toThrow(
       ControlError,
     );
-    expect(runtime.store.state.servers.size).toBe(1);
+    expect(runtime.store.state.servers.has(CONFORMANCE.serverId)).toBe(true);
     expect(runtime.clock.now().getTime() - Date.now()).toBeGreaterThan(DAY / 2);
     await runtime.clock.advance(60_000);
     expect(task).toHaveBeenCalledTimes(1);

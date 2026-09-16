@@ -42,6 +42,7 @@ describe("recipient events a real recipient could not produce", () => {
     ["open", { recipient: "stranger@example.com" }, {}, "was not sent to"],
     ["open", { messageId: "nope" }, {}, "no outbound message"],
     ["open", {}, { Sandboxed: true }, "is sandboxed"],
+    ["open", {}, { suppressedRecipients: ["READER@example.com"] }, "was suppressed when"],
     [
       "click",
       { link: "https://example.com/text", clickLocation: "Text" },
@@ -113,8 +114,23 @@ describe("message events", () => {
         },
       ],
       ["Bounced", { Summary: bounce.Details, BounceID: "7" }],
+      ["SubscriptionChanged", { Origin: "Recipient", SuppressSending: "True" }],
     ]);
     const kinds = runtime.store.state.stats.map((f) => f.kind);
     expect(kinds).toEqual(["sent", "sent", "open", "open", "click", "click", "bounce"]);
+  });
+
+  it("records a spam complaint as a Bounced event", async () => {
+    const { post, runtime, message } = await setup();
+    await post("delivery", {});
+    const complaint = await pastBounce(runtime, message, {
+      id: 9,
+      type: "SpamComplaint",
+      at: runtime.clock.now(),
+    });
+    expect(message.MessageEvents.map((e) => [e.Type, e.Details])).toContainEqual([
+      "Bounced",
+      { Summary: complaint.Description, BounceID: "9" },
+    ]);
   });
 });

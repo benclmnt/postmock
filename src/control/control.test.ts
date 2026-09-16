@@ -39,7 +39,7 @@ describe("POST /control/reset", () => {
     const res = await post("/control/reset", { seed: "nope" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "unknown seed 'nope'; seeds: conformance, empty" });
-    expect(runtime.store.state.servers.size).toBe(1);
+    expect(runtime.store.state.servers.has(CONFORMANCE.serverId)).toBe(true);
   });
 });
 
@@ -48,18 +48,19 @@ describe("POST /control/seed", () => {
     const { runtime, post } = await setup();
     await post("/control/reset", { seed: "empty" });
     expect((await post("/control/seed", { name: "conformance" })).status).toBe(200);
-    expect(runtime.store.state.servers.size).toBe(1);
+    expect(runtime.store.state.servers.has(CONFORMANCE.serverId)).toBe(true);
   });
 
   it("refuses a seed that clashes with the state and keeps the state unchanged", async () => {
     const { runtime, post } = await setup();
+    const servers = [...runtime.store.state.servers.keys()];
     const res = await post("/control/seed", { name: "conformance" });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({
       error: "seed 'conformance' failed: account token postmock-account-token exists",
     });
     expect(runtime.store.state.account.tokens).toEqual([CONFORMANCE.accountToken]);
-    expect(runtime.store.state.servers.size).toBe(1);
+    expect([...runtime.store.state.servers.keys()]).toEqual(servers);
   });
 
   it("names missing fields", async () => {

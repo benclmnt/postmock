@@ -1,6 +1,7 @@
 import type { Plugin } from "../plugins.ts";
+import { recipientsOf } from "../recipients/transitions.ts";
 import type { Bounce, StatsFact } from "../state/types.ts";
-import { recipientsOf, trackedLinks } from "../tracking.ts";
+import { trackedLinks } from "../tracking.ts";
 
 /**
  * Records a Stats API fact for each countable event (docs/06 §2). Facts outlive messages, opens

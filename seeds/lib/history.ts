@@ -1,6 +1,7 @@
+import { recordBounceAt } from "../../src/recipients/transitions.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { newMessageId } from "../../src/state/ids.ts";
-import { suppressionKey } from "../../src/state/store.ts";
+import { findSuppression } from "../../src/state/suppressions.ts";
 import type { Bounce, BounceType, InboundMessage, OutboundMessage } from "../../src/state/types.ts";
 
 // Past traffic for seeds and tests: messages accepted and bounced before "now". Each record fires
@@ -52,6 +53,7 @@ export async function pastSend(
     rawSource: "",
     bulkRequestId: null,
     templateId: null,
+    suppressedRecipients: [],
     ...fields,
   };
   message.rawSource = rawSource(message);
@@ -61,49 +63,25 @@ export async function pastSend(
 }
 
 /**
- * The first To recipient's server bounces the message. `ID` is fixed (docs/11 §5). A hard bounce
- * suppresses the address on the message stream (docs/04 §3).
+ * The first To recipient's server bounces the message at `at`, through the recipient state machine
+ * (a hard bounce suppresses the address). `id` comes from the caller's range (docs/11 §5).
  */
-export async function pastBounce(
+export const pastBounce = (
   runtime: Runtime,
   message: OutboundMessage,
-  { id, type, at }: { id: number; type: Exclude<BounceType, "SMTPApiError">; at: Date },
-): Promise<Bounce> {
-  const bounce: Bounce = {
-    ID: runtime.store.useId("bounce", id),
-    ServerID: message.ServerID,
-    MessageStream: message.MessageStream,
-    MessageID: message.MessageID,
-    Type: type,
-    Tag: message.Tag,
-    Description: "The server was unable to deliver your message.",
-    Details: "smtp;550 5.1.1 The email account that you tried to reach does not exist.",
-    Email: message.To[0]?.Email as string,
-    From: message.From,
-    Subject: message.Subject ?? "",
-    BouncedAt: at,
-    Inactive: type === "HardBounce",
-    CanActivate: true,
-    Content: `Return-Path: <>\r\nSubject: Undeliverable: ${message.Subject}\r\n\r\nbounce dump\r\n`,
-    Metadata: message.Metadata,
-  };
-  runtime.store.state.bounces.set(bounce.ID, bounce);
-  if (type === "HardBounce") {
-    runtime.store.state.suppressions.set(
-      suppressionKey(bounce.ServerID, bounce.MessageStream, bounce.Email),
-      {
-        ServerID: bounce.ServerID,
-        MessageStream: bounce.MessageStream,
-        EmailAddress: bounce.Email,
-        SuppressionReason: "HardBounce",
-        Origin: "Recipient",
-        CreatedAt: at,
-      },
-    );
-  }
-  await runtime.events.emit("bounced", { bounce });
-  return bounce;
-}
+  { id, type, at }: { id: number; type: BounceType; at: Date },
+): Promise<Bounce> =>
+  recordBounceAt(
+    runtime,
+    {
+      message,
+      email: message.To[0]?.Email as string,
+      type,
+      details: "smtp;550 5.1.1 The email account that you tried to reach does not exist.",
+      content: `Return-Path: <>\r\nSubject: Undeliverable: ${message.Subject}\r\n\r\nbounce dump\r\n`,
+    },
+    { id: runtime.store.useId("bounce", id), at },
+  );
 
 /**
  * An SMTP message to a suppressed address: Postmark accepts no message and records an SMTP API
@@ -120,8 +98,9 @@ export async function pastSmtpApiError(
     at: Date;
   },
 ): Promise<Bounce> {
-  const key = suppressionKey(fields.serverId, fields.stream, fields.email);
-  if (!runtime.store.state.suppressions.has(key)) {
+  if (
+    findSuppression(runtime.store.state, fields.serverId, fields.stream, fields.email) === undefined
+  ) {
     throw new Error(`${fields.email} is not suppressed on ${fields.stream}`);
   }
   const bounce: Bounce = {

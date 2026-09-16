@@ -35,7 +35,8 @@ const transport = (options: Record<string, unknown> = {}, port = mock.port) =>
     ...options,
   } as TransportOptions);
 
-// The conformance seed stores REST history; these tests look at SMTP traffic only.
+// The conformance seed stores REST history and a read server's history; these tests look at SMTP
+// traffic on the conformance server only.
 const messages = (): OutboundMessage[] =>
   [...mock.runtime.store.state.outbound.values()].filter((message) => message.channel === "smtp");
 const only = (): OutboundMessage => {
@@ -44,7 +45,9 @@ const only = (): OutboundMessage => {
   return all[0] as OutboundMessage;
 };
 const bounces = (): Bounce[] =>
-  [...mock.runtime.store.state.bounces.values()].filter((bounce) => bounce.Type === "SMTPApiError");
+  [...mock.runtime.store.state.bounces.values()].filter(
+    (bounce) => bounce.Type === "SMTPApiError" && bounce.ServerID === CONFORMANCE.serverId,
+  );
 
 describe("transport and EHLO", () => {
   it("advertises AUTH PLAIN LOGIN CRAM-MD5 and SIZE, and no STARTTLS without a cert", async () => {

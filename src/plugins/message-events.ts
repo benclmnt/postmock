@@ -15,15 +15,6 @@ const messageEvents: Plugin = {
     const outbound = (id: string | null) =>
       id === null ? undefined : runtime.store.state.outbound.get(id);
 
-    // DestinationServer and DestinationIP are left out: postmock delivers to no real server.
-    events.on("delivered", ({ message, recipient, deliveredAt, details }) =>
-      add(message, {
-        Recipient: recipient,
-        Type: "Delivered",
-        ReceivedAt: deliveredAt,
-        Details: { DeliveryMessage: details },
-      }),
-    );
     events.on("bounced", ({ bounce }) => {
       const message = outbound(bounce.MessageID);
       if (bounce.Type === "Transient") {
@@ -42,6 +33,15 @@ const messageEvents: Plugin = {
         });
       }
     });
+    // A complaint is a bounce of type SpamComplaint; the doc lists no own event type (INFERRED).
+    events.on("spamComplaint", ({ bounce }) =>
+      add(outbound(bounce.MessageID), {
+        Recipient: bounce.Email,
+        Type: "Bounced",
+        ReceivedAt: bounce.BouncedAt,
+        Details: { Summary: bounce.Description, BounceID: String(bounce.ID) },
+      }),
+    );
     // Only the stored first open and first click per link appear, like the opens and clicks reads.
     events.on("opened", ({ open }) => {
       if (!runtime.store.state.opens.includes(open)) return;

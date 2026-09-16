@@ -4,7 +4,7 @@ import { createApiApp } from "../../src/http/app.ts";
 import { createRuntime } from "../../src/runtime.ts";
 import { Clock } from "../../src/state/clock.ts";
 import { formatEasternDate } from "../../src/time.ts";
-import { CONFORMANCE } from "../lib/conformance.ts";
+import { READ_SERVER } from "../lib/read-server.ts";
 
 // The read suites need this history (sdk/postmark-dotnet/src/Postmark.Tests/
 // ClientMessageSearchingTests.cs, ClientStatisticsTests.cs, ClientMessage*QueryTests.cs).
@@ -19,7 +19,7 @@ async function setup() {
   const api = createApiApp(runtime);
   return async (path: string) => {
     const res = await api.request(path, {
-      headers: { "X-Postmark-Server-Token": CONFORMANCE.serverToken },
+      headers: { "X-Postmark-Server-Token": READ_SERVER.token },
     });
     expect(res.status).toBe(200);
     // biome-ignore lint/suspicious/noExplicitAny: a test reads response JSON loosely
