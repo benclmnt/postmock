@@ -1,6 +1,7 @@
 {
   "passing": [
     "Accessing server resources using the API Messages API is possible to send a message and access its details via the Messages API",
+    "Accessing server resources using the API Messages API is possible to send a message and dump it via the Messages API",
     "Accessing server resources using the API Messages API is possible to send a message and find it via the Messages API"
   ]
 }

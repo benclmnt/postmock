@@ -5,6 +5,7 @@
     "Client - Signatures getSenderSignature",
     "Client - Signatures editSenderSignature",
     "Client - Signatures deleteSenderSignature",
-    "Client - Signatures resendSenderSignatureConfirmation"
+    "Client - Signatures resendSenderSignatureConfirmation",
+    "Client - Signatures resendSenderSignatureConfirmation (2)"
   ]
 }

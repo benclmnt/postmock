@@ -4,6 +4,7 @@
     "ClientStatisticsTests.Client_CanGetOutboundStatisticsOverview",
     "ClientStatisticsTests.Client_CanGetOutboundStatisticsOverviewWithTimeWindowOrTagFilter",
     "ClientStatisticsTests.Client_CanGetOutboundStatisticsPlatformCounts",
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsReadingTimeCounts",
     "ClientStatisticsTests.Client_CanGetOutboundStatisticsTrackingCounts"
   ]
 }

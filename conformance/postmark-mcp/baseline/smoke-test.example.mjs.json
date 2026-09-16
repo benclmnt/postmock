@@ -13,6 +13,7 @@
     "getDeliveryStats stat=clicks",
     "getDeliveryStats stat=openClients",
     "getDeliveryStats stat=openPlatforms",
+    "getDeliveryStats stat=openReadTimes",
     "getDeliveryStats stat=opens",
     "getDeliveryStats stat=overview",
     "getDeliveryStats stat=sent",
