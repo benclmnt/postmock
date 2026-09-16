@@ -28,7 +28,13 @@ import {
   senderJson,
   senderListItemJson,
 } from "./senders.ts";
-import { definedSettings, deleteServer, findServer, parseServerInput } from "./servers.ts";
+import {
+  definedSettings,
+  deleteServer,
+  editServer,
+  findServer,
+  parseServerInput,
+} from "./servers.ts";
 
 // The account-token API: servers, domains, sender signatures, template push (docs/06 §3.4, §4.2–4.4).
 
@@ -81,13 +87,7 @@ defineRoute({
   auth: "account",
   handler: ({ store, params, body }) => {
     const server = findServer(store.state, params.id as string);
-    const input = parseServerInput(store.state, body, server);
-    // DeliveryType is fixed at create (refs/api_servers-api.md:38).
-    if (input.DeliveryType !== undefined && input.DeliveryType !== server.DeliveryType) {
-      throw new Unsupported("a DeliveryType change: Postmark's answer is not captured");
-    }
-    Object.assign(server, definedSettings(input));
-    return serverJson(server);
+    return serverJson(editServer(store.state, server, body));
   },
 });
 

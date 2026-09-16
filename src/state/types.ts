@@ -6,15 +6,17 @@
 export type TrackLinks = "None" | "HtmlAndText" | "HtmlOnly" | "TextOnly";
 // Lowercase on the wire: the SDK live tests send `red` and read back `red`
 // (sdk/postmark.js/test/integration/Servers.test.ts:57-70; refs/api_servers-api.md:67 example).
-export type ServerColor =
-  | "purple"
-  | "blue"
-  | "turquoise"
-  | "green"
-  | "red"
-  | "yellow"
-  | "grey"
-  | "orange";
+export const SERVER_COLORS = [
+  "purple",
+  "blue",
+  "turquoise",
+  "green",
+  "red",
+  "yellow",
+  "grey",
+  "orange",
+] as const;
+export type ServerColor = (typeof SERVER_COLORS)[number];
 
 export interface Header {
   Name: string;

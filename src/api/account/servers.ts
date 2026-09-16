@@ -3,21 +3,10 @@ import { apiError } from "../../errors.ts";
 import { absent, intLike, parseBody } from "../../http/normalize.ts";
 import { Unsupported } from "../../http/respond.ts";
 import type { State } from "../../state/store.ts";
-import type { Server, ServerColor } from "../../state/types.ts";
+import { SERVER_COLORS, type Server } from "../../state/types.ts";
 import { pathId } from "./paging.ts";
 
 // Servers API (docs/06 §4.2; refs/api_servers-api.md). Messages of summary rows are INFERRED.
-
-const COLORS = [
-  "purple",
-  "blue",
-  "turquoise",
-  "green",
-  "red",
-  "yellow",
-  "grey",
-  "orange",
-] as const satisfies readonly ServerColor[];
 
 /** A doc enum value matched without case (INFERRED), answered in the doc spelling. */
 const oneOf = <T extends string>(values: readonly T[]) =>
@@ -41,7 +30,7 @@ const flag = absent(z.boolean());
 // refs/api_servers-api.md:121-137 (create body); edit takes the same fields but DeliveryType (:256-271).
 const settingsSchema = z.object({
   Name: absent(z.string()),
-  Color: absent(oneOf(COLORS)),
+  Color: absent(oneOf(SERVER_COLORS)),
   SmtpApiActivated: flag,
   RawEmailEnabled: flag,
   DeliveryType: absent(oneOf(["Live", "Sandbox"] as const)),
@@ -104,6 +93,19 @@ export function parseServerInput(state: State, body: unknown, self: Server | nul
     if (others.some((s) => s.InboundDomain.toLowerCase() === domain)) throw apiError(602);
   }
   return input;
+}
+
+/**
+ * Applies an edit body to a server: `PUT /servers/{id}` (account token) and `PUT /server` (server
+ * token) take the same fields. DeliveryType is fixed at create (refs/api_servers-api.md:38).
+ */
+export function editServer(state: State, server: Server, body: unknown): Server {
+  const input = parseServerInput(state, body, server);
+  if (input.DeliveryType !== undefined && input.DeliveryType !== server.DeliveryType) {
+    throw new Unsupported("a DeliveryType change: Postmark's answer is not captured");
+  }
+  Object.assign(server, definedSettings(input));
+  return server;
 }
 
 /** The settings a create or edit sets: absent fields keep their value (docs/08 R9). */
