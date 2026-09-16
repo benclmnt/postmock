@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { composeMime } from "../../src/mime/compose.ts";
 import { recordBounceAt } from "../../src/recipients/transitions.ts";
 import type { Runtime } from "../../src/runtime.ts";
 import { newMessageId } from "../../src/state/ids.ts";
@@ -7,22 +9,24 @@ import type { Bounce, BounceType, InboundMessage, OutboundMessage } from "../../
 // Past traffic for seeds and tests: messages accepted and bounced before "now". Each record fires
 // the event live traffic fires, so message events and stats follow.
 
-/** MIME source for the dump endpoint: headers and the text body. */
-function rawSource(m: OutboundMessage): string {
-  return [
-    `From: ${m.From}`,
-    `To: ${m.To.map((a) => a.Email).join(", ")}`,
-    `Subject: ${m.Subject ?? ""}`,
-    `Date: ${m.ReceivedAt.toUTCString()}`,
-    `X-PM-Message-Id: ${m.MessageID}`,
-    ...(m.Tag === null ? [] : [`X-PM-Tag: ${m.Tag}`]),
-    "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
-    "",
-    m.TextBody ?? "",
-    "",
-  ].join("\r\n");
-}
+/** MIME source for the dump endpoint, with the headers Postmark adds (refs/api_messages-api.md:276). */
+const rawSource = (m: OutboundMessage): string =>
+  composeMime(
+    {
+      from: m.From,
+      to: m.To.map((a) => a.Email),
+      cc: [],
+      subject: m.Subject ?? "",
+      text: m.TextBody ?? "",
+      headers: [
+        ...(m.Tag === null ? [] : [{ name: "X-PM-Tag", value: m.Tag }]),
+        { name: "X-PM-Message-Id", value: m.MessageID },
+        { name: "Message-ID", value: `<${randomUUID()}@mtasv.net>` },
+      ],
+      attachments: [],
+    },
+    m.ReceivedAt,
+  );
 
 /** An outbound message accepted at `ReceivedAt`. */
 export async function pastSend(

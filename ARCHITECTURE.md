@@ -90,7 +90,7 @@ The handler cannot choose another success status.
 | `src/tracking.ts` | Recipient actions: delivery (writes the `Delivered` event), open, click; refuses what a real recipient could not do | built (T4) |
 | `src/plugins/stats.ts`, `src/plugins/message-events.ts` | Stats facts from events; `MessageEvents` for bounces, complaints, subscription changes, first opens and first clicks | built (T4) |
 | `src/webhooks/` | Payloads per RecordType, hook selection, delivery with retries and the attempt log | built |
-| `src/mime/` | `composeMime`: the MIME source of a control inbound message and of a REST send | built |
+| `src/mime/` | `composeMime`: the MIME source of a control inbound message, a REST send and a seeded past send | built |
 | `src/inbound/` | MIME parse, server routing, rules, spam threshold, hook delivery | built |
 | `src/plugins/webhooks.ts` | Subscribes the emitter to every domain event | built |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |

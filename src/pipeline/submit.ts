@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { type ErrorBody, errorBody } from "../errors.ts";
 import { absent, base64, canonicalizeKeys, objectOrEmptyArray } from "../http/normalize.ts";
@@ -244,8 +245,9 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
     return { outcome: "rejected", error: inactiveRecipientsError(uniqueEmails(inactive)) };
   }
 
+  const messageId = newMessageId();
   const message: OutboundMessage = {
-    MessageID: newMessageId(),
+    MessageID: messageId,
     ServerID: auth.server.ID,
     MessageStream: streamId,
     From: draft.From,
@@ -279,7 +281,8 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
     MessageEvents: [],
     channel: submission.channel,
     request: submission.request,
-    rawSource: submission.channel === "smtp" ? submission.rawSource : restSource(outbound, now),
+    rawSource:
+      submission.channel === "smtp" ? submission.rawSource : restSource(outbound, messageId, now),
     bulkRequestId: submission.bulkRequestId,
     templateId: submission.templateId,
     suppressedRecipients: uniqueEmails(inactive),
@@ -296,11 +299,15 @@ function storeOutbound(runtime: Runtime, outbound: ValidOutbound): SubmitResult 
 
 /**
  * The MIME source of a REST send, served by the dump endpoint. The gem live test finds the subject
- * in it (sdk/postmark-gem/spec/integration/api_client_resources_spec.rb:36-40). Headers and layout
- * are INFERRED.
+ * in it (sdk/postmark-gem/spec/integration/api_client_resources_spec.rb:36-40). Postmark adds
+ * `X-PM-Tag` and `X-PM-Message-Id` (refs/api_messages-api.md:276). A `Message-ID` from `Headers`
+ * is kept; otherwise it is `<uuid@mtasv.net>`, as on SMTP (src/smtp/mime.ts, INFERRED). The layout
+ * is INFERRED.
  */
-function restSource({ draft, from, lists }: ValidOutbound, now: Date): string {
+function restSource({ draft, from, lists }: ValidOutbound, messageId: string, now: Date): string {
   const address = (a: Address) => ({ email: a.Email, name: a.Name ?? undefined });
+  const custom = (draft.Headers ?? []).map((h) => ({ name: h.Name, value: h.Value }));
+  const hasMessageId = custom.some((h) => h.name.toLowerCase() === "message-id");
   return composeMime(
     {
       from: address(from),
@@ -310,7 +317,12 @@ function restSource({ draft, from, lists }: ValidOutbound, now: Date): string {
       subject: draft.Subject ?? "",
       text: draft.TextBody,
       html: draft.HtmlBody,
-      headers: (draft.Headers ?? []).map((h) => ({ name: h.Name, value: h.Value })),
+      headers: [
+        ...custom,
+        ...(draft.Tag === undefined ? [] : [{ name: "X-PM-Tag", value: draft.Tag }]),
+        { name: "X-PM-Message-Id", value: messageId },
+        ...(hasMessageId ? [] : [{ name: "Message-ID", value: `<${randomUUID()}@mtasv.net>` }]),
+      ],
       attachments: (draft.Attachments ?? []).map((a) => ({
         name: a.Name,
         content: a.Content.toString("base64"),

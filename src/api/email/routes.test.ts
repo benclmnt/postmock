@@ -61,6 +61,7 @@ describe("POST /email", () => {
       Cc: "c@example.com",
       Bcc: "hidden@example.com",
       HtmlBody: "<p>Hello</p>",
+      Tag: "orders",
       Headers: [{ Name: "X-Custom", Value: "1" }],
       Attachments: [{ Name: "a.txt", Content: "aGk=", ContentType: "text/plain" }],
     };
@@ -76,6 +77,9 @@ describe("POST /email", () => {
     expect(mail.text?.trim()).toBe("Hello");
     expect(mail.html).toBe("<p>Hello</p>");
     expect(mail.headers.get("x-custom")).toBe("1");
+    expect(mail.headers.get("x-pm-tag")).toBe("orders");
+    expect(mail.headers.get("x-pm-message-id")).toBe(MessageID);
+    expect(mail.messageId).toMatch(/^<[0-9a-f-]{36}@mtasv\.net>$/);
     expect(mail.attachments.map((a) => a.content.toString())).toEqual(["hi"]);
     expect(source).not.toContain("hidden@example.com");
   });

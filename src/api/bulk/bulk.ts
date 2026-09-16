@@ -40,7 +40,7 @@ export const bulkStatusJson = (bulk: BulkRequest) => ({
   ...(bulk.Subject !== null && { Subject: bulk.Subject }),
 });
 
-/** A bulk message submission. REST sends generate no MIME source yet. */
+/** A bulk message submission. */
 export const bulkSubmission = (
   auth: ServerAuth,
   draft: OutboundDraft,
