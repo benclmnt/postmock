@@ -361,7 +361,7 @@ Doc disagreements:
 | A new server has 3 streams: one Transactional, one Inbound, one Broadcasts. | `postmark.js/test/integration/MessageStreams.test.ts:57-62` SDK (1 create → 4); `postmark-dotnet/src/Postmark.Tests/ClientMessageStreamTests.cs:82,89,103` SDK |
 | Default broadcast id is `broadcast`. | `postmark.js/test/integration/Sending.test.ts:41` SDK (live send); doc examples use `broadcasts` as a custom id, `refs/api_message-streams-api.md:61` DOC (Q7) |
 | Default transactional and inbound streams cannot be archived. | ErrorCode 1229 `refs/api_overview.md:136` DOC |
-| Archive of a stream may fail with "unable to be archived". | ErrorCode 1241 `refs/api_overview.md:146` DOC; `postmark.js/test/integration/MessageStreams.test.ts:66-78` SDK |
+| Archive of a stream may fail with "unable to be archived". The condition is unknown: the postmark.js live test gets 1241 for a new stream; the dotnet and java live tests archive new streams (`docs/08` §6 Q15). | ErrorCode 1241 `refs/api_overview.md:146` DOC; `postmark.js/test/integration/MessageStreams.test.ts:66-78` SDK; `postmark-dotnet/src/Postmark.Tests/ClientMessageStreamTests.cs:114-127` SDK |
 | Archived streams are hidden from the list unless `IncludeArchivedStreams=true`. | `refs/api_message-streams-api.md:33` DOC; `postmark-dotnet/src/Postmark.Tests/ClientMessageStreamTests.cs:101-111` SDK |
 
 ### 4.4 Stream error codes (all HTTP 422)
@@ -521,7 +521,7 @@ Message streams:
 - [ ] `PATCH /message-streams/{id}`: change only `Name`, `Description`, `UnsubscribeHandlingType`; set `UpdatedAt`.
 - [ ] `POST .../archive`: default transactional or inbound → 1229; else return `{ID, ServerID, ExpectedPurgeDate}` with purge = archive + 45 days; accept an empty body and `{}`.
 - [ ] `POST .../unarchive`: return the stream with `ArchivedAt: null`; after the purge date → 1232.
-- [ ] A fault switch returns 1220 (no API permission) and 1241 (unable to archive).
+- [ ] An account switch returns 1220 (no API permission); a fault returns 1241 (unable to archive).
 
 Data removals:
 

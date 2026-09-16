@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Client - Suppressions createSuppression",
+    "Client - Suppressions getSuppressions",
+    "Client - Suppressions getSuppressions - filter",
+    "Client - Suppressions deleteSuppression"
+  ]
+}

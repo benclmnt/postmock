@@ -1,7 +1,8 @@
 # Control API
 
 Status: built — `reset`, `seed`, `clock/advance`, `faults`, `messages`, `account/server-deletion`, `domains/:id/verify`, `senders/:id/verify`, `senders/:id/confirm`.
-Design — the endpoints in `docs/09` §5 that tracks add: servers, suppressions, bounces, events, inbound, webhook attempts.
+Built by T2 — bounces, spam complaints, unsubscribes.
+Design — the endpoints in `docs/09` §5 that tracks add: servers, events, inbound, webhook attempts.
 
 The control API is how a test drives postmock.
 It listens on its own port (default `127.0.0.1:8025`), plain http, no auth.
@@ -39,10 +40,11 @@ A test that passes against postmock then tests code paths that real Postmark can
 | `DELETE /control/smtp/tokens/:accessKey` | — | `{AccessKey}` | A user revokes the token; the next AUTH or transaction on an open connection gets 535. | built (T6) |
 | `POST /control/smtp/faults` | `{stage: connect\|mail\|rcpt\|data, times?, reply: {code, message}}` | `{faults}` | A Postmark SMTP outage: the reply to the client's next command at that stage. `code` is 400–599; 421 also closes the connection. It cannot send an unprompted idle close. | built (T6) |
 | `POST /control/servers` | `{token, streams}` | — | Create a server and its token | design |
-| `POST /control/suppressions` | `{stream, email, reason, origin}` | — | A hard bounce, a complaint, an unsubscribe (`docs/04`) | design (T2) |
-| `POST /control/bounces` | `{messageId, type}` | — | The recipient server bounces | design (T2) |
+| `POST /control/bounces` | `{messageId, recipient, type, details?, dump?}` | `{ID}` | The recipient server bounces a delivered message. `type` is a type a mail server reports whose effect is known: `HardBounce`, `Transient`, `Subscribe`, `AutoResponder`, `AddressChange`, `DnsError`, `SpamNotification`, `OpenRelayTest`, `Unknown`, `SoftBounce`, `VirusNotification`, `ChallengeVerification`. `HardBounce` adds a `HardBounce`/`Recipient` suppression on the message stream (`docs/04` §3.2 T1). A sandboxed message or an address that is not a recipient answers 400. | built (T2) |
+| `POST /control/events/spam-complaint` | `{messageId, recipient, dump?}` | `{ID}` | The recipient marks the message as spam: a `SpamComplaint` bounce that cannot be reactivated, and a `SpamComplaint`/`Recipient` suppression (T3) | built (T2) |
+| `POST /control/events/unsubscribe` | `{messageId, recipient}` | `{suppressed}` | The recipient uses Postmark's unsubscribe link. Only on a Broadcasts stream with `UnsubscribeHandlingType: Postmark`; adds a `ManualSuppression`/`Recipient` suppression (T5). `suppressed: false` when the address already has a row. | built (T2) |
 | `POST /control/events/open`, `/click` | `{messageId, recipient, link?}` | — | The recipient opens or clicks | design (T4) |
-| `POST /control/events/delivery`, `/spam-complaint` | `{messageId, recipient}` | — | The recipient server accepts; the recipient marks spam | design (T4, T5) |
+| `POST /control/events/delivery` | `{messageId, recipient}` | — | The recipient server accepts | design (T4, T5) |
 | `POST /control/inbound` | `{from, to, subject, text, html, attachments}` or raw MIME | — | Mail arrives at the inbound address | design (T5) |
 | `GET /control/webhooks/attempts` | — | — | The webhook delivery log | design (T5) |
 
@@ -55,3 +57,4 @@ It writes state that real Postmark could hold, directly into the store.
 | --- | --- |
 | `empty` | No token, no server |
 | `conformance` | Account token `postmock-account-token`; server ID 10 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs from their range (`docs/11` §5). `70-account.ts`: server deletion enabled; domain 7000 `example.com` with a verified DKIM key; confirmed sender signature 7000 `sender@example.com`. |
+| `conformance`, bounces part | Server 10 has bounce 2001 (`HardBounce`, inactive, with a `HardBounce` suppression for `hardbounce@example.com` on `outbound`) and bounce 2002 (`SoftBounce`, active), both with a dump and a stored message (`seeds/conformance/20-bounces.ts`). |

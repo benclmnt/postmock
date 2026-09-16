@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "Bounce getBounce",
+    "Bounce getBounces",
+    "Bounce getBounceBump",
+    "Bounce invalid getBounce"
+  ]
+}

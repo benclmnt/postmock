@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "Servers - Message Streams archive message stream surfaces API errors",
+      "reason": "Expects ErrorCode 1241 when archiving a new Transactional stream. The dotnet and java live tests archive new streams with success. When Postmark refuses an archive 'at this time' is not known, so postmock archives and offers 1241 only as a fault (docs/08 §6 Q15).",
+      "source": "sdk/postmark.js/test/integration/MessageStreams.test.ts:66-78; sdk/postmark-dotnet/src/Postmark.Tests/ClientMessageStreamTests.cs:114-127; sdk/postmark-java/src/test/java/integration/MessageStreamsTest.java:69-88"
+    }
+  ]
+}

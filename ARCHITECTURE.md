@@ -72,7 +72,9 @@ The handler cannot choose another success status.
 | `src/api/server/` | `GET /server`; `serverJson` for the Servers API | built (`PUT /server`: T5) |
 | `src/api/account/` | Account-token API: servers, domains, sender signatures, template push | built (T7) |
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
-| `src/api/<group>/` | Other API groups | design (T2–T5) |
+| `src/api/bounces/`, `src/api/suppressions/`, `src/api/message-streams/`, `src/api/data-removals/` | Bounce, Suppressions, Message Streams and Data Removals APIs (`docs/04`) | built (T2) |
+| `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events | built (T2) |
+| `src/api/<group>/` | Other API groups | design (T3–T5) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
@@ -98,6 +100,7 @@ A change to a contract below goes through the integrator.
 | Send pipeline | `src/pipeline/submit.ts` | `await submitOutbound(runtime, { auth, channel, draft: OutboundDraft, request, rawSource, bulkRequestId, templateId }): Promise<SubmitResult>` = `validateOutbound(runtime, submission): Validation` then `await acceptOutbound(runtime, outbound)`. `validateOutbound` runs every type, syntax and limit check with no state change; a rejection names its `field` (for the bulk `Errors` map). `acceptOutbound` / `acceptOutbounds` apply account approval and suppressions, store every message, then emit `sent` for each. JSON channels build the draft with `draftFromJson`. Every draft field is `unknown`: the channel passes values as received (REST JSON values, SMTP header text such as `X-PM-TrackOpens`). REST passes `rawSource: ""`. |
 | Event bus | `src/events.ts` | `events.on(name, listener)` → unsubscribe; `await events.emit(name, payload)` awaits each listener in order. Listeners may be async; later work goes on the clock. Names: `sent`, `delivered`, `bounced`, `opened`, `clicked`, `spamComplaint`, `subscriptionChange`, `inboundReceived`, `smtpApiError` |
 | Store | `src/state/store.ts` | `store.state.<collection>`; `store.nextId(kind)` (throws while seeding); `store.useId(kind, id)` for a fixed ID; `store.reset()`; `streamKey`, `suppressionKey` |
+| Suppressions | `src/state/suppressions.ts` | `suppressedAddresses(state, serverId, streamId, emails)` for the send-side 406 check; `findSuppression`. Writes go through `src/recipients/`. |
 | Servers | `src/state/servers.ts` | `createServer(store, now, settings)` and `addAccountToken(store, token)` refuse a token held twice (without case) and `POSTMARK_API_TEST`; `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
 | Entities | `src/state/types.ts` | PascalCase fields are wire fields; camelCase fields are internal; dates are `Date` |
 | Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule. Advances and real-timer tasks run one at a time; `await clock.idle()` waits for them. `reset()` throws during an advance; `checkpoint()` returns a restore function. |
@@ -119,6 +122,10 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | A send to an archived stream | 501, plain text | `docs/04` Q15 |
 | An `/email` body that is not a JSON object; a batch body that is not an array of objects | 501, plain text | `docs/02` §9 Q16 |
 | An unknown `MessageStream` in a batch | 501, plain text; the batch sends nothing | `docs/03` §8 Q14 |
+| Suppressions API or Bounce API state with an unknown effect: delete or re-suppress of an unsubscribe or `Admin` row, a bounce over a row of another reason, activate of an active bounce, any call on an archived stream's suppressions | 501, plain text | `docs/04` Q4, Q9, Q15 |
+| Stream handling type `Postmark` or `Custom` on a Transactional stream; archive of an archived stream; unarchive of an active stream | 501, plain text | `docs/04` §4 |
+| Data removal with a malformed body or an invalid `RequestedFor`; a request stays `Pending` | 501, plain text | `docs/04` Q16 |
+| A purged stream: absent for every call, but unarchive answers 1232 and create may reuse its ID | INFERRED | `docs/04` §4.3 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
 | An unknown server ID on `/servers/{id}`: no servers ErrorCode names it | 501, plain text | capture |
