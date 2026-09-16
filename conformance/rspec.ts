@@ -1,9 +1,10 @@
 // The Ruby runners (postmark-gem, postmark-rails): bundle the suite, preload a route shim with
 // `rspec --require`, and read RSpec's JSON report.
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import {
   copySuite,
   exec,
+  firstLine,
   mustExec,
   PROBE_HOST,
   readKeys,
@@ -16,7 +17,7 @@ import type { ResultsFile, TestResult } from "./results.ts";
 // Postmark::HttpClient takes the host, port and TLS flag as options (postmark-gem
 // lib/postmark/http_client.rb:15-29). The shim forces them to postmock and refuses every other
 // TCP connection, so nothing reaches the network.
-const SHIM = String.raw`require 'net/http'
+const SHIM = `require 'net/http'
 require 'uri'
 require 'postmark'
 
@@ -48,66 +49,50 @@ module PostmockRoute
       super
     end
   end
-
-end
-
-# Writes one tab-separated line per example: status, file, full description, first error line.
-# RSpec's JSON formatter calls ActiveSupport's to_json when rails is loaded, which fails on json 3.
-if defined?(RSpec::Core::Formatters)
-  class PostmockFormatter
-    RSpec::Core::Formatters.register self, :example_passed, :example_failed, :example_pending, :close
-
-    def initialize(output)
-      @output = output
-    end
-
-    def example_passed(notification)
-      write('passed', notification.example, '')
-    end
-
-    def example_pending(notification)
-      write('pending', notification.example, '')
-    end
-
-    def example_failed(notification)
-      exception = notification.example.execution_result.exception
-      write('failed', notification.example, "#{exception.class}: #{exception.message.lines.first}")
-    end
-
-    # Marks a complete report: a crash in RSpec leaves this line out.
-    def close(_notification)
-      @output.puts('done')
-    end
-
-    private
-
-    def write(status, example, error)
-      fields = [status, example.metadata[:file_path], example.full_description, error]
-      @output.puts(fields.map { |f| f.to_s.strip.tr("\t\n", '  ') }.join("\t"))
-    end
-  end
 end
 
 Postmark::HttpClient.prepend(PostmockRoute::HttpClient)
 TCPSocket.singleton_class.prepend(PostmockRoute::RefuseOtherHosts)
 `;
 
-/** `gemfileEnv`: the knobs a suite's Gemfile reads, which decide the bundle. */
+interface RspecReport {
+  examples: Array<{
+    full_description: string;
+    file_path: string;
+    status: "passed" | "failed" | "pending";
+    exception?: { class: string; message: string };
+  }>;
+}
+
+/**
+ * `pins` are gem requirements added next to the suite's own Gemfile, for gems the Gemfile leaves
+ * open and whose newest release breaks the suite. A wrapper Gemfile in `.work/` evaluates the
+ * suite Gemfile and adds them.
+ */
 export async function runRspec(
   sdk: string,
   specs: readonly string[],
-  gemfileEnv: Readonly<Record<string, string>> = {},
+  pins: Readonly<Record<string, string>> = {},
 ): Promise<ResultsFile> {
   const results = stamp(sdk);
   const work = workDir(sdk);
-  const suite = copySuite(sdk, ["Gemfile.lock"]);
+  const suite = copySuite(sdk);
   const shim = `${work}/mock_host.rb`;
   writeFileSync(shim, SHIM);
-  // Gems go outside the suite copy, so rsync never deletes them.
+  const gemfile = `${work}/Gemfile`;
+  writeFileSync(
+    gemfile,
+    [
+      'eval_gemfile File.expand_path("suite/Gemfile", __dir__)',
+      ...Object.entries(pins).map(([gem, requirement]) => `gem "${gem}", "${requirement}"`),
+      "",
+    ].join("\n"),
+  );
+  // Gems and the lock file go outside the suite copy, so rsync never deletes them.
   const env = {
     ...process.env,
     ...readKeys(sdk),
-    ...gemfileEnv,
+    BUNDLE_GEMFILE: gemfile,
     BUNDLE_PATH: `${work}/bundle`,
     BUNDLE_APP_CONFIG: `${work}/bundle-config`,
   };
@@ -123,37 +108,25 @@ export async function runRspec(
         { cwd: suite, env: routed, quiet: true },
       ),
     );
-    const report = `${work}/rspec.tsv`;
+    const report = `${work}/rspec.json`;
     rmSync(report, { force: true });
     const suiteRun = await exec(
       "bundle",
-      [
-        "exec",
-        "rspec",
-        "--require",
-        shim,
-        "--format",
-        "PostmockFormatter",
-        "--out",
-        report,
-        ...specs,
-      ],
+      ["exec", "rspec", "--require", shim, "--format", "json", "--out", report, ...specs],
       { cwd: suite, env: routed, quiet: true },
     );
-    const lines = readFileSync(report, "utf8")
-      .split("\n")
-      .filter((line) => line !== "");
-    if (lines.pop() !== "done") {
-      throw new Error(`rspec did not finish its report:\n${suiteRun.output.slice(0, 4000)}`);
+    if (!existsSync(report) || readFileSync(report, "utf8") === "") {
+      throw new Error(`rspec wrote no report:\n${suiteRun.output.slice(0, 4000)}`);
     }
     sandbox.assertRouted();
 
-    const tests: TestResult[] = lines.map((line) => {
-      const [status, file, description, error] = line.split("\t");
-      const id = `${(file ?? "").replace(/^\.\//, "")} > ${description}`;
-      if (status === "passed") return { id, state: "pass" };
-      if (status === "pending") return { id, state: "skip" };
-      return { id, state: "fail", error: error ?? "" };
+    const { examples } = JSON.parse(readFileSync(report, "utf8")) as RspecReport;
+    const tests: TestResult[] = examples.map((e) => {
+      const id = `${e.file_path.replace(/^\.\//, "")} > ${e.full_description}`;
+      if (e.status === "passed") return { id, state: "pass" };
+      if (e.status === "pending") return { id, state: "skip" };
+      const error = e.exception ? `${e.exception.class}: ${e.exception.message}` : "failed";
+      return { id, state: "fail", error: firstLine(error) };
     });
     return results(tests.sort((a, b) => a.id.localeCompare(b.id)));
   } finally {

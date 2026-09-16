@@ -1,8 +1,7 @@
-import { copyFileSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
 import {
   copySuite,
   exec,
-  installOnce,
   mustExec,
   PROBE_HOST,
   readKeys,
@@ -27,10 +26,7 @@ const SUMMARY = /^\d+\/\d+ passed$/m;
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
-  const suite = copySuite(SDK, ["node_modules", ".postmock-install"]);
-  installOnce(suite, [readFileSync(`${suite}/package-lock.json`)], () => {
-    rmSync(`${suite}/node_modules`, { recursive: true, force: true });
-  });
+  const suite = copySuite(SDK, ["node_modules"]);
   await mustExec("npm", ["ci", "--no-audit", "--no-fund"], { cwd: suite, quiet: true });
 
   const keys = readKeys(SDK);

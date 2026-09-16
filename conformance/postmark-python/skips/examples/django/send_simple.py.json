@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "Django's send_mail and send_mass_mail pass username and password to the email backend, and the backend passes them to SyncServerClient, which rejects them (TypeError before any request).",
+      "source": "sdk/postmark-python/postmark/django/backend.py:62; django/core/mail/__init__.py:82-83"
+    }
+  ]
+}

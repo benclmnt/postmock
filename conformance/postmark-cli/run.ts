@@ -1,14 +1,6 @@
 import { readFileSync, rmSync } from "node:fs";
 import { PUBLIC_IP, startDockerSandbox } from "../docker.ts";
-import {
-  copySuite,
-  installOnce,
-  mustExec,
-  readKeys,
-  stamp,
-  startSandbox,
-  testCa,
-} from "../harness.ts";
+import { copySuite, mustExec, readKeys, stamp, startSandbox, testCa } from "../harness.ts";
 import { type MochaReport, mochaResults } from "../mocha.ts";
 import type { ResultsFile } from "../results.ts";
 
@@ -24,10 +16,7 @@ const IMAGE = "node:20-alpine";
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
-  const suite = copySuite(SDK, ["node_modules", ".postmock-install"]);
-  installOnce(suite, [readFileSync(`${suite}/package-lock.json`)], () => {
-    rmSync(`${suite}/node_modules`, { recursive: true, force: true });
-  });
+  const suite = copySuite(SDK, ["node_modules"]);
   await mustExec("npm", ["ci", "--no-audit", "--no-fund"], { cwd: suite, quiet: true });
   await mustExec("npm", ["run", "build"], { cwd: suite, quiet: true });
 

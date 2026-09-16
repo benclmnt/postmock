@@ -1,14 +1,6 @@
 import { copyFileSync, readFileSync, rmSync } from "node:fs";
 import { PUBLIC_IP, startDockerSandbox } from "../docker.ts";
-import {
-  copySuite,
-  firstLine,
-  installOnce,
-  mustExec,
-  runnerDir,
-  stamp,
-  startSandbox,
-} from "../harness.ts";
+import { copySuite, firstLine, mustExec, runnerDir, stamp, startSandbox } from "../harness.ts";
 import { parseJUnit } from "../reports.ts";
 import type { ResultsFile, TestResult } from "../results.ts";
 
@@ -25,12 +17,9 @@ const REPORT = "build/unit_report.xml"; // phpunit.xml.dist <logging>
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
-  const suite = copySuite(SDK, ["vendor", "composer.lock", ".postmock-install"]);
+  const suite = copySuite(SDK, ["vendor"]);
   // TestingKeys.php:28 reads the keys file from the suite root.
   copyFileSync(`${runnerDir(SDK)}/testing_keys.json`, `${suite}/testing_keys.json`);
-  installOnce(suite, [readFileSync(`${suite}/composer.json`)], () => {
-    rmSync(`${suite}/composer.lock`, { force: true });
-  });
   // Composer resolves from packagist on the host; the container only runs the installed suite.
   await mustExec("composer", ["install", "--no-interaction", "--no-progress"], {
     cwd: suite,

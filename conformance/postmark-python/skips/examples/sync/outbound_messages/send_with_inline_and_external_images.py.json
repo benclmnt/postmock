@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example opens a placeholder file path that exists on no machine; it fails before any request.",
+      "source": "sdk/postmark-python/examples/sync/outbound_messages/send_with_inline_and_external_images.py:28"
+    }
+  ]
+}

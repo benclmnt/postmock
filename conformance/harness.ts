@@ -1,8 +1,7 @@
 // Shared pieces of the SDK runners: the suite copy, a seeded postmock behind a counting front, a
 // trap for traffic that escapes the route, child processes, and the results file.
 import { execFileSync, spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
@@ -36,24 +35,6 @@ export function copySuite(sdk: string, keep: readonly string[] = []): string {
     `${suite}/`,
   ]);
   return suite;
-}
-
-/**
- * Runs `install` only when the inputs changed since the last successful install.
- * `inputs` are file contents and flags that decide the install (lock files, tool versions).
- */
-export function installOnce(
-  dir: string,
-  inputs: readonly (string | Buffer)[],
-  install: () => void,
-) {
-  const hash = createHash("sha256");
-  for (const input of inputs) hash.update(input).update("\0");
-  const stamp = hash.digest("hex");
-  const stampFile = `${dir}/.postmock-install`;
-  if (existsSync(stampFile) && readFileSync(stampFile, "utf8") === stamp) return;
-  install();
-  writeFileSync(stampFile, stamp);
 }
 
 /** Generates the test CA and the server certificate for the Postmark host names (`tools/test-ca.sh`). */

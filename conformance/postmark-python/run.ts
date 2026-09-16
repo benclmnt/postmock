@@ -1,9 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import {
   copySuite,
   exec,
   firstLine,
-  installOnce,
   mustExec,
   PROBE_HOST,
   readKeys,
@@ -30,9 +29,14 @@ const examples = (dir: string): string[] =>
 
 export async function run(): Promise<ResultsFile> {
   const results = stamp(SDK);
-  const suite = copySuite(SDK, [".venv", ".postmock-install"]);
+  const suite = copySuite(SDK, [".venv"]);
   const poetryEnv = { ...process.env, POETRY_VIRTUALENVS_IN_PROJECT: "true" };
-  installOnce(suite, [readFileSync(`${suite}/poetry.lock`)], () => {});
+  // The Python the flake pins (docs/11 B4); poetry otherwise takes any Python on PATH.
+  await mustExec("poetry", ["env", "use", "python3.12"], {
+    cwd: suite,
+    env: poetryEnv,
+    quiet: true,
+  });
   // The django extra covers examples/django (pyproject.toml:34).
   await mustExec("poetry", ["install", "--no-interaction", "--all-extras"], {
     cwd: suite,
