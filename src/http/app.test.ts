@@ -55,6 +55,7 @@ defineRoute({
   auth: "server",
   handler: () => ({ At: new Date() }),
 });
+defineRoute({ method: "GET", path: "/test/undefined", auth: "server", handler: () => undefined });
 
 function setup() {
   const runtime = createRuntime();
