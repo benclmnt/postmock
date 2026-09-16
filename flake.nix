@@ -9,6 +9,14 @@
       forAll = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in {
       devShells = forAll (pkgs: {
+        # The server gates only (`pnpm check`, tools/pack-smoke.sh): a small download for CI.
+        node = pkgs.mkShell {
+          packages = with pkgs; [
+            nodejs_24
+            pnpm
+            openssl
+          ];
+        };
         default = pkgs.mkShell {
           packages = with pkgs; [
             nodejs_24

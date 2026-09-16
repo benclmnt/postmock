@@ -1,0 +1,6 @@
+# Settings for the included postmock service.
+services:
+  postmock:
+    environment:
+      # postmock posts webhooks to the `app` service.
+      POSTMOCK_WEBHOOKS_ALLOW_HOSTS: app

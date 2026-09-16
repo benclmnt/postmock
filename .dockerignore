@@ -7,6 +7,7 @@
 !src/
 !seeds/
 !tools/test-ca.sh
+!tools/compose-ca.sh
 !examples/node/package.json
 !examples/node/default-hosts.ts
 **/*.test.ts

@@ -1,10 +1,12 @@
 # postmock as api.postmarkapp.com and smtp.postmarkapp.com on an internal network (docs/01 §3.3
-# option B). A client on the `sandbox` network reaches postmock with Postmark's own host names once
-# it trusts /ca/ca.pem (NODE_EXTRA_CA_CERTS for Node). The network has no route out, so no request
-# reaches real Postmark.
+# option B). A client that joins only the `sandbox` network reaches postmock with Postmark's own
+# host names once it trusts ca.pem from the `ca` volume (NODE_EXTRA_CA_CERTS for Node). The network
+# has no route out.
 #
-#   docker compose run --rm example-node     # the example app sends over REST and SMTP
-#   docker compose down -v                   # drops the CA volume too
+#   docker compose run --rm --build example-node   # the example app sends over REST and SMTP
+#   docker compose --profile example down -v       # drops the CA volumes too
+#
+# An application's own Compose file includes this file: examples/compose/compose.yaml.
 
 name: postmock
 
@@ -12,7 +14,7 @@ services:
   ca:
     build: { context: ., target: ca }
     network_mode: none
-    volumes: [ca:/ca]
+    volumes: [ca:/ca, tls:/tls]
 
   postmock:
     build: .
@@ -22,16 +24,18 @@ services:
     environment:
       POSTMOCK_SEED: conformance
       POSTMOCK_HTTPS_PORT: "443"
-      POSTMOCK_HTTPS_TLS_KEY: /ca/key.pem
-      POSTMOCK_HTTPS_TLS_CERT: /ca/cert.pem
+      POSTMOCK_HTTPS_TLS_KEY: /tls/key.pem
+      POSTMOCK_HTTPS_TLS_CERT: /tls/cert.pem
       # Postmark's SMTP ports (docs/07 §1.2).
       POSTMOCK_SMTP_PORTS: "25,587,2525"
-      POSTMOCK_SMTP_TLS_KEY: /ca/key.pem
-      POSTMOCK_SMTP_TLS_CERT: /ca/cert.pem
-    volumes: [ca:/ca:ro]
+      POSTMOCK_SMTP_TLS_KEY: /tls/key.pem
+      POSTMOCK_SMTP_TLS_CERT: /tls/cert.pem
+    # Only postmock mounts the server key; clients mount `ca`, which holds only ca.pem.
+    volumes: [tls:/tls:ro]
     # The non-root user binds 25 and 443.
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
+    # The control listener binds last, so its answer means every listener is up.
     healthcheck:
       test:
         - CMD
@@ -62,3 +66,4 @@ networks:
 
 volumes:
   ca:
+  tls:

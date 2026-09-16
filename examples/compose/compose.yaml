@@ -1,0 +1,29 @@
+# An application's own Compose file that tests against postmock through Postmark's host names
+# (docs/01 §3.3 option B). Needs Docker Compose 2.20 or later for `include`.
+#
+#   docker compose -f examples/compose/compose.yaml run --rm --build app
+#
+# `include` brings in postmock's services, the `sandbox` network and the `ca` volume. A service of
+# this file cannot redefine an included service, so postmock settings go in an override file listed
+# with the include.
+
+include:
+  - path:
+      - ../../compose.yaml
+      - postmock.override.yaml
+
+services:
+  app:
+    # Stands for the application under test; here the Node example app.
+    build: { context: ../.., dockerfile: examples/node/Dockerfile }
+    depends_on:
+      postmock: { condition: service_healthy }
+    environment:
+      NODE_EXTRA_CA_CERTS: /ca/ca.pem
+      # A token that only postmock knows: a misrouted request gets 401 and sends nothing.
+      POSTMARK_SERVER_TOKEN: postmock-server-token
+      POSTMOCK_CONTROL_URL: http://postmock:8025
+    volumes: [ca:/ca:ro]
+    # `sandbox` only: a second network gives api.postmarkapp.com a route to real Postmark whenever
+    # postmock is down.
+    networks: [sandbox]
