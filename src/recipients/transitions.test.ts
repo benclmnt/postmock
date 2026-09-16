@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import type { EventMap } from "../events.ts";
 import { suppressedAddresses } from "../state/suppressions.ts";
 import { recipientsKit } from "./testkit.ts";
@@ -17,7 +18,7 @@ async function kit() {
     changes.push(change);
   });
   const suppressed = (email: string, stream = "outbound") =>
-    suppressedAddresses(k.runtime.store.state, 1, stream, [email]).length === 1;
+    suppressedAddresses(k.runtime.store.state, CONFORMANCE.serverId, stream, [email]).length === 1;
   return { ...k, seen, changes, suppressed };
 }
 
@@ -196,8 +197,13 @@ describe("control refusals: only states a real recipient event can produce", () 
   it("refuses an address suppressed at send time, a bounce after a final one, a stream purged since the send, and a queued message", async () => {
     const { deliver, controlPost, call, runtime } = await kit();
     const skipped = deliver("hardbounce@example.com");
+    skipped.suppressedRecipients = ["HardBounce@example.com"];
     const bounce = (messageId: string, recipient: string) =>
       controlPost("/control/bounces", { messageId, recipient, type: "HardBounce" });
+    expect((await bounce(skipped.MessageID, "hardbounce@example.com")).status).toBe(400);
+    await call("POST", `${suppressions}/delete`, {
+      Suppressions: [{ EmailAddress: "hardbounce@example.com" }],
+    });
     expect((await bounce(skipped.MessageID, "hardbounce@example.com")).status).toBe(400);
     const message = deliver("twice@example.com");
     const soft = { messageId: message.MessageID, recipient: "twice@example.com" };

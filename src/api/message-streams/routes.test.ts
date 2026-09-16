@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CONFORMANCE } from "../../../seeds/lib/conformance.ts";
 import { recipientsKit } from "../../recipients/testkit.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -16,7 +17,7 @@ describe("message streams", () => {
     const created = await call("POST", "/message-streams/", create("test", "Broadcasts"));
     expect(created.body).toMatchObject({
       ID: "test",
-      ServerID: 1,
+      ServerID: CONFORMANCE.serverId,
       MessageStreamType: "Broadcasts",
       Description: "This is a dummy description.",
       UpdatedAt: null,

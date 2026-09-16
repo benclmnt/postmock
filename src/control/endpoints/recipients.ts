@@ -2,7 +2,6 @@ import { z } from "zod";
 import { Unsupported } from "../../http/respond.ts";
 import { recipientsOf, recordBounce, recordUnsubscribe } from "../../recipients/transitions.ts";
 import { streamKey } from "../../state/store.ts";
-import { findSuppression } from "../../state/suppressions.ts";
 import type { BounceType, OutboundMessage } from "../../state/types.ts";
 import { type ControlContext, ControlError, controlInput, defineControl } from "../registry.ts";
 
@@ -48,8 +47,7 @@ function delivered(ctx: ControlContext, input: z.output<typeof target>) {
     throw new ControlError(`message ${message.MessageID} is queued, not delivered`);
   }
   // A send skips an address suppressed at send time (docs/04 §3.3).
-  const row = findSuppression(ctx.store.state, message.ServerID, message.MessageStream, email);
-  if (row !== undefined && row.CreatedAt.getTime() <= message.ReceivedAt.getTime()) {
+  if (message.suppressedRecipients.some((r) => r.toLowerCase() === email.toLowerCase())) {
     throw new ControlError(`${email} was suppressed when ${message.MessageID} was sent`);
   }
   return { message, email, stream };
