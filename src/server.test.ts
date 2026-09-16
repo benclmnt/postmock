@@ -48,6 +48,20 @@ describe("startPostmock", () => {
     });
   });
 
+  it("binds the control listener after every other listener", async () => {
+    const plugin: Plugin = {
+      start: async () => ({ name: "extra", url: "x://", close: async () => {} }),
+    };
+    running = await startPostmock({
+      host: "127.0.0.1",
+      apiPort: 0,
+      controlPort: 0,
+      seed: "empty",
+      plugins: [plugin],
+    });
+    expect(Object.keys(running.listeners)).toEqual(["api", "extra", "control"]);
+  });
+
   it("fault `reset` drops the connection", async () => {
     const { listeners } = await start();
     const [apiUrl, controlUrl] = [listeners.api as string, listeners.control as string];

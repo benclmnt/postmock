@@ -1,20 +1,16 @@
 # Architecture
 
-Status: W0 (foundation) is built. T3 adds templates, the Mustachio renderer and bulk sends.
-Built: the REST listener, request normalization, token auth, the ErrorCode table, `GET /server`, the state types and store, the clock, the event bus, the plugin loader, the control API skeleton, and the conformance runners for every official SDK suite.
-Built by T6: the SMTP listener (`src/smtp/`, plugin `src/plugins/smtp.ts`).
-Built by W3: REST over TLS, the `postmock` CLI and the npm package build.
-Design: the other endpoints, the webhook emitter and inbound processing.
-Tracks T1–T8 build the design parts (`docs/11` §3.2).
+Status: built. W0 laid the foundation; tracks T1–T8 built the endpoints, SMTP, webhooks and inbound processing (`docs/11` §3.2); W2 integrated them; W3 added REST over TLS, the CLI, the npm package, the Docker image, Compose and CI.
+Open work: the endpoints marked `design` in `CONTROL-API.md`, and captures (`docs/10`).
 
 postmock is one Node 24 process with one in-memory state.
 Real, unmodified Postmark clients talk to it.
 A test drives it through a separate control port.
 
 ```
-SDK or app ──── REST  http :8080 (built), https :443 (design) ──┐
+SDK or app ──── REST  http :8080, https (built) ─────────────────┐
 SMTP client ─── SMTP  POSTMOCK_SMTP_PORTS, STARTTLS (built) ─────┤
-                                                                ├── postmock ── webhook emitter (design) ──► customer URLs
+                                                                ├── postmock ── webhook emitter (built) ──► customer URLs
 test runner ─── control API  http :8025 (built) ────────────────┘
 ```
 
@@ -25,7 +21,7 @@ The client code never changes (`AGENTS.md` rule 3). Details: `docs/01` §3.3, `d
 | Route | Covers | How | Status |
 | --- | --- | --- | --- |
 | A. Base-URL option | REST; SMTP host and port | Set the SDK host option to the mock (postmark.js `requestHost` + `useHttps: false`; dotnet and php `BASE_URL`) | built (plain http) |
-| B. DNS + test CA | REST and SMTP | A DNS answer sends `api.postmarkapp.com` and `smtp.postmarkapp.com` to the mock; the client trusts a test CA (`tools/test-ca.sh`) | built for the java and cli runners: a Docker network alias and a TLS front in the runner (`conformance/docker.ts`); postmock's own https listener and Compose are design (W3) |
+| B. DNS + test CA | REST and SMTP | A DNS answer sends `api.postmarkapp.com` and `smtp.postmarkapp.com` to the mock; the client trusts a test CA (`tools/test-ca.sh`) | built: `compose.yaml` (network aliases, postmock's https listener), and the java and cli runners (a Docker network alias and a TLS front in the runner, `conformance/docker.ts`) |
 | D. Preload | REST in Node and Ruby | `mocha -r` or `NODE_OPTIONS=--import` replaces `globalThis.fetch`; `rspec --require` sets the `Postmark::HttpClient` host | built for the postmark.js, mcp, gem and rails runners |
 
 Real-send guard: the seeds use tokens that only postmock knows.
@@ -45,6 +41,7 @@ The conformance runners also prove their route before and after each suite (`TES
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
 Every env key is also a CLI flag: `postmock --seed conformance --api-port 0` sets `POSTMOCK_SEED` and `POSTMOCK_API_PORT` (`postmock --help`).
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
+Listeners bind in order api, https, plugins, control: once the control API answers, every listener is up.
 
 ## Request flow (REST)
 
@@ -63,7 +60,7 @@ The handler cannot choose another success status.
 
 | Path | Holds | Status |
 | --- | --- | --- |
-| `src/main.ts` | The `postmock` CLI: flags set env keys, reads env, starts postmock | built |
+| `src/main.ts`, `src/config.ts` | The `postmock` CLI: flags set env keys (a flag wins over the env), env becomes `PostmockConfig`; empty values, non-decimal ports and missing PEM files stop startup | built |
 | `src/server.ts` | `startPostmock(config)`: seed, REST and control listeners | built (SMTP starts as a plugin) |
 | `src/runtime.ts` | `Runtime`: store, events, clock; `createRuntime()` installs every plugin | built |
 | `src/plugins.ts`, `src/plugins/` | Plugin contract and loader; one file per plugin | built (`smtp.ts`, `stats.ts`, `message-events.ts`) |

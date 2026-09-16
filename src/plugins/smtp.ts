@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
 import { z } from "zod";
+import { readPem } from "../config.ts";
 import type { Plugin } from "../plugins.ts";
 import { startSmtp } from "../smtp/listener.ts";
 
@@ -17,8 +17,8 @@ export const smtpEnv = z
       .default("0")
       .transform((v) => v.split(",").map(Number))
       .pipe(z.array(z.int().max(65535))),
-    POSTMOCK_SMTP_TLS_KEY: z.string().optional(),
-    POSTMOCK_SMTP_TLS_CERT: z.string().optional(),
+    POSTMOCK_SMTP_TLS_KEY: z.string().min(1).optional(),
+    POSTMOCK_SMTP_TLS_CERT: z.string().min(1).optional(),
   })
   .refine(
     (env) =>
@@ -41,8 +41,8 @@ const smtp: Plugin = {
         env.POSTMOCK_SMTP_TLS_KEY === undefined || env.POSTMOCK_SMTP_TLS_CERT === undefined
           ? null
           : {
-              key: readFileSync(env.POSTMOCK_SMTP_TLS_KEY, "utf8"),
-              cert: readFileSync(env.POSTMOCK_SMTP_TLS_CERT, "utf8"),
+              key: readPem("POSTMOCK_SMTP_TLS_KEY", env.POSTMOCK_SMTP_TLS_KEY),
+              cert: readPem("POSTMOCK_SMTP_TLS_CERT", env.POSTMOCK_SMTP_TLS_CERT),
             },
     });
   },

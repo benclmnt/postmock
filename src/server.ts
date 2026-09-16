@@ -54,15 +54,7 @@ export async function startPostmock(config: PostmockConfig): Promise<RunningPost
   const runtime = createRuntime(config.plugins ?? PLUGINS);
   await applySeed(runtime, config.seed);
   const api = createApiApp(runtime);
-  const started = [
-    await listen("api", api.fetch, config.host, config.apiPort),
-    await listen(
-      "control",
-      createControlApp(runtime, config.seed).fetch,
-      config.host,
-      config.controlPort,
-    ),
-  ];
+  const started = [await listen("api", api.fetch, config.host, config.apiPort)];
   if (config.https) {
     const { port, key, cert } = config.https;
     started.push(await listen("https", api.fetch, config.host, port, { key, cert }));
@@ -70,6 +62,15 @@ export async function startPostmock(config: PostmockConfig): Promise<RunningPost
   for (const plugin of config.plugins ?? PLUGINS) {
     if (plugin.start) started.push(await plugin.start(runtime, config.host));
   }
+  // Control binds last: once it answers, every listener is up (the Compose health check).
+  started.push(
+    await listen(
+      "control",
+      createControlApp(runtime, config.seed).fetch,
+      config.host,
+      config.controlPort,
+    ),
+  );
   const names = started.map((l) => l.name);
   const duplicate = names.find((n, i) => names.indexOf(n) !== i);
   if (duplicate !== undefined) throw new Error(`two listeners named ${duplicate}`);
