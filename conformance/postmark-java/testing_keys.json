@@ -1,0 +1,4 @@
+{
+  "POSTMARK_API_TOKEN": "postmock-server-token",
+  "POSTMARK_ACCOUNT_TOKEN": "postmock-account-token"
+}

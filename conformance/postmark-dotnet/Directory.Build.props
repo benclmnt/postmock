@@ -1,0 +1,9 @@
+<!-- Copied into the suite root. The suite targets netcoreapp3.1, but its xUnit adapter
+     (xunit.runner.visualstudio 2.8.2) ships only net462 and net6.0 builds, so no test is found.
+     The runner restores the test project for net8.0 and builds it with TargetFramework=net8.0.
+     The Postmark library keeps its own netstandard2.0 target. -->
+<Project>
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'Postmark.Tests'">
+    <TargetFrameworks>net8.0</TargetFrameworks>
+  </PropertyGroup>
+</Project>

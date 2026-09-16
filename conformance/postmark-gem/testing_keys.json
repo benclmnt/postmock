@@ -1,0 +1,6 @@
+{
+  "POSTMARK_API_KEY": "postmock-server-token",
+  "POSTMARK_ACCOUNT_API_KEY": "postmock-account-token",
+  "POSTMARK_CI_SENDER": "sender@example.com",
+  "POSTMARK_CI_RECIPIENT": "recipient@example.com"
+}
