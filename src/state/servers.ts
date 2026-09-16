@@ -9,15 +9,26 @@ const DEFAULT_STREAMS: ReadonlyArray<[id: string, name: string, type: MessageStr
   ["broadcast", "Default Broadcast Stream", "Broadcasts"],
 ];
 
-export type ServerSettings = Partial<Omit<Server, "ID" | "ServerLink" | "InboundAddress">>;
+export type ServerSettings = Partial<Omit<Server, "ServerLink" | "InboundAddress">>;
 
-/** Creates a server with one API token and the default streams. */
+/**
+ * Creates a server with one API token and the default streams. `settings.ID` claims a fixed ID.
+ * A token that another server already holds throws: auth could not tell the two apart.
+ */
 export function createServer(store: Store, now: Date, settings: ServerSettings = {}): Server {
-  const id = store.nextId("server");
+  const tokens = settings.ApiTokens ?? [newToken()];
+  for (const other of store.state.servers.values()) {
+    const taken = other.ApiTokens.find((t) =>
+      tokens.some((u) => u.toLowerCase() === t.toLowerCase()),
+    );
+    if (taken !== undefined) throw new Error(`server ${other.ID} already holds token ${taken}`);
+  }
+  const id =
+    settings.ID === undefined ? store.nextId("server") : store.useId("server", settings.ID);
   const hash = settings.InboundHash ?? newHex(16);
   const server: Server = {
     Name: `Server ${id}`,
-    ApiTokens: [newToken()],
+    ApiTokens: tokens,
     Color: "Purple",
     SmtpApiActivated: true,
     RawEmailEnabled: false,

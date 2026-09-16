@@ -1,2 +1,4 @@
-// One import per control topic. Each file registers its endpoints with `defineControl` (docs/11 §5).
-import "./core.ts";
+import { importAll } from "../discover.ts";
+
+// Loads every `src/control/endpoints/*.ts`; each registers its endpoints with `defineControl`.
+await importAll(new URL("./endpoints/", import.meta.url));

@@ -1,25 +1,22 @@
 import { existsSync, readdirSync } from "node:fs";
+import { importAll } from "../discover.ts";
 import type { Runtime } from "../runtime.ts";
 
 /** A seed builds state that real Postmark could hold, directly in the store (CONTROL-API.md). */
-export type Seed = (runtime: Runtime) => void;
+export type Seed = (runtime: Runtime) => void | Promise<void>;
 
 const SEEDS_DIR = new URL("../../seeds/", import.meta.url);
-const parts = new Map<string, Seed[]>();
 
 /**
- * Adds a part to a composed seed. `seeds/<name>.ts` imports each part file once, so a track adds
- * its own file and one import line (docs/11 §5). A part that needs another part imports it.
+ * A seed made of every part file in `dir`, applied in filename order. Each track adds its own part
+ * file (docs/11 §5). A part uses fixed IDs (`store.useId`), so its IDs do not depend on other parts.
  */
-export function defineSeedPart(seedName: string, part: Seed): void {
-  parts.set(seedName, [...(parts.get(seedName) ?? []), part]);
-}
-
-/** The seed made of every part registered under `seedName`, in import order. */
-export const seedFromParts =
-  (seedName: string): Seed =>
-  (runtime) => {
-    for (const part of parts.get(seedName) ?? []) part(runtime);
+export const seedFromDirectory =
+  (dir: URL): Seed =>
+  async (runtime) => {
+    for (const part of (await importAll(dir)) as Array<{ default: Seed }>) {
+      await part.default(runtime);
+    }
   };
 
 export const seedNames = (): string[] =>
@@ -35,5 +32,5 @@ export async function applySeed(runtime: Runtime, name: string): Promise<void> {
     throw new Error(`unknown seed '${name}'; seeds: ${seedNames().join(", ")}`);
   }
   const module = (await import(file.href)) as { default: Seed };
-  module.default(runtime);
+  await module.default(runtime);
 }

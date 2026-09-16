@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { applySeed, seedNames } from "../src/control/seed.ts";
 import { createRuntime } from "../src/runtime.ts";
 import { streamKey } from "../src/state/store.ts";
-import { CONFORMANCE } from "./conformance/core.ts";
+import { CONFORMANCE } from "./lib/conformance.ts";
 
 describe("conformance seed", () => {
   it("matches the keys the postmark.js runner configures", () => {

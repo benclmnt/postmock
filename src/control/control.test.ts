@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONFORMANCE } from "../../seeds/conformance/core.ts";
+import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import { createApiApp } from "../http/app.ts";
 import { submitOutbound } from "../pipeline/submit.ts";
 import { createRuntime } from "../runtime.ts";
@@ -46,8 +46,20 @@ describe("POST /control/reset", () => {
 describe("POST /control/seed", () => {
   it("adds a seed on top of the state", async () => {
     const { runtime, post } = await setup();
-    await post("/control/seed", { name: "conformance" });
-    expect(runtime.store.state.servers.size).toBe(2);
+    await post("/control/reset", { seed: "empty" });
+    expect((await post("/control/seed", { name: "conformance" })).status).toBe(200);
+    expect(runtime.store.state.servers.size).toBe(1);
+  });
+
+  it("refuses a seed that clashes with the state and keeps the state unchanged", async () => {
+    const { runtime, post } = await setup();
+    const res = await post("/control/seed", { name: "conformance" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "seed 'conformance' failed: server 1 already holds token postmock-server-token",
+    });
+    expect(runtime.store.state.account.tokens).toEqual([CONFORMANCE.accountToken]);
+    expect(runtime.store.state.servers.size).toBe(1);
   });
 
   it("names missing fields", async () => {

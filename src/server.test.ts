@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { CONFORMANCE } from "../seeds/conformance/core.ts";
+import { CONFORMANCE } from "../seeds/lib/conformance.ts";
 import { type RunningPostmock, startPostmock } from "./server.ts";
 
 let running: RunningPostmock | undefined;

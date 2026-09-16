@@ -56,7 +56,7 @@ export interface State {
   /** Key: access key. */
   smtpTokens: Map<string, SmtpToken>;
   faults: Fault[];
-  lastIds: Record<IdKind, number>;
+  usedIds: Record<IdKind, Set<number>>;
 }
 
 function emptyState(): State {
@@ -87,16 +87,16 @@ function emptyState(): State {
     dataRemovals: new Map(),
     smtpTokens: new Map(),
     faults: [],
-    lastIds: {
-      server: 0,
-      bounce: 0,
-      template: 0,
-      webhook: 0,
-      webhookAttempt: 0,
-      inboundRule: 0,
-      domain: 0,
-      sender: 0,
-      dataRemoval: 0,
+    usedIds: {
+      server: new Set(),
+      bounce: new Set(),
+      template: new Set(),
+      webhook: new Set(),
+      webhookAttempt: new Set(),
+      inboundRule: new Set(),
+      domain: new Set(),
+      sender: new Set(),
+      dataRemoval: new Set(),
     },
   };
 }
@@ -109,10 +109,24 @@ export class Store {
     this.state = emptyState();
   }
 
-  /** Integer IDs increase from 1 per kind (docs/04 Mock must: bounce IDs increase). */
+  /** The next unused integer ID of a kind, above every ID used so far (docs/04 Mock must: bounce IDs increase). */
   nextId(kind: IdKind): number {
-    this.state.lastIds[kind] += 1;
-    return this.state.lastIds[kind];
+    const used = this.state.usedIds[kind];
+    const id = Math.max(0, ...used) + 1;
+    used.add(id);
+    return id;
+  }
+
+  /**
+   * Claims a fixed ID. Seed parts use fixed IDs, so the IDs one track seeds do not depend on the
+   * parts other tracks add.
+   */
+  useId(kind: IdKind, id: number): number {
+    const used = this.state.usedIds[kind];
+    if (!Number.isInteger(id) || id < 1 || used.has(id))
+      throw new Error(`${kind} ID ${id} is taken or invalid`);
+    used.add(id);
+    return id;
   }
 }
 

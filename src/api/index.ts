@@ -1,2 +1,4 @@
-// One import per API group. Each group registers its routes with `defineRoute` (docs/11 §5).
-import "./server/routes.ts";
+import { importAll } from "../discover.ts";
+
+// Loads every `src/api/<group>/routes.ts`; each registers its routes with `defineRoute`.
+await importAll(new URL("./", import.meta.url), "routes.ts");
