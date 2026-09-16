@@ -47,4 +47,4 @@ It writes state that real Postmark could hold, directly into the store.
 | Seed | Content |
 | --- | --- |
 | `empty` | No token, no server |
-| `conformance` | Account token `postmock-account-token`; server ID 1 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs from their range (`docs/11` §5). |
+| `conformance` | Account token `postmock-account-token`; server ID 10 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs from their range (`docs/11` §5). |

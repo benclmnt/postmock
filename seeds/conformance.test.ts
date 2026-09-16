@@ -37,7 +37,7 @@ describe("conformance seed", () => {
     expect([...servers.values()].map((s) => s.ApiTokens)).toEqual([[CONFORMANCE.serverToken]]);
     expect(
       ["outbound", "inbound", "broadcast"].map(
-        (id) => streams.get(streamKey(1, id))?.MessageStreamType,
+        (id) => streams.get(streamKey(CONFORMANCE.serverId, id))?.MessageStreamType,
       ),
     ).toEqual(["Transactional", "Inbound", "Broadcasts"]);
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import { createRuntime } from "../runtime.ts";
 import { streamKey } from "../state/store.ts";
 import { ControlError } from "./registry.ts";
@@ -11,7 +12,9 @@ describe("seedAtomically", () => {
     const runtime = createRuntime();
     await runtime.clock.advance(DAY);
     await seedAtomically(runtime, "conformance", { reset: true });
-    const createdAt = runtime.store.state.streams.get(streamKey(1, "outbound"))?.CreatedAt;
+    const createdAt = runtime.store.state.streams.get(
+      streamKey(CONFORMANCE.serverId, "outbound"),
+    )?.CreatedAt;
     expect(Math.abs((createdAt?.getTime() ?? 0) - Date.now())).toBeLessThan(DAY / 2);
   });
 

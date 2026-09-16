@@ -37,7 +37,10 @@ describe("startPostmock", () => {
     const apiUrl = listeners.api as string;
     const res = await getServer(apiUrl);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ID: 1, Name: CONFORMANCE.serverName });
+    expect(await res.json()).toMatchObject({
+      ID: CONFORMANCE.serverId,
+      Name: CONFORMANCE.serverName,
+    });
   });
 
   it("fault `reset` drops the connection", async () => {
