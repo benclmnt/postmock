@@ -31,6 +31,16 @@ describe("R2 path matching", () => {
     expect(table().match("PUT", "/templates/welcome")?.route).toMatchObject({ name: "edit" });
   });
 
+  it("ignores only one trailing slash, not other empty segments", () => {
+    expect(table().match("GET", "//deliverystats")).toBeUndefined();
+    expect(table().match("GET", "/deliverystats//")).toBeUndefined();
+    expect(table().match("GET", "/message-streams//suppressions/dump")).toBeUndefined();
+  });
+
+  it("matches no route for a malformed percent-escape", () => {
+    expect(table().match("GET", "/message-streams/%E0%A4%A/suppressions/dump")).toBeUndefined();
+  });
+
   it("does not match another method or length", () => {
     expect(table().match("POST", "/deliverystats")).toBeUndefined();
     expect(table().match("GET", "/deliverystats/x")).toBeUndefined();

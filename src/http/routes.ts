@@ -30,7 +30,8 @@ export class RouteTable<R extends { method: Method; path: string }> {
     method: string,
     pathname: string,
   ): { route: R; params: Record<string, string> } | undefined {
-    const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    const parts = pathSegments(pathname);
+    if (parts === undefined) return undefined;
     let best: { route: R; params: Record<string, string>; rank: string } | undefined;
     for (const { route, segments } of this.entries) {
       if (route.method !== method.toUpperCase() || segments.length !== parts.length) continue;
@@ -44,6 +45,20 @@ export class RouteTable<R extends { method: Method; path: string }> {
       if (ok && (best === undefined || rank < best.rank)) best = { route, params, rank };
     }
     return best && { route: best.route, params: best.params };
+  }
+}
+
+/**
+ * Decoded segments of a request path. One trailing slash is ignored (docs/08 R2); any other empty
+ * segment (`//email`) or a malformed percent-escape matches no route.
+ */
+function pathSegments(pathname: string): string[] | undefined {
+  const parts = pathname.replace(/^\//, "").replace(/\/$/, "").split("/");
+  if (parts.some((p) => p === "")) return undefined;
+  try {
+    return parts.map(decodeURIComponent);
+  } catch {
+    return undefined;
   }
 }
 

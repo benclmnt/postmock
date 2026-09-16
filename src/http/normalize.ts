@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError } from "../errors.ts";
 import { easternWallTime } from "../time.ts";
+import { Unsupported } from "./respond.ts";
 
 // Request normalization: the accept rules of docs/08 §4.1. SDKs disagree on key case,
 // boolean text and date shapes, so the server accepts every form an official SDK sends.
@@ -87,6 +88,18 @@ export function parseQueryDate(value: string): QueryDate | undefined {
   if (!m) return undefined;
   const [, y, mo, d, h, mi, s, frac, zone] = m;
   const n = (x: string | undefined) => Number(x ?? 0);
+  // Date.UTC rolls 2024-13-45 over into 2025; a field out of range is no date.
+  const probe = new Date(Date.UTC(n(y), n(mo) - 1, n(d), n(h), n(mi), n(s)));
+  if (
+    probe.getUTCFullYear() !== n(y) ||
+    probe.getUTCMonth() !== n(mo) - 1 ||
+    probe.getUTCDate() !== n(d) ||
+    probe.getUTCHours() !== n(h) ||
+    probe.getUTCMinutes() !== n(mi) ||
+    probe.getUTCSeconds() !== n(s)
+  ) {
+    return undefined;
+  }
   const ms = Math.floor(Number(`0.${frac ?? 0}`) * 1000);
   if (h === undefined) return { instant: easternWallTime(n(y), n(mo), n(d)), dateOnly: true };
   if (zone === undefined) {
@@ -146,7 +159,8 @@ export function canonicalizeKeys(schema: unknown, value: unknown): unknown {
       for (const [key, item] of Object.entries(value)) {
         const canonical = byFolded.get(key.toLowerCase());
         const target = canonical ?? key;
-        if (target in out) throw new Error(`body has two spellings of key '${target}'`);
+        // Postmark's answer is not captured; answer 501, not a guess (AGENTS.md rule 5).
+        if (target in out) throw new Unsupported(`body has two spellings of key '${target}'`);
         out[target] = canonical === undefined ? item : canonicalizeKeys(shape[canonical], item);
       }
       return out;
@@ -171,6 +185,16 @@ export function canonicalizeKeys(schema: unknown, value: unknown): unknown {
       return canonicalizeKeys(defOf(def.in).type === "transform" ? def.out : def.in, value);
     case "union":
       return (def.options as unknown[]).reduce((v, option) => canonicalizeKeys(option, v), value);
+    case "intersection":
+      return canonicalizeKeys(def.right, canonicalizeKeys(def.left, value));
+    case "tuple": {
+      if (!Array.isArray(value)) return value;
+      const items = def.items as unknown[];
+      return value.map((v, i) => {
+        const item = i < items.length ? items[i] : def.rest;
+        return item === undefined || item === null ? v : canonicalizeKeys(item, v);
+      });
+    }
     case "lazy":
       return canonicalizeKeys((def.getter as () => unknown)(), value);
     default:

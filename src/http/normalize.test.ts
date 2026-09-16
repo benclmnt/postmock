@@ -14,6 +14,7 @@ import {
   queryDate,
   queryInt,
 } from "./normalize.ts";
+import { Unsupported } from "./respond.ts";
 
 const query = (qs: string) => new Query(new URLSearchParams(qs));
 const bytes = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
@@ -37,7 +38,7 @@ describe("R3 query keys", () => {
     expect(query("tag=a&tag=b").get("tag")).toBe("b");
   });
 
-  it("R6: pick ignores keys outside the schema", () => {
+  it("pick reads the schema keys and ignores others", () => {
     const schema = z.object({ count: queryInt, offset: queryInt });
     expect(query("Count=10&offset=0&unknown=1").pick(schema)).toMatchObject({
       success: true,
@@ -97,6 +98,13 @@ describe("R5 query dates", () => {
     );
   });
 
+  it.each(["2024-13-01", "2024-02-30", "2024-01-01T24:00:00", "2024-01-01T10:60:00"])(
+    "rejects the impossible date %s",
+    (text) => {
+      expect(parseQueryDate(text)).toBeUndefined();
+    },
+  );
+
   it("rejects other text through the zod codec", () => {
     expect(queryDate.safeParse("yesterday").success).toBe(false);
   });
@@ -154,8 +162,24 @@ describe("R8 body key case", () => {
     });
   });
 
-  it("refuses two spellings of one key", () => {
-    expect(() => parseBody(schema, { HtmlBody: "a", htmlbody: "b" })).toThrow("two spellings");
+  it("answers two spellings of one key as Unsupported (not captured)", () => {
+    expect(() => parseBody(schema, { HtmlBody: "a", htmlbody: "b" })).toThrow(Unsupported);
+  });
+
+  it("renames keys inside intersections and tuples", () => {
+    const joined = z.intersection(
+      z.object({ HtmlBody: z.string() }),
+      z.object({ TextBody: z.string() }),
+    );
+    expect(parseBody(joined, { htmlbody: "a", TEXTBODY: "b" }).data).toEqual({
+      HtmlBody: "a",
+      TextBody: "b",
+    });
+    const pair = z.tuple([z.object({ Name: z.string() })], z.object({ Value: z.string() }));
+    expect(parseBody(pair, [{ name: "n" }, { value: "v" }]).data).toEqual([
+      { Name: "n" },
+      { Value: "v" },
+    ]);
   });
 });
 
