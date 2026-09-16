@@ -13,6 +13,7 @@ import type {
   OutboundMessage,
   SenderSignature,
   Server,
+  SmtpFault,
   SmtpToken,
   Suppression,
   Template,
@@ -56,6 +57,7 @@ export interface State {
   /** Key: access key. */
   smtpTokens: Map<string, SmtpToken>;
   faults: Fault[];
+  smtpFaults: SmtpFault[];
   usedIds: Record<IdKind, Set<number>>;
   /** Highest used ID per kind. */
   maxIds: Record<IdKind, number>;
@@ -90,6 +92,7 @@ function emptyState(): State {
     dataRemovals: new Map(),
     smtpTokens: new Map(),
     faults: [],
+    smtpFaults: [],
     usedIds: {
       server: new Set(),
       bounce: new Set(),
