@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder bounce ID 692560173, which no account holds. postmock answers ErrorCode 1001, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/sync/bounces/activate_bounce.py:4"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The python model requires Type and TypeCode on every Bounces item. The doc example has no TypeCode, and its 'All' item has no Type. The doc wins over SDK model code (docs/08 §4.2 E17).",
+      "source": "sdk/postmark-python/examples/sync/bounces/get_delivery_stats.py:4; sdk/postmark-python/postmark/models/bounces/schemas.py:33-39; refs/api_bounce-api.md:41-51"
+    }
+  ]
+}

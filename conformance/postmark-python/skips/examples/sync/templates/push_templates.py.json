@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes placeholder text ('id-of-the-source-server') as the server IDs. Postmark's answer to a server ID that is not an integer is not captured, so postmock answers 501.",
+      "source": "sdk/postmark-python/examples/sync/templates/push_templates.py:11"
+    }
+  ]
+}

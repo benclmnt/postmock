@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The examples run in file order on one postmock, async before sync. The async create_inbound_rule.py already made the rule for spam@example.com: ErrorCode 810.",
+      "source": "sdk/postmark-python/examples/sync/inbound_rules/create_inbound_rule.py:4"
+    }
+  ]
+}

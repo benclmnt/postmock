@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes FromDate 2024-01-01, which is now more than one year ago. Postmark refuses it with ErrorCode 1500.",
+      "source": "sdk/postmark-python/examples/async/stats/outbound_overview.py:18; refs/api_overview.md:199"
+    }
+  ]
+}

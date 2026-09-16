@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The stream examples share the placeholder stream ID my-broadcasts and run in file order on one postmock, async before sync. The async create_stream.py made the stream already: ErrorCode 1230.",
+      "source": "sdk/postmark-python/examples/sync/message_streams/create_stream.py:6"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder data removal ID 42, which no account holds. postmock answers ErrorCode 1301, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/async/data_removals/get_data_removal.py:16"
+    }
+  ]
+}

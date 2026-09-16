@@ -462,8 +462,9 @@ This list merges sections 1–3. A mock that follows it serves every SDK. Items 
 | E12 | Email addresses in responses pass `email-validator`. Avoid `.test` and `.local` domains (INFERRED). | py |
 | E13 | Do not gzip responses | net (INFERRED) |
 | E14 | **decided**: a batch error item is `{ErrorCode, Message}` only, as the docs show (`refs/api_email-api.md:301-313` **DOC**). DOC outranks other SDK code (`docs/11` B3). Consequence: postmark-python `SendResponse` requires `To`, `SubmittedAt` and `MessageID` (`sdk/postmark-python/postmark/models/outbound/schemas.py:96-101` **SDK**), so a python batch with one failed item raises a validation error. A capture (`docs/03` §8 Q14) can reopen this. | py vs docs |
-| E15 | **conflict**: bulk POST `ID` (py) vs `Id` (docs); `Cancelled` status (docs) vs no such value (py) | py vs docs |
+| E15 | **decided**: bulk POST key `Id`, as the docs show (`refs/api_bulk-email.md:189,203` **DOC**) and the dotnet live test reads (`sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:52` **SDK**). The python model reads `ID` (`sdk/postmark-python/postmark/models/outbound/schemas.py:264` **SDK**), so its bulk example is a skip. **conflict**: `Cancelled` status (docs) vs no such value (py) | py vs docs, net |
 | E16 | **conflict**: data-removal `Status` `"Pending"` (docs, java, php, gem tests) vs a number (net) | net vs docs |
+| E17 | **decided**: `/deliverystats` `Bounces` items are `{Name, Count}` for `All` and `{Type, Name, Count}` per type, as the doc example shows (`refs/api_bounce-api.md:41-79` **DOC**). The python model requires `Type` and `TypeCode` on every item (`sdk/postmark-python/postmark/models/bounces/schemas.py:33-39` **SDK**). DOC outranks other SDK code (`docs/11` B3), so the python delivery stats example is a skip. | py vs docs |
 
 ---
 
@@ -519,6 +520,12 @@ T8 owns the runner folders. W2 writes these skips into `conformance/<sdk>/skips/
 | SDK | Test | Reason | Source |
 | --- | --- | --- | --- |
 | dotnet | `AdminClientSenderSignatureTests.AdminClient_ShouldProduceErrorStatusForInvalidSenderSignature` | It expects HTTP 422 for a new signature at `example.com`. The conformance sender domain is `example.com`, so postmock accepts it. Postmark's refusal of reserved domains is not captured. | `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientSenderSignatureTests.cs:78-94` **SDK** |
+| python | `bounces/get_delivery_stats.py` (async, sync) | The python model disagrees with the doc (§4.2 E17). | `sdk/postmark-python/postmark/models/bounces/schemas.py:33-39` **SDK** |
+| python | `outbound_messages/send_outbound_bulk.py` (async, sync) | The python model disagrees with the doc and the dotnet live test (§4.2 E15). | `sdk/postmark-python/postmark/models/outbound/schemas.py:264` **SDK** |
+| python | 56 examples with a placeholder ID (`0`, `42`, `12345`, `1234567`, `692560173`, or text) | No account holds the ID. postmock answers the not-found ErrorCode, or 501 where that answer is not captured. | each skip file |
+| python | 24 stats examples | `FromDate` 2024-01-01 is now more than one year ago: ErrorCode 1500. | `refs/api_overview.md:199` **DOC** |
+| python | `create_domain.py`, `create_signature.py` (async, sync) | They create `example.com` and `sender@example.com`, which the conformance seed holds for every suite. | `seeds/conformance/70-account.ts` |
+| python | 7 create and stream examples | The examples run in file order on one postmock, async before sync; an earlier example made or archived the same placeholder object. | each skip file |
 
 ### 5.3 Harness shape (INFERRED proposal)
 

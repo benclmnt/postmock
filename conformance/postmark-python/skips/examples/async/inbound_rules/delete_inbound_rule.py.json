@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder inbound rule ID 0, which no account holds. postmock answers ErrorCode 812, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/async/inbound_rules/delete_inbound_rule.py:13"
+    }
+  ]
+}

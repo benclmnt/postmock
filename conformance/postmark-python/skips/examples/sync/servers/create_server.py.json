@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The examples run in file order on one postmock, async before sync. The async create_server.py already made the server 'My New Server': ErrorCode 603.",
+      "source": "sdk/postmark-python/examples/sync/servers/create_server.py:6"
+    }
+  ]
+}

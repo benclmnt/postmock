@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes placeholder text as the message ID. No account holds a message with that ID, so postmock answers ErrorCode 701, as Postmark does for an unknown message.",
+      "source": "sdk/postmark-python/examples/sync/inbound_messages/get_inbound_by_id.py:3"
+    }
+  ]
+}

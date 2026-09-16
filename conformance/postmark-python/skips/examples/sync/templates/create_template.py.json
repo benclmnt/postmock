@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The examples run in file order on one postmock, async before sync. The async create_template.py already made the alias welcome-email: ErrorCode 1122.",
+      "source": "sdk/postmark-python/examples/sync/templates/create_template.py:9"
+    }
+  ]
+}

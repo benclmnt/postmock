@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example creates the signature sender@example.com. The conformance seed holds it, the sender of every suite, so postmock answers ErrorCode 504, as Postmark does for a signature the account has.",
+      "source": "sdk/postmark-python/examples/async/signatures/create_signature.py:17; seeds/conformance/70-account.ts"
+    }
+  ]
+}

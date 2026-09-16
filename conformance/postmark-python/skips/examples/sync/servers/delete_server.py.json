@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder server ID 0, which no account holds. Postmark's answer for an unknown server is not captured, so postmock answers 501 (ARCHITECTURE.md deviations).",
+      "source": "sdk/postmark-python/examples/sync/servers/delete_server.py:3"
+    }
+  ]
+}

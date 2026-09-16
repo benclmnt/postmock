@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example creates the domain example.com. The conformance seed holds example.com, the sender domain of every suite, so postmock answers ErrorCode 512, as Postmark does for a domain the account has.",
+      "source": "sdk/postmark-python/examples/async/domains/create_domain.py:17; seeds/conformance/70-account.ts"
+    }
+  ]
+}

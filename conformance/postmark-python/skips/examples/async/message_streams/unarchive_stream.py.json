@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The stream examples share the placeholder stream ID my-broadcasts and run in file order on one postmock, async before sync. The stream is active at this point. Postmark's answer to unarchiving an active stream is not captured, so postmock answers 501 (docs/04 §4).",
+      "source": "sdk/postmark-python/examples/async/message_streams/unarchive_stream.py:13"
+    }
+  ]
+}

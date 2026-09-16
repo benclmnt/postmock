@@ -100,7 +100,7 @@ Notes per runner:
 - postmark-php: `PostmarkClientBounceTest` sleeps 180 s once sending works; allow it.
 - postmark-java: the maven run needs `unit.PostmarkTest` online first. Surefire fetches its JUnit 5 provider only when a test runs.
 - postmark-mcp: the runner writes `.env` from `testing_keys.json`, copies `smoke-test.example.mjs`, and sets `SENDER` and `RECIPIENT` in the mutating copy, as the file headers ask. Each `PASS`/`FAIL` line is a test; `<file> > finishes` fails when the script stops before its summary. A check named `skipped` is a skip.
-- postmark-python: the SDK has no live suite (`docs/08` §5.1). A test is `examples/<path>.py > exits 0`. Examples keep their placeholder IDs (`0`), so a pass shows a working call path, not found data.
+- postmark-python: the SDK has no live suite (`docs/08` §5.1). A test is `examples/<path>.py > exits 0`. The examples run in file order on one postmock, async before sync, so an example sees what an earlier one created. An example whose placeholder ID, name or date no account holds is a skip (`docs/08` §5.2a).
 - Every runner that runs mocha drops the suite's `--retries`.
 
 ### Add a runner

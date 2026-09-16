@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder template ID 12345, which no account holds. postmock answers ErrorCode 1101, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/sync/templates/get_template.py:3"
+    }
+  ]
+}

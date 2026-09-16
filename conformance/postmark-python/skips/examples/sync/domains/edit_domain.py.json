@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder domain ID 0, which no account holds. postmock answers ErrorCode 510, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/sync/domains/edit_domain.py:3"
+    }
+  ]
+}

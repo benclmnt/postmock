@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The example hard-codes the placeholder webhook ID 0, which no account holds. postmock answers ErrorCode 1352, as Postmark does for an unknown ID.",
+      "source": "sdk/postmark-python/examples/async/webhooks/edit_webhook.py:13"
+    }
+  ]
+}

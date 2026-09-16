@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "exits 0",
+      "reason": "The python model reads the bulk request ID from 'ID'. The doc and the dotnet live test use 'Id'. They win over SDK model code (docs/08 §4.2 E15).",
+      "source": "sdk/postmark-python/examples/sync/outbound_messages/send_outbound_bulk.py:8; sdk/postmark-python/postmark/models/outbound/schemas.py:264; refs/api_bulk-email.md:189,203; sdk/postmark-dotnet/src/Postmark.Tests/ClientBulkSendingTests.cs:52"
+    }
+  ]
+}
