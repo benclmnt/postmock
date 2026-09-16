@@ -3,6 +3,7 @@
     "ClientBounceTests.Client_CanGetABounceDump",
     "ClientBounceTests.Client_CanGetBounceDeliveryStats",
     "ClientBounceTests.Client_CanGetBounces",
+    "ClientBounceTests.Client_CanGetOutboundBounceCounts",
     "ClientBounceTests.Client_CanRetrieveSingleBounce"
   ]
 }

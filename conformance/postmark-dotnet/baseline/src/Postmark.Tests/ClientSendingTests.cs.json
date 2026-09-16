@@ -4,6 +4,7 @@
     "ClientSendingTests.Client_CanSendAPostmarkMessage",
     "ClientSendingTests.Client_CanSendAPostmarkMessageWithEmptyTrackLinks",
     "ClientSendingTests.Client_CanSendASingleMessage",
+    "ClientSendingTests.Client_CanSendAndGetOutboundMessageDetailsWithMetadata",
     "ClientSendingTests.UnknownMessageStream_ThrowsException"
   ]
 }

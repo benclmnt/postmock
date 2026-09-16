@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "ClientBulkSendingTests.Client_CanRetrieveBulkEmailStatus",
+    "ClientBulkSendingTests.Client_CanSendABulkEmail",
+    "ClientBulkSendingTests.Client_CanSendABulkEmailWithoutTemplateModel"
+  ]
+}

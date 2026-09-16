@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "ClientMessageSearchingTests.Client_CanGetInboundMessageDetail",
+    "ClientMessageSearchingTests.Client_CanGetMessageDump",
+    "ClientMessageSearchingTests.Client_CanGetOutboundMessageDetails",
+    "ClientMessageSearchingTests.Client_CanSearchInboundMessages",
+    "ClientMessageSearchingTests.Client_CanSearchOutboundMessages"
+  ]
+}

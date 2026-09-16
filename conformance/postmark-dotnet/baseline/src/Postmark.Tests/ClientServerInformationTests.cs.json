@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "ClientServerInformationTests.ClientCanUpdateServerName",
+    "ClientServerInformationTests.Client_CanGetEditAServerInformation",
+    "ClientServerInformationTests.Client_CanGetServerInformation"
+  ]
+}

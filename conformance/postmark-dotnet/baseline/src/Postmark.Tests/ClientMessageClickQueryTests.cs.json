@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "ClientMessageClickQueryTests.Client_CanGetClickStatsForMessages",
+    "ClientMessageClickQueryTests.Client_CanGetClickStatsForSingleMessage"
+  ]
+}

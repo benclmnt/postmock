@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsBounceCounts",
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsOverview",
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsOverviewWithTimeWindowOrTagFilter",
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsPlatformCounts",
+    "ClientStatisticsTests.Client_CanGetOutboundStatisticsTrackingCounts"
+  ]
+}

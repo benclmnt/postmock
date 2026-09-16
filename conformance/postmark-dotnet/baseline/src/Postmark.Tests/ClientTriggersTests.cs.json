@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "ClientTriggersTests.Client_CanCreateInboundTrigger",
+    "ClientTriggersTests.Client_CanDeleteInboundTrigger",
+    "ClientTriggersTests.Client_CanGetInboundTrigger",
+    "ClientTriggersTests.Client_CanListInboundTriggers"
+  ]
+}

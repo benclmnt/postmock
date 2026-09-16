@@ -1,0 +1,18 @@
+{
+  "passing": [
+    "ClientTemplateTests.ClientCanCreateLayoutTemplates",
+    "ClientTemplateTests.ClientCanCreateTemplate",
+    "ClientTemplateTests.ClientCanDeleteTemplate",
+    "ClientTemplateTests.ClientCanEditLayoutTemplateProperty",
+    "ClientTemplateTests.ClientCanEditTemplate",
+    "ClientTemplateTests.ClientCanGetListTemplates",
+    "ClientTemplateTests.ClientCanGetTemplate",
+    "ClientTemplateTests.ClientCanSendBatchWithTemplates",
+    "ClientTemplateTests.ClientCanSendTemplateWithStringModel",
+    "ClientTemplateTests.ClientCanSendWithTemplate",
+    "ClientTemplateTests.ClientCanUseLayoutTemplatesWhenValidating",
+    "ClientTemplateTests.ClientCanValidateTemplate",
+    "ClientTemplateTests.ClientCantSendBatchWithInvalidTemplateAlias",
+    "ClientTemplateTests.GetTemplatesReturnsProperResults"
+  ]
+}

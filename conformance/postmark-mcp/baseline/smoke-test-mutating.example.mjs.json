@@ -1,10 +1,28 @@
 {
   "passing": [
     "createSuppressions",
+    "createTemplate (Layout)",
+    "createTemplate (with layoutTemplate binding)",
+    "createWebhook",
     "deleteSuppressions",
+    "deleteTemplate",
+    "deleteTemplate (Layout)",
+    "deleteWebhook",
+    "editTemplate",
+    "editTemplate (rebind layout)",
+    "editTemplate (unbind layout via null)",
     "finishes",
+    "getTemplate (by alias)",
+    "getTemplate (confirms layout unbound)",
+    "getTemplate (surfaces Layout binding)",
     "listSuppressions (call succeeds)",
+    "listTemplates (rows include Layout binding)",
+    "listWebhooks (sees new hook)",
     "sendBatch (3 messages, formatter renders)",
-    "sendEmail (real send)"
+    "sendBatchWithTemplate (real sends)",
+    "sendEmail (real send)",
+    "sendEmailWithTemplate (real send)",
+    "validateTemplate (invalid surfaced)",
+    "validateTemplate (valid)"
   ]
 }

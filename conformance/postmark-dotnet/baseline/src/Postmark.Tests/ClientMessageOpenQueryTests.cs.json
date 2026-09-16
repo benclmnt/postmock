@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "ClientMessageOpenQueryTests.Client_CanGetOpenStatsForMessages",
+    "ClientMessageOpenQueryTests.Client_CanGetOpenStatsForSingleMessage"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "ClientWebhookTests.ClientCanCreateConfiguration",
+    "ClientWebhookTests.ClientCanDeleteWebhookConfigurations",
+    "ClientWebhookTests.ClientCanEditConfiguration",
+    "ClientWebhookTests.ClientCanGetWebhookConfiguration",
+    "ClientWebhookTests.ClientCanListWebhookConfigurations"
+  ]
+}
