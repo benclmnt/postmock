@@ -77,10 +77,11 @@ export interface QueryDate {
 }
 
 const DATE_RE =
-  /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,7}))?)? ?(Z|[+-]\d{2}:?\d{2})?)?$/;
+  /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,7}))?)? ?(Z|[+-]\d{2}:?\d{2})?)?$/;
 
 /**
- * `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, and `...SS.fffffff` (docs/08 R5). A zoneless value is US
+ * `YYYY-MM-DD`, `YYYY-MM-DDTHH:MM:SS`, and `...SS.fffffff` (docs/08 R5). Month and day may have one
+ * digit: the postmark.js live stats test sends `2026-9-7`. A zoneless value is US
  * Eastern time (docs/02 §7.1). postmark.js sends `Date#toISOString()`, which carries `Z`.
  */
 export function parseQueryDate(value: string): QueryDate | undefined {

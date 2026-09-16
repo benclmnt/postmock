@@ -79,6 +79,10 @@ describe("R5 query dates", () => {
     });
   });
 
+  it("reads a date with one-digit month and day (postmark.js MessageStatistics test)", () => {
+    expect(parseQueryDate("2020-2-1")).toEqual(parseQueryDate("2020-02-01"));
+  });
+
   it("reads a zoneless date-time as Eastern time", () => {
     expect(parseQueryDate("2021-07-01T12:00:00")?.instant).toEqual(
       new Date("2021-07-01T16:00:00Z"),
