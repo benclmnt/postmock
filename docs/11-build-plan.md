@@ -25,7 +25,7 @@ SDK requirements: .NET tests target `netcoreapp3.1` (run with `DOTNET_ROLL_FORWA
 | `src/http/` | W0 | App factory, request normalization (path, query and body key case; booleans; dates), JSON responder, auth middleware, route registry |
 | `src/errors.ts` | W0 | The full ErrorCode table (`docs/02`): code → HTTP status → `Message` template |
 | `src/state/` | W0 | Entity types for the whole surface, the `Store`, id generators, the virtual clock |
-| `src/pipeline/` | W0 contract, T1 body | `submitOutbound()`: validate → suppression check → store → emit events |
+| `src/pipeline/` | W0 contract, T1 body | `validateOutbound()` (data checks, no state change), `acceptOutbound()` (approval, suppression check, store, emit events), `submitOutbound()` (both) |
 | `src/events.ts` | W0 | Typed event bus: sent, delivered, bounced, opened, clicked, spamComplaint, subscriptionChange, inboundReceived, smtpApiError |
 | `src/api/<group>/` | T1–T5, T7 | One folder per API group: `routes.ts`, `schemas.ts`, unit tests |
 | `src/render/` | T3 | Mustachio renderer |
@@ -70,7 +70,7 @@ Each track ends with a fresh-context review, then merges through the integrator.
 
 | Track | Scope (`docs/09` modules) | Sources | Exit: tests that must pass |
 | --- | --- | --- | --- |
-| T1 Sending | `submitOutbound` body; `POST /email`, `/email/batch`; attachments, headers, metadata, tracking flags; 300/406/411/1235 errors; partial suppression | `docs/03`, `docs/01` §4 | postmark.js `Sending` (non-template); php `PostmarkClientEmailTest`; rails `delivery_spec`, `batch_delivery_spec` |
+| T1 Sending | `validateOutbound`, `acceptOutbound`, `submitOutbound`; `POST /email`, `/email/batch`; attachments, headers, metadata, tracking flags; 300/406/411/1235 errors; partial suppression | `docs/03`, `docs/01` §4 | postmark.js `Sending` (non-template); php `PostmarkClientEmailTest`; rails `delivery_spec`, `batch_delivery_spec` |
 | T2 Suppressions, bounces, streams, data removals | State transitions T1–T17 (`docs/04` §3.2); bounces API; streams CRUD, archive; suppressions; data removals | `docs/04` | postmark.js `Suppressions`, `Bounce`, `MessageStreams`, `DataRemoval`; dotnet `ClientSuppressionTests`, `ClientBounceTests`, `ClientMessageStreamTests`; java `SuppressionsTest`, `BounceTest`, `MessageStreamsTest` |
 | T3 Templates and bulk | Templates CRUD, validate, layouts; Mustachio renderer; `withTemplate`, `batchWithTemplates`; bulk send and status | `docs/03`, `docs/06` §3 | postmark.js `Templates`; dotnet `ClientTemplateTests`, `ClientBulkSendingTests`; php `PostmarkClientTemplatesTest`; java `TemplateTest`, `TemplatedMessageTest` |
 | T4 Messages, events, stats | Outbound and inbound search, details, dump; opens, clicks; stats aggregation from events; paging caps | `docs/06` §1–2 | postmark.js `Messages`, `MessagesOpens`, `MessageStatistics`, `ClickStatistics`; dotnet `ClientMessage*Tests`, `ClientStatisticsTests`; gem `api_client_messages_spec` |
@@ -80,7 +80,7 @@ Each track ends with a fresh-context review, then merges through the integrator.
 | T8 Conformance runners | `conformance/` for dotnet, php, java (hosts + TLS in a container), gem, rails, cli (TLS), mcp (fetch shim), python (examples runner); the `conformance` seed | `docs/08` §5 | Each runner produces a results file; no suite fails for a harness reason |
 
 Dependencies inside W1:
-- T3, T6 and the bulk part of T3 call `submitOutbound`. They work against the W0 stub until T1 merges.
+- T3 and T6 call `submitOutbound`; T3 bulk calls `validateOutbound` for the whole request first, then `acceptOutbounds`. They work against the W0 stub until T1 merges.
 - T4 stats read events. They use events published by the W0 stub until T1 and T5 merge.
 - T8 needs no track. Its runners show red tests that tell the other tracks what to fix.
 

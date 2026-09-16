@@ -461,7 +461,7 @@ This list merges sections 1–3. A mock that follows it serves every SDK. Items 
 | E11 | Batch endpoints return 200 with an array. Per-item errors go inside the array. | all |
 | E12 | Email addresses in responses pass `email-validator`. Avoid `.test` and `.local` domains (INFERRED). | py |
 | E13 | Do not gzip responses | net (INFERRED) |
-| E14 | **decided**: a batch error item is `{ErrorCode, Message}` only, as the docs show (`refs/api_email-api.md:301-313` **DOC**). DOC outranks other SDK code (`docs/11` B3). Consequence: postmark-python `SendResponse` requires `To`, `SubmittedAt` and `MessageID` (`sdk/postmark-python/postmark/models/outbound/schemas.py:96-101` **SDK**), so a python batch with one failed item raises a validation error. A capture (Q3) can reopen this. | py vs docs |
+| E14 | **decided**: a batch error item is `{ErrorCode, Message}` only, as the docs show (`refs/api_email-api.md:301-313` **DOC**). DOC outranks other SDK code (`docs/11` B3). Consequence: postmark-python `SendResponse` requires `To`, `SubmittedAt` and `MessageID` (`sdk/postmark-python/postmark/models/outbound/schemas.py:96-101` **SDK**), so a python batch with one failed item raises a validation error. A capture (`docs/03` §8 Q14) can reopen this. | py vs docs |
 | E15 | **conflict**: bulk POST `ID` (py) vs `Id` (docs); `Cancelled` status (docs) vs no such value (py) | py vs docs |
 | E16 | **conflict**: data-removal `Status` `"Pending"` (docs, java, php, gem tests) vs a number (net) | net vs docs |
 
