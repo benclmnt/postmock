@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "Client - Signatures createSenderSignature",
+    "Client - Signatures getSenderSignatures",
+    "Client - Signatures getSenderSignature",
+    "Client - Signatures editSenderSignature",
+    "Client - Signatures deleteSenderSignature",
+    "Client - Signatures resendSenderSignatureConfirmation"
+  ]
+}

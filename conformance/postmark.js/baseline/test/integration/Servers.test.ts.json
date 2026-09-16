@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "Servers getServers",
+    "Servers createServer",
+    "Servers createServer - delivery type - sandbox",
+    "Servers editServer",
+    "Servers deleteServer"
+  ]
+}

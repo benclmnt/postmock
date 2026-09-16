@@ -371,6 +371,17 @@ Disagreements:
 | POST `/domains/{id}/verifyspf`, `/rotatedkim` | `verifyDomainSPF`, `rotateDomainDKIM` | `refs/api_domains-api.md:534`, `:585` **DOC**; `AccountClient.ts:189-200` **SDK** |
 
 List fields: `Name`, `SPFVerified` (deprecated), `DKIMVerified`, `WeakDKIM`, `ReturnPathDomainVerified`, `ID`. `refs/api_domains-api.md:43-48` **DOC**
+
+Verification (domains and signatures):
+
+| Rule | Source |
+| --- | --- |
+| A new domain or signature has only a pending DKIM key (`DKIMUpdateStatus: Pending`). | `refs/api_domains-api.md:226-246` **DOC** |
+| Rotate or `requestnewdkim` while a key is pending: HTTP 422, ErrorCode 505. The doc example shows 505 inside a 200 body; the live test expects an error. | `sdk/postmark-gem/spec/integration/account_api_client_spec.rb:39-41`, `:76-78` **SDK**; `refs/api_signatures-api.md:596-603` **DOC** |
+| `verifyspf` answers `SPFVerified: true` for a new domain or signature with no DNS. | `account_api_client_spec.rb:33`, `:73` **SDK** |
+| `verifyDkim` and `verifyReturnPath` answer the entity, also when DNS is not ready. | `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientDomainsTests.cs:130-147` **SDK** |
+| A Return-Path on a domain without DNS is accepted at create and edit (no ErrorCode 523). | `sdk/postmark.js/test/integration/Domains.test.ts:63-70` **SDK** |
+| Push to or from server ID 1 is "not found" for the live accounts. Wire texts: `The source and destination servers were not found.`, `The destination server was not found.`, `The source server was not found.` | `sdk/postmark.js/test/integration/Templates.test.ts:178-211`; `sdk/postmark-java/src/test/java/integration/TemplatePushTest.java:22-26` **SDK** |
 Errors 510–523. `refs/api_overview.md:170-180` **DOC**
 
 ### 4.4 Sender Signatures API (account token)

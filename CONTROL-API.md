@@ -1,6 +1,6 @@
 # Control API
 
-Status: built — `reset`, `seed`, `clock/advance`, `faults`, `messages`.
+Status: built — `reset`, `seed`, `clock/advance`, `faults`, `messages`, `account/server-deletion`, `domains/:id/verify`, `senders/:id/verify`, `senders/:id/confirm`.
 Design — the endpoints in `docs/09` §5 that tracks add: servers, suppressions, bounces, events, inbound, webhook attempts.
 
 The control API is how a test drives postmock.
@@ -31,6 +31,10 @@ A test that passes against postmock then tests code paths that real Postmark can
 | `POST /control/clock/advance` | `{ms}` (integer ≥ 0) | `{now}` | Time passes. Runs every task due by the end, in due order, with the clock at each due time, and awaits it. Tasks scheduled during the advance run too when due (chained webhook retries). Concurrent advances run one after another. | built |
 | `POST /control/faults` | `{match: {method, path}, times?, reply}` | `{faults}` | A Postmark outage or network loss. `path` is a route pattern matched like an API route. `times` defaults to 1. `reply` is `{errorCode, status?, family?, message?}`: the envelope `apiError` builds, so only a status and code pair from `docs/02` §4.4 is accepted. `family` is one of the table families; `message` is allowed only for a summary row. 429 has no documented body and cannot be faulted yet. Or `"timeout"` (no answer until the client gives up) or `"reset"` (socket destroyed). | built |
 | `GET /control/messages` | `?to=&tag=&channel=rest\|smtp` | `{Messages: [{MessageID, ServerID, MessageStream, Channel, SubmittedAt, Request}]}` | The Activity page. `Request` is the request JSON (REST) or raw MIME (SMTP). `to` matches To, Cc or Bcc without case. | built |
+| `POST /control/account/server-deletion` | `{enabled}` | `{serverDeletionEnabled}` | Support enables or disables server deletion through the API. Off: `DELETE /servers/{id}` answers ErrorCode 604. | built (T7) |
+| `POST /control/domains/:id/verify` | `{dkim?: true, returnPath?: true}` | the domain, as `GET /domains/{id}` | Postmark finds the DNS records. `dkim`: the pending key becomes the active key; an earlier key becomes the revoked key. `returnPath`: `ReturnPathDomainVerified` becomes true. 400 when no key is pending or no Return-Path is set. The `verifyDkim` and `verifyReturnPath` API calls report this state. | built (T7) |
+| `POST /control/senders/:id/verify` | `{dkim?: true, returnPath?: true}` | the signature, as `GET /senders/{id}` | The same for a sender signature | built (T7) |
+| `POST /control/senders/:id/confirm` | — | the signature | The recipient clicks the confirmation link. 400 when already confirmed. | built (T7) |
 | `POST /control/servers` | `{token, streams}` | — | Create a server and its token | design |
 | `POST /control/suppressions` | `{stream, email, reason, origin}` | — | A hard bounce, a complaint, an unsubscribe (`docs/04`) | design (T2) |
 | `POST /control/bounces` | `{messageId, type}` | — | The recipient server bounces | design (T2) |
@@ -47,4 +51,4 @@ It writes state that real Postmark could hold, directly into the store.
 | Seed | Content |
 | --- | --- |
 | `empty` | No token, no server |
-| `conformance` | Account token `postmock-account-token`; server ID 10 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs from their range (`docs/11` §5). |
+| `conformance` | Account token `postmock-account-token`; server ID 10 with token `postmock-server-token` and the streams `outbound`, `inbound`, `broadcast` (`seeds/conformance/00-core.ts`). Tracks add part files with fixed IDs from their range (`docs/11` §5). `70-account.ts`: server deletion enabled; domain 7000 `example.com` with a verified DKIM key; confirmed sender signature 7000 `sender@example.com`. |

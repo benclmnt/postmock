@@ -69,8 +69,9 @@ The handler cannot choose another success status.
 | `src/discover.ts` | Imports route, control and seed-part files from disk in filename order | built |
 | `src/api/index.ts` | Loads every `src/api/<group>/routes.ts` | built |
 | `src/api/server/` | `GET /server`; `serverJson` for the Servers API | built (`PUT /server`: T5) |
+| `src/api/account/` | Account-token API: servers, domains, sender signatures, template push | built (T7) |
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
-| `src/api/<group>/` | Other API groups | design (T2–T5, T7) |
+| `src/api/<group>/` | Other API groups | design (T2–T5) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
 | `src/events.ts` | Typed event bus | built |
 | `src/pipeline/` | `validateOutbound` (data checks, no state change), `acceptOutbound` (account approval, suppressions, store, `sent`), `submitOutbound` (both); `draftFromJson`; address lists; 406 wording | built (T1) |
@@ -119,6 +120,11 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | An unknown `MessageStream` in a batch | 501, plain text; the batch sends nothing | `docs/03` §8 Q14 |
 | A response shape nobody captured (a track throws `Unsupported`) | 501, plain text | per route |
 | A body with two spellings of one key (`HtmlBody` and `htmlBody`) | 501, plain text | — |
+| An unknown server ID on `/servers/{id}`: no servers ErrorCode names it | 501, plain text | capture |
+| A field of the wrong JSON type on an account-token body | 501, plain text | capture |
+| `DeliveryType` change on `PUT /servers/{id}`; a signature without `Name`; a successful `requestnewdkim` | 501, plain text | capture |
+| `InboundDomain` on a server: no MX lookup (ErrorCode 610 never occurs) | accepted | — |
+| Domain and signature DNS (DKIM, Return-Path CNAME) | verified only through the control API | — |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 

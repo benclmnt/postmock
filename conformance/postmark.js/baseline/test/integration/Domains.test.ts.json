@@ -1,0 +1,11 @@
+{
+  "passing": [
+    "Client - Domains createDomain",
+    "Client - Domains getDomains",
+    "Client - Domains getDomain",
+    "Client - Domains editDomain",
+    "Client - Domains deleteDomain",
+    "Client - Domains verifyDomainDKIM",
+    "Client - Domains verifyDomainReturnPath"
+  ]
+}
