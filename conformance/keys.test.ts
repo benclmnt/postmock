@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CONFORMANCE } from "../seeds/lib/conformance.ts";
+import { READ_SERVER } from "../seeds/lib/read-server.ts";
 import { applySeed } from "../src/control/seed.ts";
 import { createRuntime } from "../src/runtime.ts";
 
@@ -22,6 +23,8 @@ describe("runner keys", () => {
       ) as Record<string, string>;
       for (const [name, value] of Object.entries(keys)) {
         if (/TOKEN|_KEY$/.test(name)) expect(tokens, name).toContain(value);
+        // The read suites need the seeded message history (seeds/lib/read-server.ts).
+        if (name.startsWith("READ_")) expect(value, name).toBe(READ_SERVER.token);
         if (value.includes("@")) expect(value.split("@")[1], name).toBe(CONFORMANCE.domain);
       }
     },
