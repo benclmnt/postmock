@@ -71,8 +71,10 @@ Cites and per-SDK transport details: [`docs/01`](docs/01-client-reachability.md)
 
 ### Sender addresses
 
-As on Postmark, a send `From` must be on a verified domain or be a confirmed sender signature.
-Any other `From` gets HTTP 422 with ErrorCode 400 (on SMTP: an `SMTPApiError` bounce).
+As on Postmark, a send `From` must be on a DKIM-verified domain or be a confirmed sender signature.
+A `From` that no account domain or signature matches gets HTTP 422 with ErrorCode 400 ([`docs/03`](docs/03-sending.md) §3.4, CAPTURED).
+Other states that no capture covers answer 501: an unverified domain, a subdomain, an unconfirmed signature.
+SMTP accepts every message and records problems as bounces (`refs/user-guide_send-email-with-smtp.md:56`); the `SMTPApiError` bounce with ErrorCode 400 is INFERRED.
 The `POSTMARK_API_TEST` token skips this check.
 
 | Need | How |

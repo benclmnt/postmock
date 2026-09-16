@@ -129,7 +129,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | --- | --- | --- |
 | Unknown route | 404, plain text | `docs/02` §9 Q9 |
 | `POSTMARK_API_TEST` on a route that does not accept it yet | 501, plain text | `docs/02` §9 Q8 |
-| A send `From` whose only cover is an unconfirmed sender signature | 501, plain text | `docs/03` §3.4, §8 Q3 |
+| A send `From` with an unconfirmed sender signature, an account domain without verified DKIM, or a subdomain of an account domain; a message that fails a data check and the sender check | 501, plain text | `docs/03` §3.4, §8 Q3 |
 | A message over 10 MB, a body part over 5 MB, a batch over 50 MB (HTTP 413) | 501, plain text | `docs/02` §9 Q10 |
 | A send to an archived stream | 501, plain text | `docs/04` Q15 |
 | An `/email` body that is not a JSON object; a batch body that is not an array of objects | 501, plain text | `docs/02` §9 Q16 |

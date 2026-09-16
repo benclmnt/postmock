@@ -286,9 +286,9 @@ Notes:
 
 ### 3.3 Check order
 
-No source gives the order. Proposed mock order: token (401) → headers (415) → size (413) → JSON (402) → unknown fields (403) → batch count (410) → per-message: stream (1235/1236) → From signature → address syntax (300) → recipient count (300) → body present (300) → metadata/tag/subject limits (300) → attachments (411, 300) → template (11xx) → suppression (406). **INFERRED**
+No source gives the order. Proposed mock order: token (401) → headers (415) → size (413) → JSON (402) → unknown fields (403) → batch count (410) → per-message: stream (1235/1236) → address syntax (300) → recipient count (300) → body present (300) → metadata/tag/subject limits (300) → attachments (411, 300) → template (11xx) → suppression (406). **INFERRED** The sender check (400) has no place in this order: a message that fails a data check and the sender check has no captured answer (§3.4).
 
-postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → `To` present (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → sender (400, §3.4; not for the test token) → end of `validateOutbound`; test token stops here → account approval (413, 412) → suppression (406). **INFERRED**
+postmock order (`src/pipeline/submit.ts`): token (401) → JSON (402) → batch count (410) → batch size (413) → per message: field types (403) → size (413) → stream (1235, 1236) → `From` (300) → `To`, `Cc`, `Bcc`, `ReplyTo` syntax (300) → `To` present (300) → recipient count (300) → body present (300) → `From`/`Subject`/`Tag`/metadata limits (300) → attachment extension (411) → sender (400, §3.4; not for the test token; a data error beside a sender error is 501) → end of `validateOutbound`; test token stops here → account approval (413, 412) → suppression (406). **INFERRED**
 
 ### 3.4 Sender check
 
@@ -303,13 +303,17 @@ Capture: `captures/20260916T231736Z-from-verification/`. The account had a verif
 | `<address>` for a named `From` (`Name <addr>`) is the bare address | **INFERRED** |
 | `POST /email/batch` with that message: HTTP 200, item `{ErrorCode: 400, Message}` with the same text, no other keys | `02-batch-unverified-domain` **CAPTURED** |
 | A verified Domain authorizes any local part: a never-registered local part sends (200, `OK`) | `03-single-verified-domain-random-local` **CAPTURED** |
-| A Domain is verified when `DKIMVerified` or `ReturnPathDomainVerified` is true. `SPFVerified` does not count (SPF is deprecated). | fields `refs/api_domains-api.md:44-47` **DOC**; rule **INFERRED** |
-| A Domain covers its own name only, not subdomains; the match ignores case | **INFERRED** |
+| postmock authorizes a Domain only when `DKIMVerified` is true and its name matches the `From` domain exactly, without case | field `refs/api_domains-api.md:45` **DOC**; rule **INFERRED** (capture 03 does not record which records the domain had verified) |
 | A confirmed Sender Signature authorizes its `EmailAddress`; the match ignores case | "registered and confirmed Sender Signature" `refs/api_email-api.md:42` **DOC**; case **INFERRED** |
-| An unconfirmed Sender Signature, with no verified Domain for its address | DOC says rejected (`refs/api_email-api.md:42`); code and text not captured: postmock answers 501 (Q3) |
-| `POSTMARK_API_TEST` skips the check: the gem live suite sends from `sender@postmarkapp.com` with it and expects success | `sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10` **SDK**; `docs/10` C7 open |
-| Check order: after every data check (300, 403, 411, 1235, 1236), before account approval (412, 413) and suppressions (406) | **INFERRED** |
+| postmock answers the captured 400 only when no account Domain and no Sender Signature matches the `From` | capture 01 had that state **CAPTURED** |
+| An account Domain that matches but has no verified DKIM (Return-Path only, SPF only, or nothing verified): 501 | not captured (Q3) |
+| A `From` on a subdomain of an account Domain: 501 | not captured (Q3) |
+| An unconfirmed Sender Signature for the address: 501 | DOC says rejected (`refs/api_email-api.md:42`); code and text not captured (Q3) |
+| `POSTMARK_API_TEST` skips the check | `sdk/postmark-gem/spec/integration/api_client_messages_spec.rb:5-10`, `:45-48` and `sdk/postmark-java/src/test/java/integration/MessageTest.java:27-36` **SDK** (both send from an address no account holds and expect success); `docs/10` C7 open |
+| A message that fails a data check (300, 403, 411, 1101, 1120, 1123, 1226, 1235, 1236) and the sender check: 501. A malformed `From` (300) is a data error alone. | order not captured; the same rule as a 1235 item in a batch |
+| The sender check runs before account approval (412, 413) and suppressions (406) | **INFERRED** |
 | Applies to `/email`, `/email/batch`, `/email/withTemplate`, `/email/batchWithTemplates`, and each `/email/bulk` message (one error: 422 / 400; with others: ErrorCode 11) | send paths share `validateOutbound`; template and bulk paths **INFERRED** |
+| Bulk checks the sender at submit and again when each message is released. A sender that loses authorization before release counts in `FailedCount`; one that reaches a 501 state stops the request (§1.6). | **INFERRED** |
 | SMTP: the message is accepted and becomes an `SMTPApiError` bounce with ErrorCode 400 | error model `refs/user-guide_send-email-with-smtp.md:56`, `:87` **DOC**; sender case **INFERRED** (`docs/07` Q3, `docs/10` C60) |
 
 ## 4. Test token and sandbox
@@ -538,7 +542,7 @@ Use the `POSTMARK_API_TEST` token first; use a sandbox server where the test tok
 | --- | --- | --- |
 | 1 | Exact 406 text for single send. SDK fixture: "recipient(s) that have been"; DOC shows "a recipient that has been" only for a batch item. | Regex in postmark.js fills `InactiveRecipientsError.recipients` |
 | 2 | Partial suppression (active To, suppressed Bcc): HTTP status, ErrorCode, Message, and does it still return `MessageID`? | Only an unverified integrator report; SDK has a second regex for "Message OK, but will not deliver" |
-| 3 | Unknown `From`: answered (§3.4, 400). Still open: unconfirmed signature code and text; named `From` in the message; subdomain of a verified Domain; order against 300 and 406 | Not in current table |
+| 3 | Unknown `From`: answered (§3.4, 400). Still open: unconfirmed signature code and text; a Domain with Return-Path or SPF but no DKIM; a subdomain of an account Domain; named `From` in the message; order against data errors and 406; an IDN `From` domain (punycode vs Unicode match); a `From` domain with a trailing dot | Not in current table |
 | 4 | Message text for: no body, zero recipients, > 50 recipients, Subject > 2000, Tag > 1000, Metadata key/value/count, duplicate metadata key | 300 texts undocumented |
 | 5 | Invalid `TrackLinks` value on `/email`: 300, 403, or 612? | Code table lists 612 under Servers |
 | 6 | Unknown JSON field: ignored or 403? `Content-Type` missing: 415 body? | Field tolerance |

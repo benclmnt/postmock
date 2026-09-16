@@ -16,7 +16,7 @@ Source versions:
 | `sdk/postmark-mcp` | 2.1.1, commit `63ef055` |
 
 Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (see `AGENTS.md` rule 6).
-No captures exist yet. Section 9 lists what to capture.
+One capture exists: `captures/20260916T231736Z-from-verification/` (ErrorCode 400, `docs/03` §3.4). Section 9 lists what else to capture.
 
 ---
 

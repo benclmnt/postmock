@@ -4,7 +4,7 @@ Scope: the HTTP requests that Postmark makes to customer URLs.
 Scope: the config API that points those requests at a URL.
 Sources read: `refs/*.md` and `refs/openapi/*.yml` snapshots of 2026-09-16.
 SDK versions: postmark.js 5.1.0, postmark-dotnet 5.4.1, postmark-gem v1.25.1, postmark-python 0.4.0.
-No capture exists yet. No claim below is **CAPTURED**.
+No claim below is **CAPTURED**. The one capture so far covers sending (`docs/03` §3.4).
 
 Marks: **DOC**, **SDK**, **LIB**, **CAPTURED**, **INFERRED** (see `AGENTS.md` rule 6).
 "Unverified integrator report" = a claim from receiver code outside Postmark and its SDKs. It is **INFERRED** until a capture confirms it.
