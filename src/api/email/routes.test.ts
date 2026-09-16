@@ -4,6 +4,7 @@ import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
 import { createServer } from "../../state/servers.ts";
 import { suppressionKey } from "../../state/store.ts";
+import { addVerifiedDomain } from "../account/domains.ts";
 
 const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}[+-]\d{2}:\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -11,6 +12,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function setup() {
   const runtime = createRuntime();
   const server = createServer(runtime.store, runtime.clock.now(), { ApiTokens: ["token"] });
+  addVerifiedDomain(
+    runtime.store.state,
+    runtime.store.nextId("domain"),
+    "example.com",
+    runtime.clock.now(),
+  );
   const app = createApiApp(runtime);
   const post = (path: string, body: unknown, token = "token") =>
     app.request(`http://api.postmarkapp.com${path}`, {
@@ -101,6 +108,17 @@ describe("POST /email", () => {
     });
   });
 
+  it("answers 422 / 400 with only ErrorCode and Message for a From no account holds", async () => {
+    // captures/20260916T231736Z-from-verification/01-single-unverified-domain
+    const res = await setup().post("/email", message({ From: "probe@elsewhere.org" }));
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({
+      ErrorCode: 400,
+      Message:
+        "The 'From' address you supplied (probe@elsewhere.org) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+    });
+  });
+
   it("answers 422 / 406 for a partial suppression, and still sends", async () => {
     const { runtime, post, suppress } = setup();
     suppress("b@example.com");
@@ -152,9 +170,10 @@ describe("POST /email/batch", () => {
       message(),
       message({ To: "gone@example.com" }),
       message({ To: "test" }),
+      message({ From: "probe@elsewhere.org" }),
     ]);
     expect(res.status).toBe(200);
-    const [ok, inactive, invalid] = await items(res);
+    const [ok, inactive, invalid, sender] = await items(res);
     expect(ok).toMatchObject({ To: "Ann <a@example.com>", ErrorCode: 0, Message: "OK" });
     expect(inactive).toEqual({
       ErrorCode: 406,
@@ -162,6 +181,12 @@ describe("POST /email/batch", () => {
         "You tried to send to a recipient that has been marked as inactive. Found inactive addresses: gone@example.com. Inactive recipients are ones that have generated a hard bounce, a spam complaint, or a manual suppression. ",
     });
     expect(invalid).toEqual({ ErrorCode: 300, Message: "Invalid 'To' address: 'test'." });
+    // captures/20260916T231736Z-from-verification/02-batch-unverified-domain
+    expect(sender).toEqual({
+      ErrorCode: 400,
+      Message:
+        "The 'From' address you supplied (probe@elsewhere.org) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+    });
     expect([...runtime.store.state.outbound.keys()]).toEqual([ok?.MessageID]);
   });
 

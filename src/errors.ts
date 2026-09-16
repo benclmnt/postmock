@@ -75,6 +75,15 @@ export const ERROR_TABLE: readonly Row[] = [
     "summary",
     "Send validation. Covers many messages — zero recipients, invalid address, missing 'TextBody'/'HtmlBody', and recipient, metadata, attachment, or header limits.",
   ],
+  // CAPTURED text: captures/20260916T231736Z-from-verification/01, /02. `{from}` is the bare
+  // address; for a named `From` that is INFERRED.
+  [
+    400,
+    "sending",
+    [422],
+    "message",
+    "The 'From' address you supplied ({from}) is not a Sender Signature on your account. Please add and confirm this address in order to be able to use it in the 'From' field of your messages.",
+  ],
   [402, "sending", [422], "message", "Invalid JSON."],
   [403, "sending", [422], "summary", "Invalid request field(s)."],
   // SDK text: sdk/postmark.js/test/unit/ErrorHandler.test.ts:113-116. Clients parse the addresses (docs/02 §4.1).

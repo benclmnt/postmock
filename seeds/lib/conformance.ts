@@ -13,4 +13,6 @@ export const CONFORMANCE = {
   senderEmail: "sender@example.com",
   recipientEmail: "recipient@example.com",
   domain: "example.com",
+  /** A second verified domain: the placeholder `From` domain of an SDK example. */
+  exampleDomain: "your-verified-domain.com",
 } as const;

@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 import { createApiApp } from "../../http/app.ts";
 import { createRuntime } from "../../runtime.ts";
 import { createServer } from "../../state/servers.ts";
+import { addVerifiedDomain } from "../account/domains.ts";
 
 function setup() {
   const runtime = createRuntime();
   createServer(runtime.store, runtime.clock.now(), { ApiTokens: ["token"] });
+  addVerifiedDomain(
+    runtime.store.state,
+    runtime.store.nextId("domain"),
+    "example.com",
+    runtime.clock.now(),
+  );
   const app = createApiApp(runtime);
   const call = async (method: string, path: string, body?: unknown) => {
     const res = await app.request(`http://api.postmarkapp.com${path}`, {
