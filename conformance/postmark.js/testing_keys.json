@@ -1,0 +1,7 @@
+{
+  "SERVER_API_TOKEN": "postmock-server-token",
+  "ACCOUNT_API_TOKEN": "postmock-account-token",
+  "SENDER_EMAIL_ADDRESS": "sender@example.com",
+  "RECIPIENT_EMAIL_ADDRESS": "recipient@example.com",
+  "DOMAIN_NAME": "example.com"
+}

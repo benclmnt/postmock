@@ -1,0 +1,3 @@
+{
+  "passing": ["test/integration/Server.test.ts > Server getServer"]
+}
