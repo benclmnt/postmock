@@ -1,6 +1,5 @@
 {
   "POSTMARK_SERVER_TOKEN": "postmock-server-token",
   "POSTMARK_ACCOUNT_TOKEN": "postmock-account-token",
-  "POSTMARK_SENDER_EMAIL": "sender@example.com",
-  "POSTMARK_WEBHOOK_ID": "0"
+  "POSTMARK_SENDER_EMAIL": "sender@example.com"
 }
