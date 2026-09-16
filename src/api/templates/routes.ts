@@ -11,7 +11,7 @@ import {
   checkLayoutChange,
   checkTemplate,
   findTemplate,
-  generatedLayoutAlias,
+  generatedAlias,
   parseOrReject,
   parseTemplateType,
   TEMPLATE_TYPES,
@@ -114,9 +114,7 @@ defineRoute({
     };
     checkTemplate(state, template);
     template.TemplateId = store.nextId("template");
-    if (template.TemplateType === "Layout" && template.Alias === null) {
-      template.Alias = generatedLayoutAlias(state, template);
-    }
+    template.Alias ??= generatedAlias(state, template);
     state.templates.set(template.TemplateId, template);
     return templateSummaryJson(template);
   },
