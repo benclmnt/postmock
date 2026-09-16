@@ -41,11 +41,8 @@ function parse(body: unknown): Body {
   if (!parsed.success) throw apiError(1361);
   const data = parsed.data;
   if (data.Status !== undefined) throw apiError(1363);
-  // Q13: the verification probe body is not captured. An absent `Verify` saves without a probe:
-  // the SDK live tests create webhooks at hosts that answer no probe (docs/05 §1.3).
-  if (data.Verify === true) {
-    throw new Unsupported("webhook verification probe body not captured (docs/05 Q13)");
-  }
+  // `Verify` absent or true saves with no probe (INFERRED until docs/05 Q13 captures the probe):
+  // SDK live tests create webhooks at hosts that answer no probe (docs/05 §1.3 conflict V1).
   const url = data.Url;
   if (url !== undefined && !isWebhookUrl(url)) throw apiError(1354);
   // An HTTP header name is an RFC 9110 token.

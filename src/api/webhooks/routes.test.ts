@@ -121,9 +121,12 @@ describe("webhooks API", () => {
     expect(res.json.ErrorCode).toBe(1357);
   });
 
-  it("answers 501 for a verification probe, whose body is not captured", async () => {
+  it("saves Verify: true like an absent Verify: verified, with no probe", async () => {
     const { api } = setup();
     const res = await api("POST", "/webhooks", { Url: "https://a.example.com", Verify: true });
-    expect(res.status).toBe(501);
+    expect(res.status).toBe(200);
+    expect(res.json.Status).toBe("verified");
+    const edited = await api("PUT", `/webhooks/${res.json.ID}`, { Verify: true });
+    expect(edited.json.Status).toBe("verified");
   });
 });
