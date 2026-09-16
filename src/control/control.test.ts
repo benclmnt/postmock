@@ -106,6 +106,8 @@ describe("POST /control/faults", () => {
     [{ errorCode: 614 }, "ErrorCode 614 needs a family"],
     [{ errorCode: 300 }, "pass the exact message"],
     [{ errorCode: 9999 }, "not in docs/02"],
+    [{ errorCode: 402, message: "Other text" }, "message only for a summary row"],
+    [{ errorCode: 1226, family: "nope" }, "family"],
   ])("refuses a reply Postmark cannot give: %j", async (reply, error) => {
     const { runtime, post } = await setup();
     const res = await post("/control/faults", { match: { method: "GET", path: "/server" }, reply });

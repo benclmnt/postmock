@@ -106,10 +106,10 @@ export function parseQueryDate(value: string): QueryDate | undefined {
     return { instant: easternWallTime(n(y), n(mo), n(d), n(h), n(mi), n(s), ms), dateOnly: false };
   }
   const utc = Date.UTC(n(y), n(mo) - 1, n(d), n(h), n(mi), n(s), ms);
+  const [zoneHours, zoneMinutes] = [Number(zone.slice(1, 3)), Number(zone.slice(-2))];
+  if (zone !== "Z" && (zoneHours > 14 || zoneMinutes > 59)) return undefined;
   const offset =
-    zone === "Z"
-      ? 0
-      : (zone.startsWith("-") ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(-2)));
+    zone === "Z" ? 0 : (zone.startsWith("-") ? -1 : 1) * (zoneHours * 60 + zoneMinutes);
   return { instant: new Date(utc - offset * 60000), dateOnly: false };
 }
 

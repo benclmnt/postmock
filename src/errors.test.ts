@@ -105,6 +105,13 @@ describe("errorBody / apiError", () => {
     expect(errorBody(1122, { message }).Message).toBe(message);
   });
 
+  it("refuses extra keys that would replace ErrorCode or Message", () => {
+    expect(() => apiError(402, { extra: { Message: "other" } })).toThrow(
+      "extra may not set Message",
+    );
+    expect(() => apiError(402, { extra: { ErrorCode: 0 } })).toThrow("extra may not set ErrorCode");
+  });
+
   it("merges extra keys (ErrorCode 11 Errors)", () => {
     const message = "Multiple errors occurred. Inspect the Errors property for more information.";
     const error = apiError(11, { message, extra: { Errors: { From: [] } } });

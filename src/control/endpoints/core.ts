@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiError, type ErrorFamily } from "../../errors.ts";
+import { apiError, ERROR_FAMILIES, isSummaryRow } from "../../errors.ts";
 import { formatTimestamp } from "../../time.ts";
 import { ControlError, controlInput, defineControl } from "../registry.ts";
 import { seedAtomically } from "../seeding.ts";
@@ -39,19 +39,17 @@ defineControl({
   },
 });
 
+const errorReply = z.object({
+  errorCode: z.int(),
+  status: z.int().optional(),
+  family: z.enum(ERROR_FAMILIES).optional(),
+  message: z.string().optional(),
+});
+
 const faultSchema = z.object({
   match: z.object({ method: z.string(), path: z.string().startsWith("/") }),
   times: z.int().positive().default(1),
-  reply: z.union([
-    z.object({
-      errorCode: z.int(),
-      status: z.int().optional(),
-      family: z.string().optional(),
-      message: z.string().optional(),
-    }),
-    z.literal("timeout"),
-    z.literal("reset"),
-  ]),
+  reply: z.unknown(),
 });
 
 defineControl({
@@ -63,18 +61,25 @@ defineControl({
       method: match.method,
       path: match.path,
       remaining: times,
-      reply: typeof reply === "string" ? reply : faultError(reply),
+      reply:
+        reply === "timeout" || reply === "reset"
+          ? reply
+          : faultError(controlInput(errorReply, reply)),
     });
     return { faults: ctx.store.state.faults.length };
   },
 });
 
 /** Only a status and ErrorCode pair from docs/02 §4.4 can be faulted (CONTROL-API.md principle). */
-function faultError(reply: Exclude<z.output<typeof faultSchema>["reply"], string>) {
+function faultError(reply: z.output<typeof errorReply>) {
   try {
+    // A message row's text is the wire text; only a summary row takes a caller message.
+    if (reply.message !== undefined && !isSummaryRow(reply.errorCode, reply.family)) {
+      throw new Error(`ErrorCode ${reply.errorCode}: message only for a summary row`);
+    }
     const { status, body } = apiError(reply.errorCode, {
       ...(reply.status !== undefined && { status: reply.status }),
-      ...(reply.family !== undefined && { family: reply.family as ErrorFamily }),
+      ...(reply.family !== undefined && { family: reply.family }),
       ...(reply.message !== undefined && { message: reply.message }),
     });
     return { status, body };

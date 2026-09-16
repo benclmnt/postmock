@@ -4,21 +4,23 @@
 // where the doc shows `ID` (docs/04 §4.4); the same rule for other codes is INFERRED.
 // `summary` rows describe several wire messages; `apiError` and `errorBody` need an exact `message`.
 
-export type ErrorFamily =
-  | "auth"
-  | "global"
-  | "sending"
-  | "templates"
-  | "servers"
-  | "messages"
-  | "inboundRules"
-  | "streams"
-  | "suppressions"
-  | "senders"
-  | "smtpTokens"
-  | "stats"
-  | "dataRemovals"
-  | "webhooks";
+export const ERROR_FAMILIES = [
+  "auth",
+  "global",
+  "sending",
+  "templates",
+  "servers",
+  "messages",
+  "inboundRules",
+  "streams",
+  "suppressions",
+  "senders",
+  "smtpTokens",
+  "stats",
+  "dataRemovals",
+  "webhooks",
+] as const;
+export type ErrorFamily = (typeof ERROR_FAMILIES)[number];
 
 /** HTTP statuses a code uses. 200 means the code only appears inside a 200 body item. */
 type Statuses = readonly [number, ...number[]];
@@ -685,6 +687,10 @@ function render(template: string, params: Record<string, string>): string {
   return text;
 }
 
+/** Whether the docs/02 §4.4 row of `code` is a summary that needs an exact message. */
+export const isSummaryRow = (code: number, family?: ErrorFamily): boolean =>
+  row(code, family)[3] === "summary";
+
 /** `{ErrorCode, Message}` for a response body or a batch item. */
 export function errorBody(code: number, options: ErrorOptions = {}): ErrorBody {
   const [, , , wording, text] = row(code, options.family);
@@ -706,6 +712,10 @@ export function apiError(
   const status = options.status ?? (others.length === 0 ? first : undefined);
   if (status === undefined || !statuses.includes(status)) {
     throw new Error(`ErrorCode ${code} needs a status from ${statuses.join(", ")}`);
+  }
+  for (const key of ["ErrorCode", "Message"]) {
+    if (options.extra !== undefined && key in options.extra)
+      throw new Error(`extra may not set ${key}`);
   }
   return new ApiError(status, { ...errorBody(code, options), ...options.extra });
 }

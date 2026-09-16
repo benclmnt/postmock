@@ -98,12 +98,16 @@ describe("R5 query dates", () => {
     );
   });
 
-  it.each(["2024-13-01", "2024-02-30", "2024-01-01T24:00:00", "2024-01-01T10:60:00"])(
-    "rejects the impossible date %s",
-    (text) => {
-      expect(parseQueryDate(text)).toBeUndefined();
-    },
-  );
+  it.each([
+    "2024-01-01T00:00:00+99:99",
+    "2024-01-01T00:00:00-12:60",
+    "2024-13-01",
+    "2024-02-30",
+    "2024-01-01T24:00:00",
+    "2024-01-01T10:60:00",
+  ])("rejects the impossible date %s", (text) => {
+    expect(parseQueryDate(text)).toBeUndefined();
+  });
 
   it("rejects other text through the zod codec", () => {
     expect(queryDate.safeParse("yesterday").success).toBe(false);
