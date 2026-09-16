@@ -20,7 +20,7 @@ export async function deliverInbound(runtime: Runtime, message: InboundMessage):
   await deliver(runtime, {
     target: {
       serverId: server.ID,
-      webhookId: null,
+      hook: { kind: "server", field: "InboundHookUrl" },
       url: server.InboundHookUrl,
       httpAuth: null,
       headers: [],

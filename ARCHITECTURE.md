@@ -38,7 +38,7 @@ A misrouted request gets 401 from real Postmark and sends nothing.
 | REST, https | 443 | — | Same, with a test-CA cert (route B) | design |
 | Control API | `127.0.0.1:8025` | `POSTMOCK_CONTROL_PORT` | `CONTROL-API.md` | built |
 | SMTP | `127.0.0.1:0` (a free port) | `POSTMOCK_SMTP_PORTS` (comma list; every port serves the same endpoint), `POSTMOCK_SMTP_TLS_KEY` + `POSTMOCK_SMTP_TLS_CERT` (PEM files; offers STARTTLS) | Postmark SMTP (`docs/07`). For Postmark's ports set `2525` and map 25 and 587 to it (`-p 25:2525 -p 587:2525 -p 2525:2525`). | built |
-| Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` (comma-separated hostnames, `*` for all; default: none) | Every RecordType, retries on the clock (`docs/05`). Reaches only loopback hosts (`localhost`, `127.0.0.0/8`, `::1`) and the listed hosts, also for redirects; a refused host opens no socket and is logged as an `egress refused` attempt with no retry (`docs/05` D3) | built (`src/plugins/webhooks.ts`) |
+| Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` (comma-separated hostnames, `*` for all; default: none) | Every RecordType, retries on the clock (`docs/05`). Reaches only loopback hosts (`localhost`, `127.0.0.0/8`, `::1`) and the listed hosts over `http:`/`https:`, also for redirects; an entry with a port fails at start. A refused hop, or a redirect `Location` with userinfo, opens no socket and is logged as a `stop` attempt with no retry (`docs/05` D3). A retry is dropped once its hook changes (`docs/05` D4) | built (`src/plugins/webhooks.ts`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.

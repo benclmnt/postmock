@@ -854,8 +854,8 @@ Test sends (§3.8):
 | --- | --- | --- | --- |
 | D1 | Outbound timeout is 120 s, the inbound value. **INFERRED** | This checklist said: crash until Q5 | Q5 is captured |
 | D2 | After the last inbound retry the message `Status` is `Failed`. postmock records no `InboundError` bounce (TypeCode 100008, `refs/api_bounce-api.md:416`). **INFERRED** | An `InboundError` bounce row | Bounces API (T2) and a capture of a failed inbound hook |
-| D3 | The emitter reaches only loopback hosts unless `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` lists the host. A refused host is logged as an attempt with an `egress refused` error and gets no retry. | Real Postmark reaches every public host | Never: SDK suites point hooks at real hosts (conflict V1 table), and a test run must not reach them (`AGENTS.md` rule 7) |
-| D4 | A pending retry stops when its webhook row or server is deleted. **INFERRED** | — | A capture |
+| D3 | The emitter reaches only loopback hosts unless `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` lists the host (hostnames, IPv4, IPv6 with or without brackets, `*`; an entry with a port is refused at start). Every hop, redirects included, must be `http:` or `https:` to an allowed host. A redirect `Location` with userinfo stops the event. A refused hop opens no socket; it is logged as an attempt with an `egress refused` or `redirect refused` error and gets no retry. | Real Postmark reaches every public host | Never: SDK suites point hooks at real hosts (conflict V1 table), and a test run must not reach them (`AGENTS.md` rule 7) |
+| D4 | A pending retry is dropped when its server or webhook row is deleted, the row turns `unverified`, its `Url` changes or its trigger is turned off, or the server hook URL field changes. **INFERRED** | Retries of the old configuration | A capture |
 
 ## 7. Open questions for live capture
 

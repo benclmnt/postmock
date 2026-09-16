@@ -1,6 +1,6 @@
 import type { Runtime } from "../runtime.ts";
 import type { Server, Webhook, WebhookRecordType, WebhookTriggers } from "../state/types.ts";
-import { deliver, OUTBOUND, type Target } from "./deliver.ts";
+import { deliver, OUTBOUND, type ServerHookField, type Target } from "./deliver.ts";
 
 /** A hook that receives an event: a `/webhooks` row, or the server's own hook URL. */
 export type Hook = { kind: "webhook"; webhook: Webhook } | { kind: "server"; server: Server };
@@ -11,7 +11,7 @@ export interface OutboundEvent {
   recordType: Exclude<WebhookRecordType, "Inbound">;
   trigger: keyof WebhookTriggers;
   /** The server hook URL field for this event; none for SpamComplaint and SubscriptionChange. */
-  serverHookUrl: ((server: Server) => string) | null;
+  serverHookField: ServerHookField | null;
   /** The body for one hook, or null when that hook filters the event out. */
   payload: (hook: Hook) => object | null;
 }
@@ -35,7 +35,7 @@ export async function emitOutbound(runtime: Runtime, event: OutboundEvent): Prom
         hook: { kind: "webhook", webhook },
         target: {
           serverId: server.ID,
-          webhookId: webhook.ID,
+          hook: { kind: "webhook", webhookId: webhook.ID, trigger: event.trigger },
           url: webhook.Url,
           httpAuth: webhook.HttpAuth,
           headers: webhook.HttpHeaders,
@@ -43,11 +43,17 @@ export async function emitOutbound(runtime: Runtime, event: OutboundEvent): Prom
       });
     }
   }
-  const serverUrl = event.serverHookUrl?.(server) ?? "";
-  if (serverUrl !== "") {
+  const field = event.serverHookField;
+  if (field !== null && server[field] !== "") {
     hooks.push({
       hook: { kind: "server", server },
-      target: { serverId: server.ID, webhookId: null, url: serverUrl, httpAuth: null, headers: [] },
+      target: {
+        serverId: server.ID,
+        hook: { kind: "server", field },
+        url: server[field],
+        httpAuth: null,
+        headers: [],
+      },
     });
   }
   for (const { hook, target } of hooks) {

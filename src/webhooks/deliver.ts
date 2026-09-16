@@ -1,13 +1,21 @@
 import { randomUUID } from "node:crypto";
 import type { Runtime } from "../runtime.ts";
-import type { Header, WebhookAttempt, WebhookRecordType } from "../state/types.ts";
+import type { Header, WebhookAttempt, WebhookRecordType, WebhookTriggers } from "../state/types.ts";
 import { allows, type Egress, egressOf } from "./egress.ts";
 
-/** Where one event goes: a `/webhooks` row or a server hook URL. */
+export type ServerHookField =
+  | "InboundHookUrl"
+  | "BounceHookUrl"
+  | "OpenHookUrl"
+  | "DeliveryHookUrl"
+  | "ClickHookUrl";
+
+/** Where one event goes: a `/webhooks` row and its trigger, or a server hook URL field. */
 export interface Target {
   serverId: number;
-  /** null for a server hook URL. */
-  webhookId: number | null;
+  hook:
+    | { kind: "webhook"; webhookId: number; trigger: keyof WebhookTriggers }
+    | { kind: "server"; field: ServerHookField };
   url: string;
   httpAuth: { Username: string; Password: string } | null;
   headers: Header[];
@@ -89,20 +97,20 @@ async function attempt(
   n: number,
 ): Promise<void> {
   const { target, policy } = event;
-  if (n > 1 && !targetExists(runtime, target)) return;
+  if (n > 1 && !stillConfigured(runtime, target)) return;
   const remaining = policy.delaysMin.length - (n - 1);
   const { url, headers } = request(target, traceId, policy.retriesHeader ? remaining : null);
   const at = runtime.clock.now();
   const sent = await post(egressOf(runtime), url, headers, body, policy.timeoutMs);
-  const outcome = "refused" in sent ? { error: sent.refused } : sent;
+  const outcome = "stop" in sent ? { error: sent.stop } : sent;
   // A refused target gets no retry: the configuration, not the receiver, decides it.
-  const verdict = "refused" in sent ? "stop" : policy.classify(outcome);
+  const verdict = "stop" in sent ? "stop" : policy.classify(outcome);
   const result: AttemptResult = verdict === "retry" && remaining === 0 ? "exhausted" : verdict;
   const delayMs = result === "retry" ? (policy.delaysMin[n - 1] as number) * 60_000 : null;
   runtime.store.state.webhookAttempts.push({
     id: runtime.store.nextId("webhookAttempt"),
     serverId: target.serverId,
-    webhookId: target.webhookId,
+    webhookId: target.hook.kind === "webhook" ? target.hook.webhookId : null,
     recordType: event.recordType,
     url: target.url,
     traceId,
@@ -122,11 +130,25 @@ async function attempt(
   event.onResult?.(result);
 }
 
-/** A retry stops once its webhook row or its server is gone (INFERRED). */
-function targetExists(runtime: Runtime, target: Target): boolean {
+/**
+ * A retry goes out only while the hook still asks for it: the server exists, and the webhook row
+ * exists, is verified, keeps its `Url` and its trigger on, or the server hook field keeps its URL
+ * (INFERRED, docs/05 D4).
+ */
+function stillConfigured(runtime: Runtime, target: Target): boolean {
   const { servers, webhooks } = runtime.store.state;
-  if (!servers.has(target.serverId)) return false;
-  return target.webhookId === null || webhooks.get(target.webhookId)?.ServerID === target.serverId;
+  const server = servers.get(target.serverId);
+  if (server === undefined) return false;
+  const { hook } = target;
+  if (hook.kind === "server") return server[hook.field] === target.url;
+  const webhook = webhooks.get(hook.webhookId);
+  return (
+    webhook !== undefined &&
+    webhook.ServerID === server.ID &&
+    webhook.Status === "verified" &&
+    webhook.Url === target.url &&
+    webhook.Triggers[hook.trigger].Enabled
+  );
 }
 
 /**
@@ -155,8 +177,9 @@ function request(target: Target, traceId: string, retriesRemaining: number | nul
 }
 
 /**
- * POSTs and follows up to 10 redirects; the final answer decides (docs/05 §3.3). A host the egress
- * policy refuses, also as a redirect target, opens no socket.
+ * POSTs and follows up to 10 redirects; the final answer decides (docs/05 §3.3). Every hop must be
+ * http or https to an allowed host; a redirect `Location` with userinfo or an unparsable one stops
+ * the event. A refused hop opens no socket.
  */
 async function post(
   egress: Egress,
@@ -164,12 +187,15 @@ async function post(
   headers: Headers,
   body: string,
   timeoutMs: number,
-): Promise<Outcome | { refused: string }> {
+): Promise<Outcome | { stop: string }> {
   let current = url;
   for (let hop = 0; ; hop++) {
+    if (current.protocol !== "http:" && current.protocol !== "https:") {
+      return { stop: `redirect refused: scheme ${current.protocol} is not http or https` };
+    }
     if (!allows(egress, current)) {
       return {
-        refused: `egress refused: host ${current.hostname} is not loopback and not in POSTMOCK_WEBHOOKS_ALLOW_HOSTS`,
+        stop: `egress refused: host ${current.hostname} is not loopback and not in POSTMOCK_WEBHOOKS_ALLOW_HOSTS`,
       };
     }
     let response: Response;
@@ -191,6 +217,11 @@ async function post(
       return { status: response.status };
     }
     if (hop === MAX_REDIRECTS) return { error: `more than ${MAX_REDIRECTS} redirects` };
-    current = new URL(location, current);
+    const next = URL.parse(location, current.href);
+    if (next === null) return { stop: `redirect refused: Location '${location}' is not a URL` };
+    if (next.username !== "" || next.password !== "") {
+      return { stop: "redirect refused: Location carries userinfo" };
+    }
+    current = next;
   }
 }

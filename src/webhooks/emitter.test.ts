@@ -8,9 +8,11 @@ import type {
   Bounce,
   OpenEvent,
   OutboundMessage,
+  Server,
   Webhook,
   WebhookTriggers,
 } from "../state/types.ts";
+import { allows, egressEnv } from "./egress.ts";
 import { startReceiver } from "./test-receiver.ts";
 
 const MINUTE = 60_000;
@@ -334,4 +336,84 @@ describe("webhook emitter", () => {
     await runtime.clock.advance(60 * MINUTE);
     expect(receiver.received).toHaveLength(1);
   });
+
+  it.each<[string, (runtime: Runtime, server: Server, webhook: Webhook) => void]>([
+    [
+      "the webhook Url changes",
+      (_, __, w) => {
+        w.Url = "http://127.0.0.1:1/elsewhere";
+      },
+    ],
+    [
+      "the webhook turns unverified",
+      (_, __, w) => {
+        w.Status = "unverified";
+      },
+    ],
+    [
+      "the trigger is turned off",
+      (_, __, w) => {
+        w.Triggers.Delivery.Enabled = false;
+      },
+    ],
+  ])("stops a webhook row's retries once %s", async (_, change) => {
+    const { runtime, server, receiver } = await setup(() => 500);
+    const webhook = addWebhook(
+      runtime,
+      server.ID,
+      { Url: receiver.url },
+      { Delivery: { Enabled: true } },
+    );
+    await deliver(runtime, server.ID);
+    change(runtime, server, webhook);
+    await runtime.clock.advance(60 * MINUTE);
+    expect(receiver.received).toHaveLength(1);
+  });
+
+  it("stops a server hook URL's retries once the URL changes", async () => {
+    const { runtime, server, receiver } = await setup(() => 500);
+    server.DeliveryHookUrl = receiver.url;
+    await deliver(runtime, server.ID);
+    server.DeliveryHookUrl = `${receiver.url}/new`;
+    await runtime.clock.advance(60 * MINUTE);
+    expect(receiver.received).toHaveLength(1);
+  });
+
+  it.each([
+    [
+      "a scheme other than http and https",
+      "ftp://127.0.0.1/file",
+      /^redirect refused: scheme ftp:/,
+    ],
+    ["userinfo", "http://user:pass@127.0.0.1/x", /^redirect refused: Location carries userinfo/],
+  ])("stops without a retry at a redirect with %s", async (_, location, error) => {
+    const { runtime, server, receiver } = await setup(() => ({ redirect: location }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    server.DeliveryHookUrl = receiver.url;
+    await deliver(runtime, server.ID);
+    await runtime.clock.advance(60 * MINUTE);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(runtime.store.state.webhookAttempts).toMatchObject([
+      { outcome: { error: expect.stringMatching(error) }, result: "stop" },
+    ]);
+  });
+});
+
+describe("POSTMOCK_WEBHOOKS_ALLOW_HOSTS", () => {
+  const parse = (value: string) => egressEnv.safeParse({ POSTMOCK_WEBHOOKS_ALLOW_HOSTS: value });
+
+  it("matches a bracketed IPv6 entry", () => {
+    const egress = parse("[2001:DB8::1], hooks.example.com");
+    if (!egress.success) throw egress.error;
+    expect(allows(egress.data, new URL("http://[2001:db8::1]/hook"))).toBe(true);
+    expect(allows(egress.data, new URL("https://hooks.example.com/hook"))).toBe(true);
+    expect(allows(egress.data, new URL("https://other.example.com/hook"))).toBe(false);
+  });
+
+  it.each(["hooks.example.com:8443", "[2001:db8::1]:443", "127.0.0.1:80"])(
+    "refuses the entry %s, which carries a port",
+    (entry) => {
+      expect(parse(entry).success).toBe(false);
+    },
+  );
 });

@@ -27,7 +27,7 @@ const webhooks: Plugin = {
         messageStream: e.message.MessageStream,
         recordType: "Delivery",
         trigger: "Delivery",
-        serverHookUrl: (s) => s.DeliveryHookUrl,
+        serverHookField: "DeliveryHookUrl",
         payload: () => deliveryPayload(e),
       }),
     );
@@ -37,7 +37,7 @@ const webhooks: Plugin = {
         messageStream: bounce.MessageStream,
         recordType: "Bounce",
         trigger: "Bounce",
-        serverHookUrl: (s) => s.BounceHookUrl,
+        serverHookField: "BounceHookUrl",
         payload: (hook) => bouncePayload("Bounce", bounce, bounceContent(hook, "Bounce")),
       });
     events.on("bounced", ({ bounce }) => toBounceHooks(bounce));
@@ -53,7 +53,7 @@ const webhooks: Plugin = {
         messageStream: bounce.MessageStream,
         recordType: "SpamComplaint",
         trigger: "SpamComplaint",
-        serverHookUrl: null,
+        serverHookField: null,
         payload: (hook) =>
           bouncePayload("SpamComplaint", bounce, bounceContent(hook, "SpamComplaint")),
       }),
@@ -64,7 +64,7 @@ const webhooks: Plugin = {
         messageStream: open.MessageStream,
         recordType: "Open",
         trigger: "Open",
-        serverHookUrl: (s) => s.OpenHookUrl,
+        serverHookField: "OpenHookUrl",
         payload: (hook) => {
           const firstOnly =
             hook.kind === "webhook"
@@ -80,7 +80,7 @@ const webhooks: Plugin = {
         messageStream: click.MessageStream,
         recordType: "Click",
         trigger: "Click",
-        serverHookUrl: (s) => s.ClickHookUrl,
+        serverHookField: "ClickHookUrl",
         payload: () => clickPayload(click),
       }),
     );
@@ -90,7 +90,7 @@ const webhooks: Plugin = {
         messageStream: change.MessageStream,
         recordType: "SubscriptionChange",
         trigger: "SubscriptionChange",
-        serverHookUrl: null,
+        serverHookField: null,
         payload: () => subscriptionChangePayload(change),
       }),
     );
