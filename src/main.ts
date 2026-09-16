@@ -19,9 +19,8 @@ const running = await startPostmock({
   controlPort: env.POSTMOCK_CONTROL_PORT,
   seed: env.POSTMOCK_SEED,
 });
-console.log(
-  `postmock api=${running.apiUrl} control=${running.controlUrl} seed=${env.POSTMOCK_SEED}`,
-);
+const urls = Object.entries(running.listeners).map(([name, url]) => `${name}=${url}`);
+console.log(`postmock ${urls.join(" ")} seed=${env.POSTMOCK_SEED}`);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => void running.close().then(() => process.exit(0)));

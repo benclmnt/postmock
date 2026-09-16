@@ -104,7 +104,7 @@ export async function run(): Promise<ResultsFile> {
     const env = {
       ...process.env,
       ...keys,
-      POSTMOCK_API_URL: mock.apiUrl,
+      POSTMOCK_API_URL: mock.listeners.api,
       // ts-node compiles the suite, as in its CI; Node's own type stripping would load it instead.
       NODE_OPTIONS: "--no-experimental-strip-types",
     };
