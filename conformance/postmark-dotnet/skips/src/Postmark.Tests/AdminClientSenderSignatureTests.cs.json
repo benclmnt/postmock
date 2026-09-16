@@ -1,0 +1,9 @@
+{
+  "skipped": [
+    {
+      "title": "AdminClientSenderSignatureTests.AdminClient_ShouldProduceErrorStatusForInvalidSenderSignature",
+      "reason": "Expects HTTP 422 for a new sender signature at example.com. The conformance sender domain is example.com, so postmock accepts it. Postmark's refusal of reserved domains is not captured (docs/08 §5.2a).",
+      "source": "sdk/postmark-dotnet/src/Postmark.Tests/AdminClientSenderSignatureTests.cs:78-94"
+    }
+  ]
+}

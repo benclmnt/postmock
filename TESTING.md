@@ -43,7 +43,7 @@ Env: `POSTMOCK_HOST`, `POSTMOCK_API_PORT`, `POSTMOCK_CONTROL_PORT`, `POSTMOCK_SE
 | `conformance/run.ts` | Finds each `conformance/<sdk>/run.ts` and writes its results | yes |
 | `conformance/<sdk>/run.ts` | Prepares the suite, starts postmock with the `conformance` seed, runs the suite, maps each test to pass, fail or skip | yes |
 | `conformance/<sdk>/testing_keys.json` | Tokens and addresses the suite reads; they match `seeds/lib/conformance.ts` (a unit test checks) | yes |
-| `conformance/<sdk>/skips/<test file>.json` | `{"skipped": [{title, reason, source}]}`: tests of that file allowed to fail | yes |
+| `conformance/<sdk>/skips/<test file>.json` | `{"skipped": [{title, reason, source}]}`: tests of that file that cannot pass. The runner reports them as `skip`, whatever their outcome. A listed test the suite lacks stops the run. | yes |
 | `conformance/<sdk>/baseline/<test file>.json` | `{"passing": [full titles]}`: tests of that file that must keep passing. One file per test file, so tracks never co-edit one. | yes |
 | `conformance/results/<sdk>.json` | `{sdk, sdkCommit, postmock: {commit, sourceHash}, finishedAt, totals, tests: [{id, state, error?}]}` | no (git-ignored) |
 | `conformance/<sdk>/.work/` | The suite copy and its install | no (git-ignored) |

@@ -5,8 +5,9 @@ import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
 import type { AddressInfo } from "node:net";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { type RunningPostmock, startPostmock } from "../src/server.ts";
+import { applySkips, readSkips } from "./baseline.ts";
 import { type ResultsFile, type TestResult, totals } from "./results.ts";
 import { currentStamp, sdkCommit } from "./stamp.ts";
 
@@ -252,14 +253,15 @@ export async function startSandbox(
 }
 
 /**
- * Stamps the results and sorts the tests by id. Call `stamp` before the run, so an edit during the
- * run makes the results stale.
+ * Stamps the results, marks the tests of `skips/` as `skip`, and sorts the tests by id. Call `stamp`
+ * before the run, so an edit during the run makes the results stale.
  */
 export function stamp(sdk: string): (tests: TestResult[]) => ResultsFile {
   const commit = sdkCommit(sdk);
   const postmock = currentStamp(sdk);
+  const skips = readSkips(pathToFileURL(`${runnerDir(sdk)}/`));
   return (tests) => {
-    const sorted = [...tests].sort((a, b) => a.id.localeCompare(b.id));
+    const sorted = applySkips(tests, skips).sort((a, b) => a.id.localeCompare(b.id));
     return {
       sdk,
       sdkCommit: commit,

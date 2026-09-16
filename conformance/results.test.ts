@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readBaseline, skippedAndBaselined } from "./baseline.ts";
+import { applySkips, readBaseline, skippedAndBaselined } from "./baseline.ts";
 import { compare, type ResultsFile, staleReason, type TestResult, totals } from "./results.ts";
 
 const file = (tests: TestResult[]): ResultsFile => ({
@@ -68,6 +68,27 @@ describe("skippedAndBaselined", () => {
     expect(skippedAndBaselined({ passing: ["f > a", "f > b"] }, ["f > b", "f > c"])).toEqual([
       "f > b",
     ]);
+  });
+});
+
+describe("applySkips", () => {
+  it("marks a listed test as skip, whether it failed or passed", () => {
+    const tests: TestResult[] = [
+      { id: "f > a", state: "fail", error: "boom" },
+      { id: "f > b", state: "pass" },
+      { id: "f > c", state: "fail", error: "boom" },
+    ];
+    expect(applySkips(tests, ["f > a", "f > b"])).toEqual([
+      { id: "f > a", state: "skip" },
+      { id: "f > b", state: "skip" },
+      { id: "f > c", state: "fail", error: "boom" },
+    ]);
+  });
+
+  it("refuses a skip for a test the suite lacks", () => {
+    expect(() => applySkips([{ id: "f > a", state: "pass" }], ["f > gone"])).toThrow(
+      "skip files name tests the suite lacks: f > gone",
+    );
   });
 });
 

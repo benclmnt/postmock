@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import type { Baseline, BaselineFile } from "./results.ts";
+import type { Baseline, BaselineFile, TestResult } from "./results.ts";
 
 /** `conformance/<sdk>/skips/<test file>.json`: tests allowed to fail, each with a reason and a source. */
 export interface SkipsFile {
@@ -30,3 +30,17 @@ export const readSkips = (sdkDir: URL): string[] =>
 /** A test may be required to pass or allowed to fail, never both. */
 export const skippedAndBaselined = (baseline: Baseline, skips: string[]): string[] =>
   baseline.passing.filter((id) => skips.includes(id));
+
+/**
+ * Marks every test a skip file lists as `skip`, whatever its outcome. A listed test the suite lacks
+ * throws: the skip file is out of date.
+ */
+export function applySkips(tests: readonly TestResult[], skips: readonly string[]): TestResult[] {
+  const ids = new Set(tests.map((t) => t.id));
+  const unknown = skips.filter((id) => !ids.has(id));
+  if (unknown.length > 0) {
+    throw new Error(`skip files name tests the suite lacks: ${unknown.join(", ")}`);
+  }
+  const skipped = new Set(skips);
+  return tests.map((t) => (skipped.has(t.id) ? { id: t.id, state: "skip" } : t));
+}

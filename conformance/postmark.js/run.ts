@@ -3,9 +3,9 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { startPostmock } from "../../src/server.ts";
+import { stamp } from "../harness.ts";
 import { type MochaReport, mochaResults } from "../mocha.ts";
-import { type ResultsFile, totals } from "../results.ts";
-import { currentStamp, sdkCommit } from "../stamp.ts";
+import type { ResultsFile } from "../results.ts";
 
 // Runs the postmark.js live integration suite, unmodified, against postmock (docs/08 §5.2).
 // A copy under `.work/` holds the install, so `sdk/` stays untouched.
@@ -71,8 +71,7 @@ function mocha(args: string[], env: NodeJS.ProcessEnv, output: string): Promise<
 }
 
 export async function run(): Promise<ResultsFile> {
-  const commit = sdkCommit("postmark.js");
-  const postmock = currentStamp("postmark.js");
+  const results = stamp("postmark.js");
   prepare();
   const mock = await startPostmock({
     host: "127.0.0.1",
@@ -91,15 +90,7 @@ export async function run(): Promise<ResultsFile> {
     const listed = await mocha(["--dry-run"], env, `${workDir}/.postmock-list.json`);
     const report = await mocha([], env, `${workDir}/.postmock-report.json`);
 
-    const tests = mochaResults(listed, report, workDir);
-    return {
-      sdk: "postmark.js",
-      sdkCommit: commit,
-      postmock,
-      finishedAt: new Date().toISOString(),
-      totals: totals(tests),
-      tests,
-    };
+    return results(mochaResults(listed, report, workDir));
   } finally {
     await mock.close();
   }
