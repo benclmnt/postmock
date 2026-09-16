@@ -342,6 +342,7 @@ Fields (GET response; PUT response is the same):
 
 Disagreements:
 - OpenAPI lists lowercase colors and misspells `turqoise`. `refs/openapi/server.yml:109-110` **DOC**
+- The tables list capitalized colors; every response example shows lowercase (`refs/api_servers-api.md:67`, `:431`, `:457`) **DOC**. The live tests send `red`, `purple`, `yellow` and read the same value back: `sdk/postmark.js/test/integration/Servers.test.ts:57-70`, `sdk/postmark-dotnet/src/Postmark.Tests/AdminClientServersTests.cs:37`, `:110`, `sdk/postmark-gem/spec/integration/account_api_client_spec.rb:101-102` **SDK**. The mock matches a color without case and answers lowercase.
 - The PUT response table types `DeliveryType` as boolean. `refs/api_server-api.md:171` **DOC**. The GET table says string. Trust string. **INFERRED**
 
 ### 4.2 Servers API (account token)
@@ -496,7 +497,7 @@ Templates (§3):
 - [ ] `PUT /templates/push` (account token): match by alias, skip templates without alias, honor `PerformChanges: false`. Errors 601, 1124, 1125.
 
 Server and Servers (§4.1–§4.2):
-- [ ] `GET/PUT /server` with the §4.1 field set. Reject writes to read-only fields. `InboundSpamThreshold` 0–30. Colors per the HTML doc (capitalized).
+- [ ] `GET/PUT /server` with the §4.1 field set. Reject writes to read-only fields. `InboundSpamThreshold` 0–30. Colors match without case; responses use lowercase (§4.1).
 - [ ] Hook URL and tracking fields drive `docs/05` §1.5 and §5.
 - [ ] `DeliveryType` is fixed at create. `Sandbox` servers accept mail but deliver nothing (`docs/07`).
 - [ ] `/servers` CRUD with the account token. `name` filter is a substring match. Create issues a new server token. Errors 600–615.

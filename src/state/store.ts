@@ -70,6 +70,7 @@ function emptyState(): State {
       dataRemovalsEnabled: true,
       messageStreamsApiEnabled: true,
       customUnsubscribeEnabled: false,
+      serverDeletionEnabled: false,
     },
     servers: new Map(),
     streams: new Map(),

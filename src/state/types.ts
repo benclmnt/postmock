@@ -4,15 +4,17 @@
 // `null` means "not set"; each API group decides whether the wire omits the key or sends null.
 
 export type TrackLinks = "None" | "HtmlAndText" | "HtmlOnly" | "TextOnly";
+// Lowercase on the wire: the SDK live tests send `red` and read back `red`
+// (sdk/postmark.js/test/integration/Servers.test.ts:57-70; refs/api_servers-api.md:67 example).
 export type ServerColor =
-  | "Purple"
-  | "Blue"
-  | "Turquoise"
-  | "Green"
-  | "Red"
-  | "Yellow"
-  | "Grey"
-  | "Orange";
+  | "purple"
+  | "blue"
+  | "turquoise"
+  | "green"
+  | "red"
+  | "yellow"
+  | "grey"
+  | "orange";
 
 export interface Header {
   Name: string;
@@ -48,6 +50,8 @@ export interface Account {
   messageStreamsApiEnabled: boolean;
   /** Custom unsubscribe handling; ErrorCode 1238 when false (docs/04 §4.4). */
   customUnsubscribeEnabled: boolean;
+  /** Server deletion through the API; ErrorCode 604 when false (refs/api_servers-api.md:483). */
+  serverDeletionEnabled: boolean;
 }
 
 // docs/06 §4.1; refs/api_server-api.md:30-53.

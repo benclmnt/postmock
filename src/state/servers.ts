@@ -18,7 +18,7 @@ function newServer(id: number, tokens: string[], settings: ServerSettings): Serv
   return {
     Name: `Server ${id}`,
     ApiTokens: tokens,
-    Color: "Purple",
+    Color: "purple",
     SmtpApiActivated: true,
     RawEmailEnabled: false,
     DeliveryType: "Live",
