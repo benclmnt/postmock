@@ -116,8 +116,19 @@ export interface BounceReport {
  * A deactivating type marks the bounce inactive and adds a Recipient row on the message stream
  * unless one exists. Emits the bounce event, then `subscriptionChange` for a new row (Q12 order).
  */
-export async function recordBounce(runtime: Runtime, report: BounceReport): Promise<Bounce> {
-  const { store, events, clock } = runtime;
+export const recordBounce = (runtime: Runtime, report: BounceReport): Promise<Bounce> =>
+  recordBounceAt(runtime, report, {
+    id: runtime.store.nextId("bounce"),
+    at: runtime.clock.now(),
+  });
+
+/** `recordBounce` with a bounce ID the caller claimed and a time: a seed records past bounces (docs/11 §5). */
+export async function recordBounceAt(
+  runtime: Runtime,
+  report: BounceReport,
+  { id, at }: { id: number; at: Date },
+): Promise<Bounce> {
+  const { store, events } = runtime;
   const { message, email, type } = report;
   const deactivates = DEACTIVATES[type];
   if (deactivates === undefined) {
@@ -125,7 +136,6 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
       `bounce type ${type}: effect on the address is not captured (docs/04 Q13)`,
     );
   }
-  const now = clock.now();
   const reason: SuppressionReason = type === "SpamComplaint" ? "SpamComplaint" : "HardBounce";
   const existing = findSuppression(store.state, message.ServerID, message.MessageStream, email);
   if (deactivates && existing !== undefined && existing.SuppressionReason !== reason) {
@@ -134,7 +144,7 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
     );
   }
   const bounce: Bounce = {
-    ID: store.nextId("bounce"),
+    ID: id,
     ServerID: message.ServerID,
     MessageStream: message.MessageStream,
     MessageID: message.MessageID,
@@ -145,7 +155,7 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
     Email: email,
     From: message.From,
     Subject: message.Subject ?? "",
-    BouncedAt: now,
+    BouncedAt: at,
     Inactive: deactivates,
     // A spam complaint cannot be reactivated (refs/webhooks_spam-complaint-webhook.md:6,58).
     CanActivate: type !== "SpamComplaint",
@@ -163,6 +173,7 @@ export async function recordBounce(runtime: Runtime, report: BounceReport): Prom
       reason,
       origin: "Recipient",
       message,
+      at,
     });
   }
   return bounce;
@@ -199,6 +210,7 @@ export async function recordUnsubscribe(
     reason: "ManualSuppression",
     origin: "Recipient",
     message,
+    at: runtime.clock.now(),
   });
   return true;
 }
@@ -212,9 +224,10 @@ async function addSuppression(
     reason: SuppressionReason;
     origin: SuppressionOrigin;
     message: OutboundMessage | null;
+    at: Date;
   },
 ): Promise<void> {
-  const now = runtime.clock.now();
+  const now = row.at;
   const suppression: Suppression = {
     ServerID: row.serverId,
     MessageStream: row.stream,
@@ -338,6 +351,7 @@ export async function suppressByCustomer(
       reason: "ManualSuppression",
       origin: "Customer",
       message: null,
+      at: runtime.clock.now(),
     });
   } else if (existing.SuppressionReason === "SpamComplaint") {
     return { EmailAddress: email, Status: "Failed", Message: AUTHORITY };
