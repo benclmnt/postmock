@@ -27,7 +27,8 @@
     "check": "biome check . && tsc --noEmit && vitest run",
     "test": "vitest run",
     "conformance": "node conformance/run.ts",
-    "conformance:check": "node conformance/check.ts"
+    "conformance:check": "node conformance/check.ts",
+    "compat-table": "node tools/compat-table.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

@@ -1,4 +1,14 @@
+import { existsSync, readdirSync } from "node:fs";
 import type { PostmockStamp } from "./stamp.ts";
+
+/** Every SDK with a runner: a folder of `conformance/` that holds `run.ts`, by name. */
+export const runnerNames = (): string[] => {
+  const root = new URL("./", import.meta.url);
+  return readdirSync(root, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(new URL(`${d.name}/run.ts`, root)))
+    .map((d) => d.name)
+    .sort();
+};
 
 /** One test of an SDK suite. `id` is `<file> > <full title>` and stays stable across runs. */
 export interface TestResult {

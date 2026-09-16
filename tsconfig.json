@@ -17,6 +17,6 @@
     "isolatedModules": true,
     "skipLibCheck": true
   },
-  "include": ["src", "seeds", "conformance", "examples", "vitest.config.ts"],
+  "include": ["src", "seeds", "conformance", "examples", "tools", "vitest.config.ts"],
   "exclude": ["conformance/*/.work"]
 }

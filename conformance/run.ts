@@ -1,13 +1,10 @@
 // `pnpm conformance <sdk>|all`: runs each SDK suite against postmock and writes
 // `conformance/results/<sdk>.json`. A runner is `conformance/<sdk>/run.ts` exporting `run()`.
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import type { ResultsFile } from "./results.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { type ResultsFile, runnerNames } from "./results.ts";
 
 const root = new URL("./", import.meta.url);
-const runners = readdirSync(root, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && existsSync(new URL(`${d.name}/run.ts`, root)))
-  .map((d) => d.name)
-  .sort();
+const runners = runnerNames();
 
 const arg = process.argv[2];
 if (arg === undefined || (arg !== "all" && !runners.includes(arg))) {
