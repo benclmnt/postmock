@@ -74,7 +74,7 @@ The handler cannot choose another success status.
 | `src/api/email/` | `POST /email`, `POST /email/batch`; `sendResponse`, `batchItem` for other send routes | built (T1) |
 | `src/api/bounces/`, `src/api/suppressions/`, `src/api/message-streams/`, `src/api/data-removals/` | Bounce, Suppressions, Message Streams and Data Removals APIs (`docs/04`) | built (T2) |
 | `src/recipients/` | The bounce and suppression state machine (`docs/04` §3.2): `recordBounce`, `recordUnsubscribe`, `activateBounce`, `suppressByCustomer`, `deleteSuppression`; each emits its events. `MessageEvents` on the message come from listeners of those events (T4). | built (T2) |
-| `src/api/templates/` | Templates CRUD, `/templates/validate`, `/email/withTemplate`, `/email/batchWithTemplates` | built (T3; push: T7) |
+| `src/api/templates/` | Templates CRUD, `/templates/validate`, `/email/withTemplate`, `/email/batchWithTemplates` (replies from `src/api/email/json.ts`) | built (T3; push: T7) |
 | `src/api/bulk/` | `/email/bulk` send, status, list; processing on the clock | built (T3) |
 | `src/api/<group>/` | Other API groups | design (T4, T5) |
 | `src/state/` | Entity types, `Store`, ids, `Clock`, `createServer` | built |
@@ -144,6 +144,7 @@ Each one is a place where Postmark behavior is unknown. The mock fails loudly th
 | Rendered HTML with a `<style>` block while `InlineCss` is on (default) | 501, plain text | `docs/06` Q12 |
 | A `TemplateType` change on edit; a new alias for a layout in use | 501, plain text | `docs/06` §3.2 |
 | A bulk send on a non-broadcast stream; `GET /email/bulk` without `count` 1–500 | 501, plain text | `docs/03` Q20 |
+| A bulk message that reaches uncaptured behavior on the clock (a stream archived after accept) | the request stops releasing and never completes; the reason goes to stderr and `GET /control/bulk/:id` | `docs/03` §1.6 |
 | A bug in postmock | 500, plain text with the stack | — |
 | 401 `Message` text | the doc table text for ErrorCode 10 | `docs/02` §9 Q2 |
 | SMTP behavior nobody captured: `POSTMARK_API_TEST` as AUTH, an SMTP token with `X-PM-Message-Stream` naming another stream | SMTP 502 with the reason | `docs/07` Q4, Q13 |

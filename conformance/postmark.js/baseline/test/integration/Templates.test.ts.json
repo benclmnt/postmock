@@ -11,6 +11,9 @@
     "Client - Templates validateTemplate - layout",
     "Client - Templates editTemplate - layout valid",
     "Client - Templates editTemplate - layout invalid",
-    "Client - Templates sending sendEmailWithTemplate"
+    "Client - Templates sending sendEmailWithTemplate",
+    "Client - Templates push templates non existing servers error",
+    "Client - Templates push templates bad destination server",
+    "Client - Templates push templates bad source server"
   ]
 }
