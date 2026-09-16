@@ -35,6 +35,9 @@ describe("conformance message history", () => {
     );
     expect((await get("/messages/outbound?count=1&offset=50")).Messages).toHaveLength(1);
     expect((await get("/messages/inbound?count=10&offset=0")).InboundMessages).toHaveLength(10);
+    // php reads the dump of the newest bounce (sdk/postmark-php/tests/PostmarkClientBounceTest.php:130-134).
+    const [newest] = (await get("/bounces?count=10&offset=0")).Bounces;
+    expect((await get(`/bounces/${newest.ID}/dump`)).Body).not.toBe("");
     expect(
       (await get("/messages/outbound?count=20&offset=0&tag=test_tag")).TotalCount,
     ).toBeGreaterThan(0);

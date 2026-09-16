@@ -1,6 +1,3 @@
 {
-  "passing": [
-    "ApiClientTest.getDataHandler",
-    "ApiClientTest.getHttpClient"
-  ]
+  "passing": ["ApiClientTest.getDataHandler", "ApiClientTest.getHttpClient"]
 }
