@@ -426,13 +426,22 @@ export type WebhookRecordType =
 export interface WebhookAttempt {
   id: number;
   serverId: number;
+  /** The `/webhooks` row; null for a server hook URL (`BounceHookUrl`, `InboundHookUrl`, …). */
+  webhookId: number | null;
   recordType: WebhookRecordType;
+  /** The URL as configured, userinfo included. */
   url: string;
   traceId: string;
-  payload: unknown;
+  /** Request headers as sent, the `Authorization` header included. */
+  headers: Header[];
+  /** The JSON body, the same bytes on every attempt of one event. */
+  body: string;
+  /** 1 for the first attempt. */
   attempt: number;
   at: Date;
   outcome: { status: number } | { error: string };
+  /** What the outcome causes (docs/05 §3.4, §3.6). */
+  result: "success" | "retry" | "stop" | "exhausted";
   nextAttemptAt: Date | null;
 }
 
