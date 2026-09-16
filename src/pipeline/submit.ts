@@ -67,8 +67,8 @@ const draftSchema = (channel: "rest" | "smtp") =>
 type Draft = z.output<ReturnType<typeof draftSchema>>;
 
 /**
- * The draft of one `/email` JSON object. Keys match without case (docs/08 R8); unknown keys are
- * ignored (R12). Nested keys (`ContentId`) are folded by `submitOutbound`.
+ * The draft of one JSON message object. Keys match without case at every level, `ContentId` too
+ * (docs/08 R8); unknown keys are ignored (R12). Every JSON channel builds its draft here.
  */
 export function draftFromJson(body: Record<string, unknown>): OutboundDraft {
   const canonical = canonicalizeKeys(draftSchema("rest"), body) as Record<string, unknown>;
@@ -83,6 +83,8 @@ export interface Submission {
   draft: OutboundDraft;
   /** Request JSON (REST) or raw MIME (SMTP), kept for `GET /control/messages`. */
   request: unknown;
+  /** The MIME source the dump endpoint serves: SMTP sets it; REST sends leave it out for now. */
+  rawSource?: string;
   bulkRequestId: string | null;
   templateId: number | null;
 }
@@ -116,25 +118,34 @@ const FORBIDDEN_EXTENSIONS = new Set(
   ),
 );
 
-const reject = (error: ErrorBody): SubmitResult => ({ outcome: "rejected", error });
+const reject = (error: ErrorBody) => ({ outcome: "rejected" as const, error });
 // ErrorCode 300 is documented for each case below (refs/api_overview.md:69). Only the address
 // texts are documented (refs/api_bulk-email.md:221-227); the other texts are INFERRED (docs/03 Q4).
-const invalid = (message: string): SubmitResult => reject(errorBody(300, { message }));
+const invalid = (message: string) => reject(errorBody(300, { message }));
 const invalidAddress = (field: string, raw: string) =>
   invalid(`Invalid '${field}' address: '${raw}'.`);
 
+/** A draft that passed every data check, ready for `acceptOutbound`. */
+export interface ValidOutbound {
+  submission: Submission;
+  draft: Draft & { From: string; To: string };
+  streamId: string;
+  from: Address;
+  lists: Record<"To" | "Cc" | "Bcc" | "ReplyTo", Address[]>;
+  recipients: Address[];
+}
+
+export type Validation =
+  | { outcome: "valid"; outbound: ValidOutbound }
+  | { outcome: "rejected"; error: ErrorBody };
+
 /**
- * Validate → suppression check → store → emit events (docs/11 §2). Check order follows docs/03
- * §3.3 (INFERRED): field types, size, stream, addresses, recipients, content, limits, attachments,
- * account approval, suppression.
+ * The data checks of a send, with no state change: field types, size, stream, addresses,
+ * recipients, content, limits, attachments. Check order follows docs/03 §3.3 (INFERRED). Account
+ * approval and suppressions belong to `acceptOutbound`. Throws `Unsupported` for uncaptured cases.
  */
-export async function submitOutbound(
-  runtime: Runtime,
-  submission: Submission,
-): Promise<SubmitResult> {
-  const { auth, channel } = submission;
-  const schema = draftSchema(channel);
-  const parsed = schema.safeParse(canonicalizeKeys(schema, submission.draft));
+export function validateOutbound(runtime: Runtime, submission: Submission): Validation {
+  const parsed = draftSchema(submission.channel).safeParse(submission.draft);
   // ErrorCode 403 for a field of the wrong type is INFERRED (docs/02 §9 Q13); text shape from
   // refs/api_overview.md:43-50. The first failing field is named.
   if (!parsed.success) {
@@ -145,7 +156,7 @@ export async function submitOutbound(
   checkSize(draft);
 
   const streamId = draft.MessageStream ?? "outbound";
-  const stream = findStream(runtime.store.state, auth, streamId);
+  const stream = findStream(runtime.store.state, submission.auth, streamId);
   if (stream === undefined) return reject(errorBody(1235, { params: { stream: streamId } }));
   if (stream.MessageStreamType === "Inbound") return reject(errorBody(1236));
   if (stream.ArchivedAt !== null) {
@@ -182,10 +193,31 @@ export async function submitOutbound(
       return reject(errorBody(411));
     }
   }
+  return {
+    outcome: "valid",
+    outbound: {
+      submission,
+      draft: { ...draft, From: draft.From, To: draft.To ?? "" },
+      streamId,
+      from,
+      lists,
+      recipients,
+    },
+  };
+}
 
+/**
+ * Account approval → suppression check → store → emit `sent` (docs/11 §2). The test token stops
+ * before them: it validates data only, and account state and suppressions are INFERRED not to
+ * apply to it (docs/02 Q18).
+ */
+export async function acceptOutbound(
+  runtime: Runtime,
+  outbound: ValidOutbound,
+): Promise<SubmitResult> {
+  const { submission, draft, streamId, from, lists, recipients } = outbound;
+  const { auth } = submission;
   const now = runtime.clock.now();
-  // The test token validates data only; account state and suppressions are INFERRED not to apply
-  // to it (docs/02 Q18).
   if (auth.kind === "test") {
     return { outcome: "validated", messageId: newMessageId(), submittedAt: now };
   }
@@ -232,9 +264,10 @@ export async function submitOutbound(
     Sandboxed: auth.server.DeliveryType === "Sandbox",
     ReceivedAt: now,
     MessageEvents: [],
-    channel,
+    channel: submission.channel,
     request: submission.request,
-    rawSource: "",
+    // REST sends generate no MIME source yet.
+    rawSource: submission.rawSource ?? "",
     bulkRequestId: submission.bulkRequestId,
     templateId: submission.templateId,
   };
@@ -247,6 +280,15 @@ export async function submitOutbound(
         message,
         error: inactiveRecipientsError(uniqueEmails(inactive)),
       };
+}
+
+/** `validateOutbound`, then `acceptOutbound` for a valid draft. */
+export async function submitOutbound(
+  runtime: Runtime,
+  submission: Submission,
+): Promise<SubmitResult> {
+  const validation = validateOutbound(runtime, submission);
+  return validation.outcome === "valid" ? acceptOutbound(runtime, validation.outbound) : validation;
 }
 
 /**

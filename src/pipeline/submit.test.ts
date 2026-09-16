@@ -4,7 +4,13 @@ import { createRuntime } from "../runtime.ts";
 import { createServer, type ServerSettings, testTokenContext } from "../state/servers.ts";
 import { streamKey, suppressionKey } from "../state/store.ts";
 import { batchItemError } from "./inactive.ts";
-import { type OutboundDraft, type SubmitResult, submitOutbound } from "./submit.ts";
+import {
+  draftFromJson,
+  type OutboundDraft,
+  type SubmitResult,
+  submitOutbound,
+  validateOutbound,
+} from "./submit.ts";
 
 const draft = (fields: Partial<OutboundDraft>): OutboundDraft => ({
   From: "sender@example.com",
@@ -90,6 +96,52 @@ describe("submitOutbound", () => {
     expect((await submit({ TextBody: undefined })).outcome).toBe("rejected");
     expect(await submit({ MessageStream: "nope" })).toMatchObject({ error: { ErrorCode: 1235 } });
     expect(runtime.store.state.outbound.size).toBe(0);
+  });
+
+  it("validateOutbound checks the data and changes no state", async () => {
+    const { runtime, server, sent } = setup();
+    const submission = (fields: Partial<OutboundDraft>) => ({
+      auth: { kind: "server" as const, server },
+      channel: "rest" as const,
+      draft: draft(fields),
+      request: {},
+      bulkRequestId: null,
+      templateId: null,
+    });
+    expect(validateOutbound(runtime, submission({})).outcome).toBe("valid");
+    expect(validateOutbound(runtime, submission({ To: "test" }))).toMatchObject({
+      outcome: "rejected",
+      error: { ErrorCode: 300 },
+    });
+    expect(runtime.store.state.outbound.size).toBe(0);
+    expect(sent).toEqual([]);
+  });
+
+  it("stores the raw MIME source a channel gives", async () => {
+    const { runtime, server } = setup();
+    const result = await submitOutbound(runtime, {
+      auth: { kind: "server", server },
+      channel: "smtp",
+      draft: draft({}),
+      request: "MIME",
+      rawSource: "MIME",
+      bulkRequestId: null,
+      templateId: null,
+    });
+    expect(accepted(result).rawSource).toBe("MIME");
+  });
+
+  it("draftFromJson folds key case at every level (docs/08 R8)", () => {
+    const folded = draftFromJson({
+      htmlbody: "<b>Hi</b>",
+      Attachments: [{ name: "a.txt", Content: "aGk=", ContentType: "text/plain", ContentId: "x" }],
+      Unknown: 1,
+    });
+    expect(folded.HtmlBody).toBe("<b>Hi</b>");
+    expect(folded.Attachments).toEqual([
+      { Name: "a.txt", Content: "aGk=", ContentType: "text/plain", ContentID: "x" },
+    ]);
+    expect(Object.keys(folded)).not.toContain("Unknown");
   });
 
   describe("field types (403)", () => {
@@ -216,14 +268,14 @@ describe("submitOutbound", () => {
       );
     });
 
-    it("reads ContentID null, empty and absent as not inline; folds ContentId key case", async () => {
+    it("reads ContentID null, empty and absent as not inline", async () => {
       const message = accepted(
         await setup().send({
           Attachments: [
             attachment({ ContentID: null }),
             attachment({ ContentID: "" }),
             attachment({}),
-            attachment({ ContentId: "cid:logo" }),
+            attachment({ ContentID: "cid:logo" }),
           ],
         }),
       );
