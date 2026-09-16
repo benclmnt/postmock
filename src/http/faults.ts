@@ -1,5 +1,5 @@
 import type { HttpBindings } from "@hono/node-server";
-import { ApiError, errorBody } from "../errors.ts";
+import { ApiError } from "../errors.ts";
 import type { State } from "../state/store.ts";
 import type { Fault } from "../state/types.ts";
 import { errorResponse } from "./respond.ts";
@@ -37,5 +37,5 @@ async function reply(fault: Fault, env: HttpBindings): Promise<Response> {
     await new Promise((resolve) => env.incoming.socket.once("close", resolve));
     return new Response(null, { status: 499 });
   }
-  return errorResponse(new ApiError(reply.status, errorBody(reply.errorCode)));
+  return errorResponse(new ApiError(reply.status, reply.body));
 }

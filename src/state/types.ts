@@ -448,7 +448,11 @@ export interface SmtpToken {
   messageStream: string;
 }
 
-export type FaultReply = { status: number; errorCode: number } | "timeout" | "reset";
+/** An error reply is built with `apiError`, so its status and code pair exists in docs/02 §4.4. */
+export type FaultReply =
+  | { status: number; body: { ErrorCode: number; Message: string } }
+  | "timeout"
+  | "reset";
 
 // docs/09 §5 `POST /control/faults`.
 export interface Fault {

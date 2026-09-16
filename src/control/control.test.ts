@@ -90,7 +90,7 @@ describe("POST /control/faults", () => {
     const res = await post("/control/faults", {
       match: { method: "get", path: "/SERVER" },
       times: 2,
-      reply: { status: 503, errorCode: 100 },
+      reply: { errorCode: 100 },
     });
     expect(res.status).toBe(200);
     for (const _ of [1, 2]) {
@@ -101,13 +101,28 @@ describe("POST /control/faults", () => {
     expect((await getServer()).status).toBe(200);
   });
 
-  it("rejects an ErrorCode the table cannot render", async () => {
-    const { post } = await setup();
-    const res = await post("/control/faults", {
-      match: { method: "GET", path: "/server" },
-      reply: { status: 422, errorCode: 614 },
-    });
+  it.each([
+    [{ status: 599, errorCode: 402 }, "ErrorCode 402 needs a status from 422"],
+    [{ errorCode: 614 }, "ErrorCode 614 needs a family"],
+    [{ errorCode: 300 }, "pass the exact message"],
+    [{ errorCode: 9999 }, "not in docs/02"],
+  ])("refuses a reply Postmark cannot give: %j", async (reply, error) => {
+    const { runtime, post } = await setup();
+    const res = await post("/control/faults", { match: { method: "GET", path: "/server" }, reply });
     expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: expect.stringContaining(error) });
+    expect(runtime.store.state.faults).toEqual([]);
+  });
+
+  it("faults a code listed under several families", async () => {
+    const { post, getServer } = await setup();
+    await post("/control/faults", {
+      match: { method: "GET", path: "/server" },
+      reply: { errorCode: 1226, family: "stats" },
+    });
+    const res = await getServer();
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ ErrorCode: 1226 });
   });
 });
 

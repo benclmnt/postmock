@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { errorBody } from "../../errors.ts";
+import { apiError, type ErrorFamily } from "../../errors.ts";
 import { formatTimestamp } from "../../time.ts";
 import { type ControlContext, ControlError, controlInput, defineControl } from "../registry.ts";
 import { applySeed, seedNames } from "../seed.ts";
@@ -63,7 +63,12 @@ const faultSchema = z.object({
   match: z.object({ method: z.string(), path: z.string().startsWith("/") }),
   times: z.int().positive().default(1),
   reply: z.union([
-    z.object({ status: z.int().min(400).max(599), errorCode: z.int() }),
+    z.object({
+      errorCode: z.int(),
+      status: z.int().optional(),
+      family: z.string().optional(),
+      message: z.string().optional(),
+    }),
     z.literal("timeout"),
     z.literal("reset"),
   ]),
@@ -74,22 +79,29 @@ defineControl({
   path: "/control/faults",
   handler: (ctx) => {
     const { match, times, reply } = controlInput(faultSchema, ctx.body);
-    if (typeof reply === "object") {
-      try {
-        errorBody(reply.errorCode);
-      } catch (error) {
-        throw new ControlError((error as Error).message);
-      }
-    }
     ctx.store.state.faults.push({
       method: match.method,
       path: match.path,
       remaining: times,
-      reply,
+      reply: typeof reply === "string" ? reply : faultError(reply),
     });
     return { faults: ctx.store.state.faults.length };
   },
 });
+
+/** Only a status and ErrorCode pair from docs/02 §4.4 can be faulted (CONTROL-API.md principle). */
+function faultError(reply: Exclude<z.output<typeof faultSchema>["reply"], string>) {
+  try {
+    const { status, body } = apiError(reply.errorCode, {
+      ...(reply.status !== undefined && { status: reply.status }),
+      ...(reply.family !== undefined && { family: reply.family as ErrorFamily }),
+      ...(reply.message !== undefined && { message: reply.message }),
+    });
+    return { status, body };
+  } catch (error) {
+    throw new ControlError((error as Error).message);
+  }
+}
 
 defineControl({
   method: "GET",
