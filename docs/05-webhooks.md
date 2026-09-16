@@ -843,7 +843,7 @@ Responses and retries:
 - [x] Log every attempt (URL, headers, body, status, virtual time) for test assertions through the control API.
 
 Test sends (§3.8):
-- [ ] A send to `<type>@bounce-testing.postmarkapp.com` or with `X-PM-Bounce-Type` fires a real Bounce event.
+- [x] A send to `<type>@bounce-testing.postmarkapp.com` or with `X-PM-Bounce-Type` fires a real Bounce event.
 - [ ] A sandbox server fires Delivery for every message.
 
 ---

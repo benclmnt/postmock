@@ -92,6 +92,7 @@ The handler cannot choose another success status.
 | `src/mime/` | `composeMime`: the MIME source of a control inbound message, a REST send and a seeded past send | built |
 | `src/inbound/` | MIME parse, server routing, rules, spam threshold, hook delivery | built |
 | `src/plugins/webhooks.ts` | Subscribes the emitter to every domain event | built |
+| `src/plugins/test-bounces.ts` | A send to `bounce-testing.postmarkapp.com` bounces at once: type from `X-PM-Bounce-Type` or the local part (`docs/07` §2.3) | built |
 | `src/smtp/` | SMTP listener (`smtp-server`), AUTH, MIME to `OutboundDraft` (`mailparser`), `SMTPApiError` bounces; started by `src/plugins/smtp.ts` | built |
 | `seeds/` | `empty`, `conformance` (parts in `seeds/conformance/*.ts`, shared constants, `read-server.ts` and `history.ts` past traffic in `seeds/lib/`) | built (more parts: tracks) |
 | `conformance/` | Runners, results, ratchet (`TESTING.md`) | built for every SDK suite |

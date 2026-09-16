@@ -474,9 +474,9 @@ State:
 
 Creating state (one path, Postmark-native):
 
-- [ ] Turn a send to `<type>@bounce-testing.postmarkapp.com` (or header `X-PM-Bounce-Type`) into a bounce of that type — `refs/user-guide_sandbox-mode_generate-fake-bounces.md:7-26` DOC.
-- [ ] For `HardBounce`: set `Inactive: true`, `CanActivate: true`, add a `HardBounce`/`Recipient` suppression on the send stream.
-- [ ] Map a `SpamComplaint` request on that domain to `HardBounce`, as Postmark does — `refs/support_article_1239-how-to-test-bounces.md:90` DOC. (Q2 covers how to seed a real spam complaint.)
+- [x] Turn a send to `<type>@bounce-testing.postmarkapp.com` (or header `X-PM-Bounce-Type`) into a bounce of that type — `refs/user-guide_sandbox-mode_generate-fake-bounces.md:7-26` DOC.
+- [x] For `HardBounce`: set `Inactive: true`, `CanActivate: true`, add a `HardBounce`/`Recipient` suppression on the send stream.
+- [x] Map a `SpamComplaint` request on that domain to `HardBounce`, as Postmark does — `refs/support_article_1239-how-to-test-bounces.md:90` DOC. (Q2 covers how to seed a real spam complaint.)
 - [ ] `POST .../suppressions` creates `ManualSuppression`/`Customer` rows (T6).
 
 Send check (`/email` and every send path in `docs/03`):
