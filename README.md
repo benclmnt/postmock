@@ -156,7 +156,7 @@ Details: [`docs/07`](docs/07-smtp-sandbox-limits.md).
 
 ## Control API
 
-Tests drive postmock through the control API on its own port: reset, seeds, the clock (advance, pause, resume), latency, faults, sent messages, bounces, opens, clicks, inbound mail and webhook attempts.
+Tests drive postmock through the control API on its own port: reset, seeds, the clock (advance; `--clock manual` stops real time), latency, faults, sent messages, bounces, opens, clicks, inbound mail and webhook attempts.
 Every call maps to something that can happen on real Postmark.
 Reference: [`CONTROL-API.md`](CONTROL-API.md).
 

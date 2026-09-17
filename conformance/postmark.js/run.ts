@@ -78,6 +78,7 @@ export async function run(): Promise<ResultsFile> {
     apiPort: 0,
     controlPort: 0,
     seed: "conformance",
+    clock: "real",
   });
   try {
     const env = {

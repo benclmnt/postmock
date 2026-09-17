@@ -1,3 +1,6 @@
+/** `real`: time follows real time plus advances. `manual`: time moves only on `advance()`. */
+export type ClockMode = "real" | "manual";
+
 type Run = () => void | Promise<void>;
 
 interface Task {
@@ -13,29 +16,27 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 /**
  * Real time plus an offset that `advance()` grows (docs/09 §5 `clock/advance`).
  * A scheduled task runs once: when real time reaches it, or when `advance()` passes it.
- * While paused, time stands still and only `advance()` moves it and runs tasks.
+ * A `manual` clock starts at real time, stands still, and only `advance()` moves it and runs tasks.
  * Advances and real-timer tasks run one at a time, in the order they start.
  */
 export class Clock {
   private offsetMs = 0;
-  /** The instant time stands at; `undefined` while time follows real time. */
-  private pausedAt: number | undefined;
+  /** The instant a manual clock stands at; `undefined` on a real clock. */
+  private manualNow: number | undefined;
   private seq = 0;
   private advancing = false;
   private queue: Promise<void> = Promise.resolve();
   private readonly tasks = new Set<Task>();
+  private readonly holds = new Set<() => void>();
   private readonly realNow: () => number;
 
-  constructor(realNow: () => number = Date.now) {
+  constructor(realNow: () => number = Date.now, mode: ClockMode = "real") {
     this.realNow = realNow;
+    if (mode === "manual") this.manualNow = realNow();
   }
 
   now(): Date {
-    return new Date(this.pausedAt ?? this.realNow() + this.offsetMs);
-  }
-
-  get paused(): boolean {
-    return this.pausedAt !== undefined;
+    return new Date(this.manualNow ?? this.realNow() + this.offsetMs);
   }
 
   /** The number of tasks not yet run. */
@@ -43,29 +44,22 @@ export class Clock {
     return this.tasks.size;
   }
 
-  /** Stops time at `now()`. Pending tasks wait for `advance()`. */
-  pause(): void {
-    if (this.pausedAt !== undefined) return;
-    this.pausedAt = this.now().getTime();
-    for (const task of this.tasks) {
-      clearTimeout(task.timer);
-      task.timer = undefined;
-    }
-  }
-
-  /** Lets time follow real time again from the paused instant. */
-  resume(): void {
-    if (this.pausedAt === undefined) return;
-    this.offsetMs = this.pausedAt - this.realNow();
-    this.pausedAt = undefined;
-    for (const task of this.tasks) this.arm(task);
-  }
-
   schedule(delayMs: number, run: Run): void {
     if (!Number.isInteger(delayMs) || delayMs < 0) {
       throw new Error(`schedule needs delayMs >= 0, got ${delayMs}`);
     }
     this.add({ due: this.now().getTime() + delayMs, seq: this.seq++, run, timer: undefined });
+  }
+
+  /** Resolves after `delayMs` on the clock, or at `reset()`, so a held request always answers. */
+  hold(delayMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      this.holds.add(resolve);
+      this.schedule(delayMs, () => {
+        this.holds.delete(resolve);
+        resolve();
+      });
+    });
   }
 
   /**
@@ -101,34 +95,35 @@ export class Clock {
     return this.queue;
   }
 
-  /** Drops pending tasks, the offset and a pause. Throws during an advance, which would undo it. */
+  /**
+   * Drops pending tasks and the offset, and releases every hold; a manual clock stands at real time
+   * again. Throws during an advance, which would undo it.
+   */
   reset(): void {
     if (this.advancing) throw new Error("clock.reset during an advance");
     for (const task of this.tasks) clearTimeout(task.timer);
     this.tasks.clear();
+    for (const release of this.holds) release();
+    this.holds.clear();
     this.offsetMs = 0;
-    this.pausedAt = undefined;
+    if (this.manualNow !== undefined) this.manualNow = this.realNow();
   }
 
-  /** Captures offset, pause and pending tasks; the returned function puts them back. */
+  /** Captures time and pending tasks; the returned function puts them back. */
   checkpoint(): () => void {
-    const { offsetMs, pausedAt } = this;
+    const { offsetMs, manualNow } = this;
     const tasks = [...this.tasks].map(({ due, seq, run }) => ({ due, seq, run }));
     return () => {
       this.reset();
       this.offsetMs = offsetMs;
-      this.pausedAt = pausedAt;
+      this.manualNow = manualNow;
       for (const task of tasks) this.add({ ...task, timer: undefined });
     };
   }
 
   private add(task: Task): void {
-    this.arm(task);
     this.tasks.add(task);
-  }
-
-  private arm(task: Task): void {
-    if (this.pausedAt !== undefined) return;
+    if (this.manualNow !== undefined) return;
     const delay = task.due - this.now().getTime();
     if (delay <= MAX_TIMER_MS) {
       // A task that throws on a real timer is a postmock bug: rethrow so the process crashes.
@@ -157,8 +152,8 @@ export class Clock {
   /** Time never moves back. */
   private moveTo(instant: number): void {
     const target = Math.max(this.now().getTime(), instant);
-    if (this.pausedAt === undefined) this.offsetMs = target - this.realNow();
-    else this.pausedAt = target;
+    if (this.manualNow === undefined) this.offsetMs = target - this.realNow();
+    else this.manualNow = target;
   }
 
   private async take(task: Task): Promise<void> {

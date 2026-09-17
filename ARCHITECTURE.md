@@ -39,20 +39,22 @@ The conformance runners also prove their route before and after each suite (`TES
 | Webhook emitter | outbound | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` (comma-separated hostnames, `*` for all; default: none) | Every RecordType, retries on the clock (`docs/05`). Reaches only loopback hosts (`localhost`, `127.0.0.0/8`, `::1`) and the listed hosts over `http:`/`https:`, also for redirects; an entry with a port fails at start. A refused hop, or a redirect `Location` with userinfo, opens no socket and is logged as a `stop` attempt with no retry (`docs/05` D3). A retry is dropped once its hook changes (`docs/05` D4) | built (`src/plugins/webhooks.ts`) |
 
 `POSTMOCK_SEED` (default `empty`) names the seed applied at start.
+`POSTMOCK_CLOCK` (default `real`) is `real` or `manual`. A `manual` clock moves only on `POST /control/clock/advance`, so bulk releases, fake bounces and webhook retries wait for it too. The official SDK suites need `real`: they wait in real time (`sdk/postmark-php/tests/PostmarkClientBounceTest.php:55` sleeps for the fake bounce).
 Every env key is also a CLI flag: `postmock --seed conformance --api-port 0` sets `POSTMOCK_SEED` and `POSTMOCK_API_PORT` (`postmock --help`).
 Port `0` picks a free port; startup prints one `name=url` per listener, plugin listeners included.
 Listeners bind in order api, https, plugins, control: once the control API answers, every listener is up.
 
 ## Request flow (REST)
 
+A control-API latency rule that matches method and path first holds the request on the clock (`src/http/faults.ts`).
+
 | Step | Result on failure | Code |
 | --- | --- | --- |
-| 1. A control-API latency rule matches method and path | the request waits on the clock, then goes on | `src/http/faults.ts` |
-| 2. A control-API fault matches method and path | the fault reply | `src/http/faults.ts` |
-| 3. The route table matches method and path; one trailing slash is ignored | 404, plain text `postmock: no route for …` (also for `//` or a bad percent-escape) | `src/http/routes.ts` |
-| 4. Auth reads the token header the route needs. `POSTMARK_API_TEST` gets a stored-nowhere server with the default streams (INFERRED) | 401 + ErrorCode 10; 501 for `POSTMARK_API_TEST` where its behavior is unknown | `src/http/auth.ts` |
-| 5. The body decodes as UTF-8 JSON | 422 + ErrorCode 402 | `src/http/normalize.ts` |
-| 6. The handler returns a JSON body | `ApiError` → envelope; `Unsupported` → 501 text; any other throw → 500 text | `src/http/app.ts` |
+| 1. A control-API fault matches method and path | the fault reply | `src/http/faults.ts` |
+| 2. The route table matches method and path; one trailing slash is ignored | 404, plain text `postmock: no route for …` (also for `//` or a bad percent-escape) | `src/http/routes.ts` |
+| 3. Auth reads the token header the route needs. `POSTMARK_API_TEST` gets a stored-nowhere server with the default streams (INFERRED) | 401 + ErrorCode 10; 501 for `POSTMARK_API_TEST` where its behavior is unknown | `src/http/auth.ts` |
+| 4. The body decodes as UTF-8 JSON | 422 + ErrorCode 402 | `src/http/normalize.ts` |
+| 5. The handler returns a JSON body | `ApiError` → envelope; `Unsupported` → 501 text; any other throw → 500 text | `src/http/app.ts` |
 
 A success is always HTTP 200 with `Content-Type: application/json`.
 The handler cannot choose another success status.
@@ -116,7 +118,7 @@ A change to a contract below goes through the integrator.
 | Suppressions | `src/state/suppressions.ts` | `suppressedAddresses(state, serverId, streamId, emails)`, the one read path for the send-side 406 check; `findSuppression`. A stored message keeps the recipients it skipped in `suppressedRecipients`. Writes go through `src/recipients/`. |
 | Servers | `src/state/servers.ts` | `createServer(store, now, settings)` and `addAccountToken(store, token)` refuse a token held twice (without case) and `POSTMARK_API_TEST`; `testTokenContext(now)`; `findStream(state, auth, id)` for a stored or test-token server |
 | Entities | `src/state/types.ts` | PascalCase fields are wire fields; camelCase fields are internal; dates are `Date` |
-| Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule. Advances and real-timer tasks run one at a time; `await clock.idle()` waits for them. `pause()` stops time until `resume()`; while paused, only `advance` runs tasks. `pending` counts tasks not yet run. `reset()` throws during an advance and ends a pause; `checkpoint()` returns a restore function. |
+| Clock | `src/state/clock.ts` | `clock.now()`; `clock.schedule(delayMs, run)` with a sync or async `run`; `await clock.advance(ms)` runs due tasks in due order with `now()` at each due time, including tasks they schedule. Advances and real-timer tasks run one at a time; `await clock.idle()` waits for them. `new Clock(realNow, "manual")` stands still and arms no real timer; only `advance` moves it. `await clock.hold(ms)` resolves when the clock passes `ms` or at `reset()`. `pending` counts tasks not yet run. `reset()` throws during an advance; `checkpoint()` returns a restore function. |
 | Control endpoint | `src/control/registry.ts` | `defineControl({ method, path: "/control/…", handler(ctx) })`; `controlInput(schema, ctx.body)`; throw `ControlError` for 400 |
 | Control registration | `src/control/endpoints/<topic>.ts` | The file exists; `src/control/index.ts` imports it |
 | Seed part | `seeds/conformance/<NN-part>.ts` | Default export `Seed = (runtime) => void \| Promise<void>`. It claims fixed IDs from its track's range (`docs/11` §5). |

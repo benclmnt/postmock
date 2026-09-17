@@ -13,6 +13,7 @@ export async function startWithSmtp(tls: { key: string; cert: string } | null = 
     apiPort: 0,
     controlPort: 0,
     seed: "conformance",
+    clock: "real",
     plugins: [],
   });
   const smtp = await startSmtp(postmock.runtime, { host: "127.0.0.1", ports: [0], tls });

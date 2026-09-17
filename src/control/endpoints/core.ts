@@ -46,26 +46,8 @@ defineControl({
   handler: (ctx) => clockState(ctx.clock),
 });
 
-defineControl({
-  method: "POST",
-  path: "/control/clock/pause",
-  handler: (ctx) => {
-    ctx.clock.pause();
-    return clockState(ctx.clock);
-  },
-});
-
-defineControl({
-  method: "POST",
-  path: "/control/clock/resume",
-  handler: (ctx) => {
-    ctx.clock.resume();
-    return clockState(ctx.clock);
-  },
-});
-
 function clockState(clock: Clock) {
-  return { now: formatTimestamp(clock.now(), "utc"), paused: clock.paused, pending: clock.pending };
+  return { now: formatTimestamp(clock.now(), "utc"), pending: clock.pending };
 }
 
 const requestMatch = z.object({ method: z.string(), path: z.string().startsWith("/") });

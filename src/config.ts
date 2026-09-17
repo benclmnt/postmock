@@ -9,6 +9,7 @@ export const ENV_KEYS = [
   "POSTMOCK_API_PORT",
   "POSTMOCK_CONTROL_PORT",
   "POSTMOCK_SEED",
+  "POSTMOCK_CLOCK",
   "POSTMOCK_HTTPS_PORT",
   "POSTMOCK_HTTPS_TLS_KEY",
   "POSTMOCK_HTTPS_TLS_CERT",
@@ -68,6 +69,7 @@ const envSchema = z.object({
   POSTMOCK_API_PORT: portSchema.default(8080),
   POSTMOCK_CONTROL_PORT: portSchema.default(8025),
   POSTMOCK_SEED: z.string().min(1).default("empty"),
+  POSTMOCK_CLOCK: z.enum(["real", "manual"]).default("real"),
   POSTMOCK_HTTPS_PORT: portSchema.optional(),
   POSTMOCK_HTTPS_TLS_KEY: z.string().min(1).optional(),
   POSTMOCK_HTTPS_TLS_CERT: z.string().min(1).optional(),
@@ -81,6 +83,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv): PostmockConfig {
     apiPort: e.POSTMOCK_API_PORT,
     controlPort: e.POSTMOCK_CONTROL_PORT,
     seed: e.POSTMOCK_SEED,
+    clock: e.POSTMOCK_CLOCK,
   };
   const https = [e.POSTMOCK_HTTPS_PORT, e.POSTMOCK_HTTPS_TLS_KEY, e.POSTMOCK_HTTPS_TLS_CERT];
   if (https.every((v) => v === undefined)) return config;
