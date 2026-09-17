@@ -46,11 +46,11 @@ Listeners bind in order api, https, plugins, control: once the control API answe
 
 ## Request flow (REST)
 
-A control-API latency rule that matches method and path first holds the request on the clock (`src/http/faults.ts`).
+A control-API latency rule that matches method, path and, if set, a recipient domain first holds the request on the clock (`src/http/faults.ts`).
 
 | Step | Result on failure | Code |
 | --- | --- | --- |
-| 1. A control-API fault matches method and path | the fault reply | `src/http/faults.ts` |
+| 1. A control-API fault matches method, path and, if set, a recipient domain | the fault reply | `src/http/faults.ts` |
 | 2. The route table matches method and path; one trailing slash is ignored | 404, plain text `postmock: no route for …` (also for `//` or a bad percent-escape) | `src/http/routes.ts` |
 | 3. Auth reads the token header the route needs. `POSTMARK_API_TEST` gets a stored-nowhere server with the default streams (INFERRED) | 401 + ErrorCode 10; 501 for `POSTMARK_API_TEST` where its behavior is unknown | `src/http/auth.ts` |
 | 4. The body decodes as UTF-8 JSON | 422 + ErrorCode 402 | `src/http/normalize.ts` |

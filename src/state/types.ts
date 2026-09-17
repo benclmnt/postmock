@@ -521,6 +521,8 @@ export interface RequestRule {
   method: string;
   /** `/email`, `/templates/:id` */
   path: string;
+  /** Lower case. Only a request with a To, Cc or Bcc address at this domain matches. */
+  recipientDomain: string | undefined;
   remaining: number;
 }
 

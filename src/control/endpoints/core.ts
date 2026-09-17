@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiError, ERROR_FAMILIES, isSummaryRow } from "../../errors.ts";
 import type { Clock } from "../../state/clock.ts";
+import type { RequestRule } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
 import { ControlError, controlInput, defineControl } from "../registry.ts";
 import { seedAtomically } from "../seeding.ts";
@@ -50,7 +51,24 @@ function clockState(clock: Clock) {
   return { now: formatTimestamp(clock.now(), "utc"), pending: clock.pending };
 }
 
-const requestMatch = z.object({ method: z.string(), path: z.string().startsWith("/") });
+const requestMatch = z.object({
+  method: z.string(),
+  path: z.string().startsWith("/"),
+  recipientDomain: z
+    .string()
+    .regex(/^[^@\s]+$/)
+    .transform((d) => d.toLowerCase())
+    .optional(),
+});
+
+function requestRule(match: z.output<typeof requestMatch>, times: number): RequestRule {
+  return {
+    method: match.method,
+    path: match.path,
+    recipientDomain: match.recipientDomain,
+    remaining: times,
+  };
+}
 
 defineControl({
   method: "POST",
@@ -65,9 +83,7 @@ defineControl({
       ctx.body,
     );
     ctx.store.state.latencies.push({
-      method: match.method,
-      path: match.path,
-      remaining: times,
+      ...requestRule(match, times),
       ms,
     });
     return { latencies: ctx.store.state.latencies.length };
@@ -93,9 +109,7 @@ defineControl({
   handler: (ctx) => {
     const { match, times, reply } = controlInput(faultSchema, ctx.body);
     ctx.store.state.faults.push({
-      method: match.method,
-      path: match.path,
-      remaining: times,
+      ...requestRule(match, times),
       reply:
         reply === "timeout" || reply === "reset"
           ? reply

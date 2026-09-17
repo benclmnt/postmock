@@ -15,7 +15,12 @@ export function createApiApp(runtime: Runtime): Hono<{ Bindings: HttpBindings }>
   app.all("*", async (c) => {
     const request = c.req.raw;
     const url = new URL(request.url);
-    const fault = await applyFault(runtime, request.method, url.pathname, c.env);
+    const bytes = await request.arrayBuffer();
+    const fault = await applyFault(
+      runtime,
+      { method: request.method, pathname: url.pathname, body: bytes },
+      c.env,
+    );
     if (fault) return fault;
 
     const matched = apiRoutes.match(request.method, url.pathname);
@@ -31,7 +36,7 @@ export function createApiApp(runtime: Runtime): Hono<{ Bindings: HttpBindings }>
         `${route.method} ${route.path}`,
         runtime.clock.now(),
       );
-      const body = decodeJsonBody(await request.arrayBuffer());
+      const body = decodeJsonBody(bytes);
       const result = await route.handler({
         ...runtime,
         method: route.method as Method,
