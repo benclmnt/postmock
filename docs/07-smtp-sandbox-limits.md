@@ -183,6 +183,7 @@ postmock (`src/recipients/test-bounces.ts`, `src/plugins/test-bounces.ts`):
 | `X-PM-Bounce-Type` wins over the local part when both name a type. | **INFERRED** |
 | An unknown `X-PM-Bounce-Type` value answers 501 `Unsupported`. An unknown local part gives HardBounce. | header: **INFERRED**; local part: **DOC** (see table) |
 | A type whose effect on the address is not captured (`docs/04` Q13) answers 501 before the message is stored: `Unsubscribe`, `BadEmailAddress`, `ManuallyDeactivated`, `Unconfirmed`, `Blocked`, `SMTPApiError`, `InboundError`, `DMARCPolicy`, `TemplateRenderingFailed`. | **INFERRED** |
+| Order of that 501: after the data checks and the sender check (an unknown sender still gets the captured 400, `docs/03` §3.4); before account approval (412, 413) and suppressions (406), so a suppressed recipient with such a type gets 501, not 406. | **INFERRED** |
 | The bounce runs on the clock right after the send answers. | **INFERRED** ("immediately") |
 | Bounce `Details` is `Test bounce`. | **INFERRED** |
 | The bounce has no dump (`Content` empty, `DumpAvailable: false`). | **INFERRED** |
