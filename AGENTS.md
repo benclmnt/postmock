@@ -33,7 +33,8 @@
     compatibility concerns.
 12. The control API never produces a state that a real Postmark client action or
     a real Postmark event could not produce (`CONTROL-API.md`).
-13. This repo has no remote. Commit locally; never add a remote or push.
+13. The repo is `github.com/benclmnt/postmock`. Work on branches and open pull requests.
+    Never push to or force-push `main`. Never merge without the owner's integrator.
 14. Commit your changes before you finish your turn.
 15. Read the traps before debugging: server and client traps in `ARCHITECTURE.md`,
     test and harness traps in `TESTING.md`. When a new trap costs you an hour,
