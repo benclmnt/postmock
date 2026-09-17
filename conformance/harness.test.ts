@@ -30,6 +30,19 @@ describe("sandbox routing proof", () => {
     expect(() => sandbox.assertRouted()).not.toThrow();
   });
 
+  it("closes front connections from clients outside frontClients", async () => {
+    const clients = new Set<string>();
+    sandbox = await startSandbox({ frontClients: clients });
+    const server = () =>
+      fetch(`${sandbox.httpUrl}/server`, {
+        headers: { "X-Postmark-Server-Token": "postmock-server-token" },
+      });
+    await expect(server()).rejects.toThrow();
+    clients.add("127.0.0.1");
+    expect((await server()).status).toBe(200);
+    expect(sandbox.requests()).toBe(1);
+  });
+
   it("fails the run when a request reaches the trap", async () => {
     sandbox = await startSandbox();
     await fetch(`${sandbox.httpUrl}/server`);

@@ -19,6 +19,8 @@ export const IMAGES = {
 /** A public address for egress probes: on the internal network, a connection must be unreachable. */
 export const PUBLIC_IP = "1.1.1.1";
 
+const LOOPBACK = "127.0.0.1";
+
 /** Every network and container a runner creates carries this label, for manual cleanup. */
 const LABEL = "postmock-conformance";
 
@@ -96,9 +98,13 @@ export async function withContainerSandbox<T>(
 ): Promise<T> {
   const name = `postmock-${options.sdk.replace(/[^a-z0-9]/gi, "-")}-${randomBytes(4).toString("hex")}`;
   const gateway = `${name}-gateway`;
+  const frontHost = await gatewayTarget();
+  // On the bridge gateway, other bridge containers could reach the fronts: admit only the gateway.
+  const frontClients = frontHost === LOOPBACK ? undefined : new Set<string>();
   const sandbox = await startSandbox({
     ...(options.tls ? { tls: options.tls } : {}),
-    frontHost: await gatewayTarget(),
+    frontHost,
+    ...(frontClients === undefined ? {} : { frontClients }),
   });
   const removeDocker = async () => {
     // A suite container ignores the signal its `docker run` client forwards (PID 1 has no handler),
@@ -148,6 +154,14 @@ export async function withContainerSandbox<T>(
       ],
       quiet,
     );
+    if (frontClients !== undefined) {
+      const address = await mustExec(
+        "docker",
+        ["inspect", "--format", "{{.NetworkSettings.Networks.bridge.IPAddress}}", gateway],
+        quiet,
+      );
+      frontClients.add(address.trim());
+    }
     await mustExec(
       "docker",
       ["network", "connect", ...options.aliases.flatMap((a) => ["--alias", a]), name, gateway],
@@ -184,10 +198,11 @@ async function gatewayTarget(): Promise<string> {
   const gateway = output.split(/\s+/).find((address) => /^\d+\.\d+\.\d+\.\d+$/.test(address));
   if (gateway === undefined)
     throw new Error(`docker bridge network has no IPv4 gateway: ${output}`);
-  return (await isLocalAddress(gateway)) ? gateway : "127.0.0.1";
+  return (await isLocalAddress(gateway)) ? gateway : LOOPBACK;
 }
 
-function isLocalAddress(address: string): Promise<boolean> {
+/** True when this host can bind `address`. */
+export function isLocalAddress(address: string): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const server = createServer();
     server.once("error", (error: NodeJS.ErrnoException) =>

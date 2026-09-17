@@ -149,10 +149,15 @@ export interface Sandbox {
 /**
  * Starts postmock with the `conformance` seed on ephemeral ports, a counting front, and the trap.
  * postmock and the trap bind 127.0.0.1. The fronts bind `frontHost` (default 127.0.0.1): the address
- * a container gateway reaches (`conformance/docker.ts`).
+ * a container gateway reaches (`conformance/docker.ts`). With `frontClients`, the fronts close every
+ * connection from an address outside the set; the caller adds the gateway address once it is known.
  */
 export async function startSandbox(
-  options: { tls?: { cert: string; key: string }; frontHost?: string } = {},
+  options: {
+    tls?: { cert: string; key: string };
+    frontHost?: string;
+    frontClients?: ReadonlySet<string>;
+  } = {},
 ): Promise<Sandbox> {
   const host = "127.0.0.1";
   const frontHost = options.frontHost ?? host;
@@ -181,15 +186,25 @@ export async function startSandbox(
     upstream.on("error", (error) => res.destroy(error));
     req.pipe(upstream);
   };
-  const front = http.createServer(forward);
+  const admit = (server: http.Server) => {
+    const clients = options.frontClients;
+    if (clients === undefined) return server;
+    return server.on("connection", (socket) => {
+      const address = socket.remoteAddress?.replace(/^::ffff:/, "") ?? "";
+      if (!clients.has(address)) socket.destroy();
+    });
+  };
+  const front = admit(http.createServer(forward));
   const httpPort = await listen(front, frontHost);
   const servers: http.Server[] = [front];
 
   let httpsPort: number | undefined;
   if (options.tls) {
-    const secure = https.createServer(
-      { cert: readFileSync(options.tls.cert), key: readFileSync(options.tls.key) },
-      forward,
+    const secure = admit(
+      https.createServer(
+        { cert: readFileSync(options.tls.cert), key: readFileSync(options.tls.key) },
+        forward,
+      ),
     );
     httpsPort = await listen(secure, frontHost);
     servers.push(secure);
