@@ -143,7 +143,7 @@ describe("POST /control/latency", () => {
     ];
     await expect.poll(() => runtime.clock.pending).toBe(4);
     await send("/email", { To: "fast@fast.example" });
-    await send("/email", "{");
+    expect((await send("/email", "{")).status).toBe(422);
     expect(runtime.clock.pending).toBe(4);
     await runtime.clock.advance(1_000);
     await Promise.all(held);
@@ -188,7 +188,7 @@ describe("POST /control/faults", () => {
     expect((await send("/email", { To: "a@down.example" })).status).toBe(503);
   });
 
-  it.each(["@down.example", "down.example,", "*.example"])(
+  it.each(["@down.example", "down.example,", "*.example", "down.example.", "1.2.3.4"])(
     "refuses recipient domain %s",
     async (recipientDomain) => {
       const { runtime, post } = await setup();
