@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { apiError, ERROR_FAMILIES, isSummaryRow } from "../../errors.ts";
+import type { Clock } from "../../state/clock.ts";
 import { formatTimestamp } from "../../time.ts";
 import { ControlError, controlInput, defineControl } from "../registry.ts";
 import { seedAtomically } from "../seeding.ts";
 
-// docs/09 §5: reset, seed, clock, faults, messages.
+// docs/09 §5: reset, seed, clock, latency, faults, messages.
 
 defineControl({
   method: "POST",
@@ -35,7 +36,59 @@ defineControl({
   handler: async (ctx) => {
     const { ms } = controlInput(z.object({ ms: z.int().nonnegative() }), ctx.body);
     await ctx.clock.advance(ms);
-    return { now: formatTimestamp(ctx.clock.now(), "utc") };
+    return clockState(ctx.clock);
+  },
+});
+
+defineControl({
+  method: "GET",
+  path: "/control/clock",
+  handler: (ctx) => clockState(ctx.clock),
+});
+
+defineControl({
+  method: "POST",
+  path: "/control/clock/pause",
+  handler: (ctx) => {
+    ctx.clock.pause();
+    return clockState(ctx.clock);
+  },
+});
+
+defineControl({
+  method: "POST",
+  path: "/control/clock/resume",
+  handler: (ctx) => {
+    ctx.clock.resume();
+    return clockState(ctx.clock);
+  },
+});
+
+function clockState(clock: Clock) {
+  return { now: formatTimestamp(clock.now(), "utc"), paused: clock.paused, pending: clock.pending };
+}
+
+const requestMatch = z.object({ method: z.string(), path: z.string().startsWith("/") });
+
+defineControl({
+  method: "POST",
+  path: "/control/latency",
+  handler: (ctx) => {
+    const { match, times, ms } = controlInput(
+      z.object({
+        match: requestMatch,
+        times: z.int().positive().default(1),
+        ms: z.int().positive(),
+      }),
+      ctx.body,
+    );
+    ctx.store.state.latencies.push({
+      method: match.method,
+      path: match.path,
+      remaining: times,
+      ms,
+    });
+    return { latencies: ctx.store.state.latencies.length };
   },
 });
 
@@ -47,7 +100,7 @@ const errorReply = z.object({
 });
 
 const faultSchema = z.object({
-  match: z.object({ method: z.string(), path: z.string().startsWith("/") }),
+  match: requestMatch,
   times: z.int().positive().default(1),
   reply: z.unknown(),
 });

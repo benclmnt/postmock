@@ -8,6 +8,7 @@ import type {
   Fault,
   InboundMessage,
   InboundRule,
+  Latency,
   MessageStream,
   OpenEvent,
   OutboundMessage,
@@ -65,6 +66,7 @@ export interface State {
   /** Key: access key. */
   smtpTokens: Map<string, SmtpToken>;
   faults: Fault[];
+  latencies: Latency[];
   smtpFaults: SmtpFault[];
   usedIds: Record<IdKind, Set<number>>;
   /** Highest used ID per kind. */
@@ -102,6 +104,7 @@ function emptyState(): State {
     dataRemovals: new Map(),
     smtpTokens: new Map(),
     faults: [],
+    latencies: [],
     smtpFaults: [],
     usedIds: {
       server: new Set(),

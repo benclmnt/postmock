@@ -144,4 +144,47 @@ describe("Clock", () => {
     await clock.advance(500);
     expect(run).toHaveBeenCalledTimes(1);
   });
+
+  it("stands still while paused; only advance moves it and runs tasks", async () => {
+    vi.useFakeTimers();
+    let real = 0;
+    const clock = new Clock(() => real);
+    const run = vi.fn();
+    clock.schedule(100, run);
+    clock.pause();
+    real = 10_000;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(clock.now().getTime()).toBe(0);
+    expect(run).not.toHaveBeenCalled();
+    expect(clock.pending).toBe(1);
+    await clock.advance(100);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(clock.now().getTime()).toBe(100);
+    expect(clock.pending).toBe(0);
+  });
+
+  it("resumes from the paused instant and arms real timers again", async () => {
+    vi.useFakeTimers();
+    let real = 0;
+    const clock = new Clock(() => real);
+    const run = vi.fn();
+    clock.schedule(100, run);
+    clock.pause();
+    real = 5_000;
+    clock.resume();
+    expect(clock.now().getTime()).toBe(0);
+    await vi.advanceTimersByTimeAsync(100);
+    await clock.idle();
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("reset ends a pause; a checkpoint keeps it", async () => {
+    const clock = new Clock(() => 0);
+    clock.pause();
+    const restore = clock.checkpoint();
+    clock.reset();
+    expect(clock.paused).toBe(false);
+    restore();
+    expect(clock.paused).toBe(true);
+  });
 });

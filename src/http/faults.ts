@@ -1,30 +1,36 @@
 import type { HttpBindings } from "@hono/node-server";
 import { ApiError } from "../errors.ts";
-import type { State } from "../state/store.ts";
-import type { Fault } from "../state/types.ts";
+import type { Runtime } from "../runtime.ts";
+import type { Fault, RequestRule } from "../state/types.ts";
 import { errorResponse } from "./respond.ts";
 import { type Method, RouteTable } from "./routes.ts";
 
 /**
- * Applies the first fault that matches the request and uses one of its `times`
- * (docs/09 §5 `POST /control/faults`). `timeout` holds the request open until the client gives up;
- * `reset` destroys the socket.
+ * Holds the request for the first matching latency rule, then applies the first matching fault
+ * (docs/09 §5 `POST /control/latency`, `POST /control/faults`). Each match uses one of the rule's
+ * `times`. `timeout` holds the request open until the client gives up; `reset` destroys the socket.
  */
 export async function applyFault(
-  state: State,
+  { store, clock }: Runtime,
   method: string,
   pathname: string,
   env: HttpBindings,
 ): Promise<Response | undefined> {
-  const fault = state.faults.find((f) => {
-    if (f.remaining <= 0) return false;
+  const latency = take(store.state.latencies, method, pathname);
+  if (latency) await new Promise<void>((resolve) => clock.schedule(latency.ms, resolve));
+  const fault = take(store.state.faults, method, pathname);
+  return fault && reply(fault, env);
+}
+
+function take<R extends RequestRule>(rules: R[], method: string, pathname: string): R | undefined {
+  const rule = rules.find((r) => {
+    if (r.remaining <= 0) return false;
     const table = new RouteTable<{ method: Method; path: string }>();
-    table.add({ method: f.method.toUpperCase() as Method, path: f.path });
+    table.add({ method: r.method.toUpperCase() as Method, path: r.path });
     return table.match(method, pathname) !== undefined;
   });
-  if (!fault) return undefined;
-  fault.remaining -= 1;
-  return reply(fault, env);
+  if (rule) rule.remaining -= 1;
+  return rule;
 }
 
 async function reply(fault: Fault, env: HttpBindings): Promise<Response> {
