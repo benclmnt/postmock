@@ -77,6 +77,9 @@ const DEACTIVATES: Partial<Record<BounceType, boolean>> = {
   ChallengeVerification: false,
 };
 
+/** False for a bounce type whose effect on the address is not captured: recording one throws `Unsupported`. */
+export const bounceEffectCaptured = (type: BounceType): boolean => DEACTIVATES[type] !== undefined;
+
 export const recipientsOf = (message: OutboundMessage): string[] =>
   [...message.To, ...message.Cc, ...message.Bcc].map((a) => a.Email);
 

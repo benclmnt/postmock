@@ -5,6 +5,7 @@ import { absent, base64, canonicalizeKeys, objectOrEmptyArray } from "../http/no
 import { Unsupported } from "../http/respond.ts";
 import type { ServerAuth } from "../http/routes.ts";
 import { composeMime } from "../mime/compose.ts";
+import { testBounces } from "../recipients/test-bounces.ts";
 import type { Runtime } from "../runtime.ts";
 import { newMessageId } from "../state/ids.ts";
 import { findStream, type TestTokenContext } from "../state/servers.ts";
@@ -208,6 +209,8 @@ export function validateOutbound(runtime: Runtime, submission: Submission): Vali
       return reject("Attachments", errorBody(411));
     }
   }
+  // A fake bounce type with an uncaptured effect answers 501 before anything is stored.
+  if (submission.auth.kind !== "test") testBounces(draft.Headers ?? [], recipients);
   return {
     outcome: "valid",
     outbound: {

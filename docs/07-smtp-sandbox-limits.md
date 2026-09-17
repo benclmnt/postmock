@@ -176,6 +176,18 @@ Trigger: send to `<Type>@bounce-testing.postmarkapp.com`, or to any address ther
 | Not counted toward bounce limits; counts toward monthly volume. | **DOC** `refs/support_article_1239-how-to-test-bounces.md:91-92` |
 | Works on live servers, not only sandbox servers. | **INFERRED** |
 
+postmock (`src/recipients/test-bounces.ts`, `src/plugins/test-bounces.ts`):
+
+| Rule | Mark |
+| --- | --- |
+| `X-PM-Bounce-Type` wins over the local part when both name a type. | **INFERRED** |
+| An unknown `X-PM-Bounce-Type` value answers 501 `Unsupported`. An unknown local part gives HardBounce. | header: **INFERRED**; local part: **DOC** (see table) |
+| A type whose effect on the address is not captured (`docs/04` Q13) answers 501 before the message is stored: `Unsubscribe`, `BadEmailAddress`, `ManuallyDeactivated`, `Unconfirmed`, `Blocked`, `SMTPApiError`, `InboundError`, `DMARCPolicy`, `TemplateRenderingFailed`. | **INFERRED** |
+| The bounce runs on the clock right after the send answers. | **INFERRED** ("immediately") |
+| Bounce `Details` is `Test bounce`. | **INFERRED** |
+| The bounce has no dump (`Content` empty, `DumpAvailable: false`). | **INFERRED** |
+| A recipient that the send skipped as suppressed does not bounce. | **INFERRED** |
+
 ### 2.4 Spam complaints, opens, clicks
 
 | Event | How to test | Mark |
