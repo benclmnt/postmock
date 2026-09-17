@@ -4,8 +4,20 @@ import { applySeed, seedNames } from "../src/control/seed.ts";
 import { createRuntime } from "../src/runtime.ts";
 import { streamKey } from "../src/state/store.ts";
 import { CONFORMANCE } from "./lib/conformance.ts";
+import { TEMPLATE_SERVER } from "./lib/template-server.ts";
 
 describe("conformance seed", () => {
+  it("holds one template on the template server and none on the core server", async () => {
+    const runtime = createRuntime();
+    await applySeed(runtime, "conformance");
+    const templatesOf = (serverId: number) =>
+      [...runtime.store.state.templates.values()].filter((t) => t.ServerID === serverId);
+    expect(templatesOf(TEMPLATE_SERVER.id).map((t) => t.TemplateId)).toEqual([
+      TEMPLATE_SERVER.templateId,
+    ]);
+    expect(templatesOf(CONFORMANCE.serverId)).toEqual([]);
+  });
+
   it("matches the keys the postmark.js runner configures", () => {
     const keys = JSON.parse(
       readFileSync(
