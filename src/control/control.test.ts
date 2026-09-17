@@ -85,6 +85,65 @@ describe("POST /control/clock/advance", () => {
   });
 });
 
+describe("clock pause and latency", () => {
+  it("holds a request on a paused clock until an advance passes its latency", async () => {
+    const { runtime, control, post, getServer } = await setup();
+    expect(await (await post("/control/clock/pause", {})).json()).toMatchObject({ paused: true });
+    await post("/control/latency", {
+      match: { method: "GET", path: "/server" },
+      times: 2,
+      ms: 30_000,
+    });
+    let answered = false;
+    const held = [getServer(), getServer()].map(async (r) => {
+      const res = await r;
+      answered = true;
+      return res;
+    });
+    await expect.poll(() => runtime.clock.pending).toBe(2);
+    expect(await (await control.request("/control/clock")).json()).toMatchObject({
+      paused: true,
+      pending: 2,
+    });
+    await post("/control/clock/advance", { ms: 29_999 });
+    expect(answered).toBe(false);
+    await post("/control/clock/advance", { ms: 1 });
+    for (const res of await Promise.all(held)) expect(res.status).toBe(200);
+    expect((await getServer()).status).toBe(200);
+  });
+
+  it("answers a faulted request after its latency", async () => {
+    const { runtime, post, getServer } = await setup();
+    runtime.clock.pause();
+    const match = { method: "GET", path: "/server" };
+    await post("/control/latency", { match, ms: 1_000 });
+    await post("/control/faults", { match, reply: { errorCode: 100 } });
+    const res = getServer();
+    await expect.poll(() => runtime.clock.pending).toBe(1);
+    await runtime.clock.advance(1_000);
+    expect((await res).status).toBe(503);
+  });
+
+  it("resumes real time from the paused instant", async () => {
+    const { runtime, post } = await setup();
+    await post("/control/clock/pause", {});
+    const pausedAt = runtime.clock.now().getTime();
+    const body = await (await post("/control/clock/resume", {})).json();
+    expect(body).toMatchObject({ paused: false, pending: 0 });
+    expect(runtime.clock.now().getTime() - pausedAt).toBeLessThan(1_000);
+  });
+
+  it.each([{ ms: 0 }, { ms: 1.5 }, { times: 0, ms: 1 }])("refuses latency %j", async (input) => {
+    const { runtime, post } = await setup();
+    const res = await post("/control/latency", {
+      match: { method: "GET", path: "/server" },
+      ...input,
+    });
+    expect(res.status).toBe(400);
+    expect(runtime.store.state.latencies).toEqual([]);
+  });
+});
+
 describe("POST /control/faults", () => {
   it("answers matching API requests with the fault, `times` times", async () => {
     const { post, getServer } = await setup();

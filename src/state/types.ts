@@ -516,11 +516,20 @@ export type FaultReply =
   | "timeout"
   | "reset";
 
-// docs/09 §5 `POST /control/faults`.
-export interface Fault {
+/** A control-API rule for REST requests: `path` is a route pattern, matched like an API route. */
+export interface RequestRule {
   method: string;
-  /** A route pattern, matched like an API route (`/email`, `/templates/:id`). */
+  /** `/email`, `/templates/:id` */
   path: string;
   remaining: number;
+}
+
+// docs/09 §5 `POST /control/faults`.
+export interface Fault extends RequestRule {
   reply: FaultReply;
+}
+
+/** `POST /control/latency`: the request waits `ms` on the clock, then goes on as usual. */
+export interface Latency extends RequestRule {
+  ms: number;
 }

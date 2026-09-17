@@ -15,7 +15,7 @@ export function createApiApp(runtime: Runtime): Hono<{ Bindings: HttpBindings }>
   app.all("*", async (c) => {
     const request = c.req.raw;
     const url = new URL(request.url);
-    const fault = await applyFault(runtime.store.state, request.method, url.pathname, c.env);
+    const fault = await applyFault(runtime, request.method, url.pathname, c.env);
     if (fault) return fault;
 
     const matched = apiRoutes.match(request.method, url.pathname);
