@@ -34,7 +34,7 @@
 12. The control API never produces a state that a real Postmark client action or
     a real Postmark event could not produce (`CONTROL-API.md`).
 13. The repo is `github.com/benclmnt/postmock`. Work on branches and open pull requests.
-    Never push to or force-push `main`. Never merge without the owner's integrator.
+    Never push to or force-push `main`. Only the owner, or the integrator the owner names, merges pull requests.
 14. Commit your changes before you finish your turn.
 15. Read the traps before debugging: server and client traps in `ARCHITECTURE.md`,
     test and harness traps in `TESTING.md`. When a new trap costs you an hour,

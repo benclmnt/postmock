@@ -191,7 +191,9 @@ export async function startSandbox(
     if (clients === undefined) return server;
     return server.on("connection", (socket) => {
       const address = socket.remoteAddress?.replace(/^::ffff:/, "") ?? "";
-      if (!clients.has(address)) socket.destroy();
+      if (clients.has(address)) return;
+      console.error(`postmock sandbox: front refused a connection from ${address}`);
+      socket.destroy();
     });
   };
   const front = admit(http.createServer(forward));

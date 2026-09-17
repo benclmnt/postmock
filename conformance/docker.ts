@@ -160,7 +160,13 @@ export async function withContainerSandbox<T>(
         ["inspect", "--format", "{{.NetworkSettings.Networks.bridge.IPAddress}}", gateway],
         quiet,
       );
-      frontClients.add(address.trim());
+      const ip = address.trim();
+      if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+        throw new Error(
+          `gateway ${gateway} has no IPv4 address on the default bridge (docker inspect: '${ip}'); see TESTING.md traps`,
+        );
+      }
+      frontClients.add(ip);
     }
     await mustExec(
       "docker",
