@@ -1,6 +1,6 @@
 {
   "name": "@benclmnt/postmock",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "A mock Postmark server for testing code that sends email through Postmark",
   "license": "MIT",
   "type": "module",
