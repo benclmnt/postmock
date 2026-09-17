@@ -79,7 +79,8 @@ const messages: Seed = async (runtime) => {
       }),
     );
   }
-  // 26–29 days ago: after the recent sends and inside the last month, so only all-time stats grow.
+  // 26–29 days ago: after the dotnet `todate` of 30 days ago (ClientStatisticsTests.cs:16), so only
+  // the all-time window grows.
   for (let i = 0; i < 8; i++) {
     await send(runtime, ago(26 * DAY + i * 9 * HOUR), {
       to: [`reader-${i % 5}@example.com`],
