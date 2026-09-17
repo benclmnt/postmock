@@ -1,0 +1,15 @@
+{
+  "passing": [
+    "PostmarkClientStatisticsTest::testClientCanGetMessageOpens",
+    "PostmarkClientStatisticsTest::testClientCanGetMessageOpensForSpecificMessage",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundBounceStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundEmailClientStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundOpenStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundOverviewStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundPlatformStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundReadTimeStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundSendStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundSpamComplaintStatistics",
+    "PostmarkClientStatisticsTest::testClientCanGetOutboundTrackedStatistics"
+  ]
+}

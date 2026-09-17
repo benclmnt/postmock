@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "PostmarkClientInboundMessageTest::testClientCanGetInboundMessageDetails",
+    "PostmarkClientInboundMessageTest::testClientCanSearchInboundMessages"
+  ]
+}

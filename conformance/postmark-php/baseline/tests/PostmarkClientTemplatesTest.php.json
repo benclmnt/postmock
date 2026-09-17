@@ -1,0 +1,13 @@
+{
+  "passing": [
+    "PostmarkClientTemplatesTest::testClientCanCreateTemplate",
+    "PostmarkClientTemplatesTest::testClientCanDeleteTemplate",
+    "PostmarkClientTemplatesTest::testClientCanEditTemplate",
+    "PostmarkClientTemplatesTest::testClientCanGetTemplate",
+    "PostmarkClientTemplatesTest::testClientCanListTemplates",
+    "PostmarkClientTemplatesTest::testClientCanSendBatchMessagesWithTemplate",
+    "PostmarkClientTemplatesTest::testClientCanSendMailWithTemplate",
+    "PostmarkClientTemplatesTest::testClientCanSendMailWithTemplateModel",
+    "PostmarkClientTemplatesTest::testClientCanValidateTemplate"
+  ]
+}

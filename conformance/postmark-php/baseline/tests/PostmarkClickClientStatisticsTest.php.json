@@ -1,0 +1,8 @@
+{
+  "passing": [
+    "PostmarkClickClientStatisticsTest::testClientCanGetClickBrowserFamilies",
+    "PostmarkClickClientStatisticsTest::testClientCanGetClickBrowserPlatformStatistics",
+    "PostmarkClickClientStatisticsTest::testClientCanGetClickLocationStatistics",
+    "PostmarkClickClientStatisticsTest::testClientCanGetClickOverviewStatistics"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "passing": [
+    "PostmarkClientOutboundMessageTest::testClientCanGetOutboundMessageDetails",
+    "PostmarkClientOutboundMessageTest::testClientCanGetOutboundMessageDump",
+    "PostmarkClientOutboundMessageTest::testClientCanSearchOutboundMessages"
+  ]
+}

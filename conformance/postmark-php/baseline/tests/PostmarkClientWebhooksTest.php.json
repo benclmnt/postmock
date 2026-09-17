@@ -1,0 +1,10 @@
+{
+  "passing": [
+    "PostmarkClientWebhooksTest::testClientCanCreateWebhookConfiguration",
+    "PostmarkClientWebhooksTest::testClientCanDeleteWebhookConfiguration",
+    "PostmarkClientWebhooksTest::testClientCanEditWebhookConfigurations",
+    "PostmarkClientWebhooksTest::testClientCanGetWebhookConfiguration",
+    "PostmarkClientWebhooksTest::testClientCanGetWebhookConfigurations",
+    "PostmarkClientWebhooksTest::testClientEditingWebhookConfigurationsPassingNullsChangesNothing"
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "passing": [
+    "PostmarkClientRuleTriggerTest::testClientCanCreateAndDeleteRuleTriggers",
+    "PostmarkClientRuleTriggerTest::testClientCanGetRuleTriggers"
+  ]
+}
