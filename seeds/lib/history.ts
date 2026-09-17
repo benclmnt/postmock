@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 import { composeMime } from "../../src/mime/compose.ts";
+import { inactiveRecipientsError } from "../../src/pipeline/inactive.ts";
 import { recordBounceAt } from "../../src/recipients/transitions.ts";
 import type { Runtime } from "../../src/runtime.ts";
+import { smtpApiErrorBounce } from "../../src/smtp/receive.ts";
 import { newMessageId } from "../../src/state/ids.ts";
 import { findSuppression } from "../../src/state/suppressions.ts";
 import type { Bounce, BounceType, InboundMessage, OutboundMessage } from "../../src/state/types.ts";
+import { CONFORMANCE } from "./conformance.ts";
 
 // Past traffic for seeds and tests: messages accepted and bounced before "now". Each record fires
 // the event live traffic fires, so message events and stats follow.
@@ -107,27 +110,23 @@ export async function pastSmtpApiError(
   ) {
     throw new Error(`${fields.email} is not suppressed on ${fields.stream}`);
   }
-  const message = `You tried to send to recipient(s) that have been marked as inactive. Found inactive addresses: ${fields.email}.`;
-  // The dump layout of a live SMTP API error bounce (src/smtp/receive.ts).
-  const source = `From: sender@example.com\r\nTo: ${fields.email}\r\nSubject: History\r\n\r\nHistory\r\n`;
-  const bounce: Bounce = {
-    ID: runtime.store.useId("bounce", fields.id),
-    ServerID: fields.serverId,
-    MessageStream: fields.stream,
-    MessageID: newMessageId(),
-    Type: "SMTPApiError",
-    Tag: fields.tag,
-    Description: "An error occurred while accepting your message through SMTP.",
-    Details: message,
-    Email: fields.email,
-    From: "sender@example.com",
-    Subject: "History",
-    BouncedAt: fields.at,
-    Inactive: false,
-    CanActivate: false,
-    Content: `ErrorCode: 406\r\nMessage: ${message}\r\n\r\n${source}`,
-    Metadata: {},
-  };
+  const subject = "History";
+  const bounce = smtpApiErrorBounce(
+    runtime.store.useId("bounce", fields.id),
+    fields.at,
+    {
+      serverId: fields.serverId,
+      stream: fields.stream,
+      messageId: newMessageId(),
+      tag: fields.tag,
+      from: CONFORMANCE.senderEmail,
+      subject,
+      metadata: {},
+      source: `From: ${CONFORMANCE.senderEmail}\r\nTo: ${fields.email}\r\nSubject: ${subject}\r\n\r\n${subject}\r\n`,
+    },
+    fields.email,
+    inactiveRecipientsError([fields.email]),
+  );
   runtime.store.state.bounces.set(bounce.ID, bounce);
   await runtime.events.emit("smtpApiError", { bounce });
   return bounce;

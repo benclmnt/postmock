@@ -66,7 +66,7 @@ export async function receive(
   }
 }
 
-interface Failure {
+export interface Failure {
   serverId: number;
   stream: string;
   messageId: string;
@@ -91,25 +91,36 @@ async function bounce(
 ): Promise<void> {
   const { store, clock, events } = runtime;
   for (const email of recipients) {
-    const record: Bounce = {
-      ID: store.nextId("bounce"),
-      ServerID: failure.serverId,
-      MessageStream: failure.stream,
-      MessageID: failure.messageId,
-      Type: "SMTPApiError",
-      Tag: failure.tag,
-      Description: error.Message,
-      Details: BOUNCE_TYPES.SMTPApiError.Name,
-      Email: email,
-      From: failure.from,
-      Subject: failure.subject,
-      BouncedAt: clock.now(),
-      Inactive: false,
-      CanActivate: false,
-      Content: `ErrorCode: ${error.ErrorCode}\r\nMessage: ${error.Message}\r\n\r\n${failure.source}`,
-      Metadata: failure.metadata,
-    };
+    const record = smtpApiErrorBounce(store.nextId("bounce"), clock.now(), failure, email, error);
     store.state.bounces.set(record.ID, record);
     await events.emit("smtpApiError", { bounce: record });
   }
+}
+
+/** The `SMTPApiError` bounce of one recipient; a seed builds past ones with it. */
+export function smtpApiErrorBounce(
+  id: number,
+  at: Date,
+  failure: Failure,
+  email: string,
+  error: ErrorBody,
+): Bounce {
+  return {
+    ID: id,
+    ServerID: failure.serverId,
+    MessageStream: failure.stream,
+    MessageID: failure.messageId,
+    Type: "SMTPApiError",
+    Tag: failure.tag,
+    Description: error.Message,
+    Details: BOUNCE_TYPES.SMTPApiError.Name,
+    Email: email,
+    From: failure.from,
+    Subject: failure.subject,
+    BouncedAt: at,
+    Inactive: false,
+    CanActivate: false,
+    Content: `ErrorCode: ${error.ErrorCode}\r\nMessage: ${error.Message}\r\n\r\n${failure.source}`,
+    Metadata: failure.metadata,
+  };
 }
