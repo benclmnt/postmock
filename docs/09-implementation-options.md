@@ -102,12 +102,12 @@ Every control action maps to something that can happen on real Postmark.
 | `POST /control/events/open` / `click` `{messageId, recipient, link?}` | recipient opens / clicks a tracked message |
 | `POST /control/events/delivery` / `spam-complaint` `{messageId, recipient}` | recipient server accepts / recipient marks as spam |
 | `POST /control/inbound` `{from, to, subject, text, html, attachments}` or raw MIME | mail arrives at the inbound address → inbound rules → Inbound webhook |
-| `POST /control/faults` `{match: {method, path}, times, reply: {status, errorCode} \| "timeout" \| "reset"}` | Postmark outage, 500/503, 429, network loss (`docs/02` retries and rate limits) |
+| `POST /control/faults` `{match: {method, path, recipientDomain?}, times, reply: {status, errorCode} \| "timeout" \| "reset"}` | Postmark outage, 500/503, 429, network loss (`docs/02` retries and rate limits) |
 | `GET /control/messages?to=&tag=&channel=rest\|smtp` | Activity page; returns stored request JSON or raw MIME |
 | `GET /control/webhooks/attempts` | webhook delivery log |
 | `POST /control/clock/advance` `{ms}` | time passes; due webhook retries fire |
 | `GET /control/clock`; `--clock manual` | test time control: time stands still until an advance |
-| `POST /control/latency` `{match: {method, path}, times, ms}` | slow Postmark or network; the reply waits on the clock |
+| `POST /control/latency` `{match: {method, path, recipientDomain?}, times, ms}` | slow Postmark or network; the reply waits on the clock |
 
 ## 6. Verification
 
