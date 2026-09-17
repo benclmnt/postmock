@@ -106,7 +106,7 @@ Every control action maps to something that can happen on real Postmark.
 | `GET /control/messages?to=&tag=&channel=rest\|smtp` | Activity page; returns stored request JSON or raw MIME |
 | `GET /control/webhooks/attempts` | webhook delivery log |
 | `POST /control/clock/advance` `{ms}` | time passes; due webhook retries fire |
-| `POST /control/clock/pause` / `resume`, `GET /control/clock` | test time control: time stands still until an advance |
+| `GET /control/clock`; `--clock manual` | test time control: time stands still until an advance |
 | `POST /control/latency` `{match: {method, path}, times, ms}` | slow Postmark or network; the reply waits on the clock |
 
 ## 6. Verification

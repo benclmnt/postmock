@@ -161,7 +161,13 @@ export async function startSandbox(
 ): Promise<Sandbox> {
   const host = "127.0.0.1";
   const frontHost = options.frontHost ?? host;
-  const mock = await startPostmock({ host, apiPort: 0, controlPort: 0, seed: "conformance" });
+  const mock = await startPostmock({
+    host,
+    apiPort: 0,
+    controlPort: 0,
+    seed: "conformance",
+    clock: "real",
+  });
   const apiListener = mock.listeners.api;
   if (apiListener === undefined) throw new Error("postmock started without an api listener");
   const api = new URL(apiListener);

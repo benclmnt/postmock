@@ -151,6 +151,7 @@ describe("bounce-testing.postmarkapp.com", () => {
       apiPort: 0,
       controlPort: 0,
       seed: "conformance",
+      clock: "real",
       plugins: [testBounces],
     });
     const smtp = await startSmtp(postmock.runtime, { host: "127.0.0.1", ports: [0], tls: null });

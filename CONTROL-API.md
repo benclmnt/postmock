@@ -1,11 +1,12 @@
 # Control API
 
-Status: built — `reset`, `seed`, `clock`, `clock/advance`, `clock/pause`, `clock/resume`, `latency`, `faults`, `messages`, `account/server-deletion`, `domains/:id/verify`, `senders/:id/verify`, `senders/:id/confirm`, `events/delivery`, `events/open`, `events/click`.
+Status: built — `reset`, `seed`, `clock`, `clock/advance`, `latency`, `faults`, `messages`, `account/server-deletion`, `domains/:id/verify`, `senders/:id/verify`, `senders/:id/confirm`, `events/delivery`, `events/open`, `events/click`.
 Built by T2 — bounces, spam complaints, unsubscribes.
 Design — the endpoints in `docs/09` §5 that tracks add: servers, events, inbound, webhook attempts.
 
 The control API is how a test drives postmock.
 It listens on its own port (default `127.0.0.1:8025`), plain http, no auth.
+With `--clock manual` (`POSTMOCK_CLOCK=manual`), time starts at real time and moves only on `clock/advance`. The default `real` clock also follows real time.
 A Postmark client never talks to it.
 
 ## Principle
@@ -27,13 +28,11 @@ A test that passes against postmock then tests code paths that real Postmark can
 
 | Call | Body / query | Response | Real-world equivalent | Status |
 | --- | --- | --- | --- | --- |
-| `POST /control/reset` | `{seed?}` | `{seed}` | A new account. Waits for running clock work, clears all state, pending clock tasks and the clock offset, then applies `seed` or the startup seed on the fresh clock. An unknown or failing seed restores state, clock offset and tasks, and answers 400. | built |
+| `POST /control/reset` | `{seed?}` | `{seed}` | A new account. Waits for running clock work, clears all state, pending clock tasks and the clock offset, releases held requests, then applies `seed` or the startup seed on the fresh clock. An unknown or failing seed restores state, clock offset and tasks, and answers 400. | built |
 | `POST /control/seed` | `{name}` | `{seed}` | Account setup done before the test. Applies `seeds/<name>.ts` on top of the current state. A seed that clashes with the state (a token another server holds) changes nothing and answers 400. | built |
-| `POST /control/clock/advance` | `{ms}` (integer ≥ 0) | `{now, paused, pending}` | Time passes. Runs every task due by the end, in due order, with the clock at each due time, and awaits it. Tasks scheduled during the advance run too when due (chained webhook retries). Concurrent advances run one after another. | built |
-| `GET /control/clock` | — | `{now, paused, pending}` | A look at the wall clock. `pending` counts clock tasks not yet run: held requests, webhook retries, bulk releases. | built |
-| `POST /control/clock/pause` | — | `{now, paused, pending}` | None: test time control. Time stands at `now`. Only `clock/advance` moves it and runs due tasks. A second pause changes nothing. `reset` ends the pause. | built |
-| `POST /control/clock/resume` | — | `{now, paused, pending}` | None: test time control. Time follows real time again from the paused instant. Due tasks run on real timers. | built |
-| `POST /control/latency` | `{match: {method, path}, times?, ms}` | `{latencies}` | A slow Postmark or network. The next `times` matching API requests (default 1) wait `ms` (integer ≥ 1) on the clock, then go on as usual, faults included. `path` matches like a fault path. On a paused clock a request waits for `clock/advance`, so a test can release sends in steps. A `reset` drops held requests: they never answer. | built |
+| `POST /control/clock/advance` | `{ms}` (integer ≥ 0) | `{now, pending}` | Time passes. Runs every task due by the end, in due order, with the clock at each due time, and awaits it. Tasks scheduled during the advance run too when due (chained webhook retries). Concurrent advances run one after another. | built |
+| `GET /control/clock` | — | `{now, pending}` | A look at the wall clock. `pending` counts clock tasks not yet run: held requests, webhook retries, bulk releases, stream purges. | built |
+| `POST /control/latency` | `{match: {method, path}, times?, ms}` | `{latencies}` | A slow Postmark or network. The next `times` matching API requests (default 1) wait `ms` (integer ≥ 1) on the clock, then go on as usual, faults included. `path` matches like a fault path. Under `--clock manual` a request waits for `clock/advance`, so a test releases sends in steps. The advance answers once the requests are released, not once they are answered. A `reset` releases every held request at once. | built |
 | `POST /control/faults` | `{match: {method, path}, times?, reply}` | `{faults}` | A Postmark outage or network loss. `path` is a route pattern matched like an API route. `times` defaults to 1. `reply` is `{errorCode, status?, family?, message?}`: the envelope `apiError` builds, so only a status and code pair from `docs/02` §4.4 is accepted. `family` is one of the table families; `message` is allowed only for a summary row. 429 has no documented body and cannot be faulted yet. Or `"timeout"` (no answer until the client gives up) or `"reset"` (socket destroyed). | built |
 | `GET /control/messages` | `?to=&tag=&channel=rest\|smtp` | `{Messages: [{MessageID, ServerID, MessageStream, Channel, SubmittedAt, Request}]}` | The Activity page. `Request` is the request JSON (REST) or raw MIME (SMTP). `to` matches To, Cc or Bcc without case. | built |
 | `POST /control/account/server-deletion` | `{enabled}` | `{serverDeletionEnabled}` | Support enables or disables server deletion through the API. Off: `DELETE /servers/{id}` answers ErrorCode 604. | built (T7) |

@@ -3,11 +3,12 @@ import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import { createApiApp } from "../http/app.ts";
 import { submitOutbound } from "../pipeline/submit.ts";
 import { createRuntime } from "../runtime.ts";
+import { Clock } from "../state/clock.ts";
 import { createControlApp } from "./app.ts";
 import { applySeed } from "./seed.ts";
 
-async function setup() {
-  const runtime = createRuntime();
+async function setup(clock = new Clock()) {
+  const runtime = createRuntime(undefined, clock);
   await applySeed(runtime, "conformance");
   const control = createControlApp(runtime, "conformance");
   const api = createApiApp(runtime);
@@ -85,10 +86,9 @@ describe("POST /control/clock/advance", () => {
   });
 });
 
-describe("clock pause and latency", () => {
-  it("holds a request on a paused clock until an advance passes its latency", async () => {
-    const { runtime, control, post, getServer } = await setup();
-    expect(await (await post("/control/clock/pause", {})).json()).toMatchObject({ paused: true });
+describe("POST /control/latency", () => {
+  it("holds a request on a manual clock until an advance passes its latency", async () => {
+    const { runtime, control, post, getServer } = await setup(new Clock(Date.now, "manual"));
     await post("/control/latency", {
       match: { method: "GET", path: "/server" },
       times: 2,
@@ -101,10 +101,7 @@ describe("clock pause and latency", () => {
       return res;
     });
     await expect.poll(() => runtime.clock.pending).toBe(2);
-    expect(await (await control.request("/control/clock")).json()).toMatchObject({
-      paused: true,
-      pending: 2,
-    });
+    expect(await (await control.request("/control/clock")).json()).toMatchObject({ pending: 2 });
     await post("/control/clock/advance", { ms: 29_999 });
     expect(answered).toBe(false);
     await post("/control/clock/advance", { ms: 1 });
@@ -113,8 +110,7 @@ describe("clock pause and latency", () => {
   });
 
   it("answers a faulted request after its latency", async () => {
-    const { runtime, post, getServer } = await setup();
-    runtime.clock.pause();
+    const { runtime, post, getServer } = await setup(new Clock(Date.now, "manual"));
     const match = { method: "GET", path: "/server" };
     await post("/control/latency", { match, ms: 1_000 });
     await post("/control/faults", { match, reply: { errorCode: 100 } });
@@ -122,15 +118,6 @@ describe("clock pause and latency", () => {
     await expect.poll(() => runtime.clock.pending).toBe(1);
     await runtime.clock.advance(1_000);
     expect((await res).status).toBe(503);
-  });
-
-  it("resumes real time from the paused instant", async () => {
-    const { runtime, post } = await setup();
-    await post("/control/clock/pause", {});
-    const pausedAt = runtime.clock.now().getTime();
-    const body = await (await post("/control/clock/resume", {})).json();
-    expect(body).toMatchObject({ paused: false, pending: 0 });
-    expect(runtime.clock.now().getTime() - pausedAt).toBeLessThan(1_000);
   });
 
   it.each([{ ms: 0 }, { ms: 1.5 }, { times: 0, ms: 1 }])("refuses latency %j", async (input) => {

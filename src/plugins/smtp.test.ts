@@ -38,6 +38,7 @@ describe("smtp plugin", () => {
       apiPort: 0,
       controlPort: 0,
       seed: "empty",
+      clock: "real",
       plugins: [smtp],
     });
     expect(running.listeners.smtp).toMatch(/^smtp:\/\/127\.0\.0\.1:\d+$/);

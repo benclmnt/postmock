@@ -17,7 +17,7 @@ export async function applyFault(
   env: HttpBindings,
 ): Promise<Response | undefined> {
   const latency = take(store.state.latencies, method, pathname);
-  if (latency) await new Promise<void>((resolve) => clock.schedule(latency.ms, resolve));
+  if (latency) await clock.hold(latency.ms);
   const fault = take(store.state.faults, method, pathname);
   return fault && reply(fault, env);
 }

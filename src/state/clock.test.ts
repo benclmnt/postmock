@@ -145,46 +145,45 @@ describe("Clock", () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  it("stands still while paused; only advance moves it and runs tasks", async () => {
+  it("manual: stands still; only advance moves it and runs tasks", async () => {
     vi.useFakeTimers();
-    let real = 0;
-    const clock = new Clock(() => real);
+    let real = 1_000;
+    const clock = new Clock(() => real, "manual");
     const run = vi.fn();
     clock.schedule(100, run);
-    clock.pause();
-    real = 10_000;
+    real = 11_000;
     await vi.advanceTimersByTimeAsync(10_000);
-    expect(clock.now().getTime()).toBe(0);
+    expect(clock.now().getTime()).toBe(1_000);
     expect(run).not.toHaveBeenCalled();
     expect(clock.pending).toBe(1);
     await clock.advance(100);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(clock.now().getTime()).toBe(100);
+    expect(clock.now().getTime()).toBe(1_100);
     expect(clock.pending).toBe(0);
   });
 
-  it("resumes from the paused instant and arms real timers again", async () => {
-    vi.useFakeTimers();
+  it("manual: reset stands at real time again; a checkpoint restores the instant", async () => {
     let real = 0;
-    const clock = new Clock(() => real);
-    const run = vi.fn();
-    clock.schedule(100, run);
-    clock.pause();
-    real = 5_000;
-    clock.resume();
-    expect(clock.now().getTime()).toBe(0);
-    await vi.advanceTimersByTimeAsync(100);
-    await clock.idle();
-    expect(run).toHaveBeenCalledTimes(1);
+    const clock = new Clock(() => real, "manual");
+    await clock.advance(500);
+    const restore = clock.checkpoint();
+    real = 9_000;
+    clock.reset();
+    expect(clock.now().getTime()).toBe(9_000);
+    restore();
+    expect(clock.now().getTime()).toBe(500);
   });
 
-  it("reset ends a pause; a checkpoint keeps it", async () => {
-    const clock = new Clock(() => 0);
-    clock.pause();
-    const restore = clock.checkpoint();
+  it("releases a hold when an advance passes it, or at reset", async () => {
+    const clock = new Clock(() => 0, "manual");
+    const released: string[] = [];
+    void clock.hold(100).then(() => released.push("advanced"));
+    void clock.hold(10_000).then(() => released.push("reset"));
+    await clock.advance(100);
+    await Promise.resolve();
+    expect(released).toEqual(["advanced"]);
     clock.reset();
-    expect(clock.paused).toBe(false);
-    restore();
-    expect(clock.paused).toBe(true);
+    await Promise.resolve();
+    expect(released).toEqual(["advanced", "reset"]);
   });
 });

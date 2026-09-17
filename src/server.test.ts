@@ -20,6 +20,7 @@ const start = async () => {
     apiPort: 0,
     controlPort: 0,
     seed: "conformance",
+    clock: "real",
   });
   return running;
 };
@@ -57,6 +58,7 @@ describe("startPostmock", () => {
       apiPort: 0,
       controlPort: 0,
       seed: "empty",
+      clock: "real",
       plugins: [plugin],
     });
     expect(Object.keys(running.listeners)).toEqual(["api", "extra", "control"]);
@@ -100,6 +102,7 @@ describe("plugins", () => {
       apiPort: 0,
       controlPort: 0,
       seed: "empty",
+      clock: "real",
       plugins: [plugin],
     });
     expect(running.listeners).toMatchObject({ smtp: "smtp://127.0.0.1:2525" });
@@ -120,6 +123,7 @@ describe("plugins", () => {
       controlPort: 0,
       https: { port: 0, key: pem("key.pem"), cert: pem("cert.pem") },
       seed: "conformance",
+      clock: "real",
     });
     const url = new URL(running.listeners.https as string);
     expect(url.protocol).toBe("https:");
