@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CONFORMANCE } from "../../seeds/lib/conformance.ts";
 import { recipientsKit } from "../recipients/testkit.ts";
 import { startPostmock } from "../server.ts";
@@ -95,6 +95,21 @@ describe("bounce-testing.postmarkapp.com", () => {
     ]);
     expect(batch.status).toBe(501);
     expect({ messages: outbound.size, stats: stats.length }).toEqual(before);
+  });
+
+  it("logs and skips a bounce whose effect became uncaptured after the send", async () => {
+    const { call, runtime, bouncesOf } = await kit();
+    const to = `hardbounce@${DOMAIN}`;
+    const sent = await call("POST", "/email", send({ To: to }));
+    const suppressed = await call("POST", "/message-streams/outbound/suppressions", {
+      Suppressions: [{ EmailAddress: to }],
+    });
+    expect(suppressed.status).toBe(200);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    await runtime.clock.advance(0);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining(`fake bounce for ${to} skipped`));
+    log.mockRestore();
+    expect(await bouncesOf(sent.body.MessageID)).toEqual([]);
   });
 
   it("fires the Bounce webhook", async () => {

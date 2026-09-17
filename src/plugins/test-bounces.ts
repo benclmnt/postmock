@@ -1,3 +1,4 @@
+import { Unsupported } from "../http/respond.ts";
 import type { Plugin } from "../plugins.ts";
 import { testBounces } from "../recipients/test-bounces.ts";
 import { recordBounce } from "../recipients/transitions.ts";
@@ -19,13 +20,20 @@ const testBouncesPlugin: Plugin = {
       if (bounces.length === 0) return;
       runtime.clock.schedule(0, async () => {
         for (const { email, type } of bounces) {
-          await recordBounce(runtime, {
-            message,
-            email,
-            type,
-            details: "Test bounce",
-            content: "",
-          });
+          try {
+            await recordBounce(runtime, {
+              message,
+              email,
+              type,
+              details: "Test bounce",
+              content: "",
+            });
+          } catch (error) {
+            // A suppression added after the send can make the effect uncaptured. The task has no
+            // request to answer with 501: log and skip that bounce (as src/api/bulk/bulk.ts does).
+            if (!(error instanceof Unsupported)) throw error;
+            console.error(`postmock: fake bounce for ${email} skipped: ${error.message}`);
+          }
         }
       });
     });
