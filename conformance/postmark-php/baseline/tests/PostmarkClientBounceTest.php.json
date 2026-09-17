@@ -1,0 +1,9 @@
+{
+  "passing": [
+    "PostmarkClientBounceTest::testClientCanActivateBounce",
+    "PostmarkClientBounceTest::testClientCanGetBounce",
+    "PostmarkClientBounceTest::testClientCanGetBounceDump",
+    "PostmarkClientBounceTest::testClientCanGetBounces",
+    "PostmarkClientBounceTest::testClientCanGetDeliveryStatistics"
+  ]
+}

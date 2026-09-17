@@ -150,19 +150,19 @@ Reference: [`CONTROL-API.md`](CONTROL-API.md).
 
 Each official SDK's own live integration suite runs unmodified against postmock ([`TESTING.md`](TESTING.md)).
 `pnpm compat-table` writes this table from `conformance/results/*.json`.
-`not run` means the suite has no results yet: postmark-cli, postmark-java and postmark-php run in Docker containers and have not run for this table.
+`not run` means the suite has no results yet. postmark-cli, postmark-java and postmark-php run in Docker containers.
 CI runs every suite, writes the full table to its job summary, and fails when a row this table lists as run differs from its results ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
 A `not run` row enters this table only after a real run.
 
 <!-- compat-table:start -->
 | SDK | SDK commit | Pass | Fail | Skip | Baseline |
 | --- | --- | --- | --- | --- | --- |
-| postmark-cli | c88a59d | not run | | | 17 |
+| postmark-cli | c88a59d | 31/31 | 0 | 0 | 31 |
 | postmark-dotnet | b4249c5 | 103/111 | 0 | 8 | 103 |
 | postmark-gem | a50ff39 | 41/41 | 0 | 0 | 41 |
-| postmark-java | c6c5eb6 | not run | | | 83 |
+| postmark-java | c6c5eb6 | 100/100 | 0 | 0 | 100 |
 | postmark-mcp | 63ef055 | 50/50 | 0 | 0 | 50 |
-| postmark-php | ad4b80e | not run | | | 44 |
+| postmark-php | ad4b80e | 87/87 | 0 | 0 | 87 |
 | postmark-python | 620d659 | 72/174 | 0 | 102 | 72 |
 | postmark-rails | f9e4acc | 7/7 | 0 | 0 | 7 |
 | postmark.js | f955212 | 79/80 | 0 | 1 | 79 |
