@@ -15,6 +15,7 @@ import {
   parseOrReject,
   parseTemplateType,
   TEMPLATE_TYPES,
+  type TemplateDraft,
   templateJson,
   templateListJson,
   templateNotFound,
@@ -100,7 +101,7 @@ defineRoute({
     const input = parseOrReject(templateBody, body);
     const { state } = store;
     checkCanCreate(state, auth.server.ID);
-    const template: Template = {
+    const draft: TemplateDraft = {
       TemplateId: 0,
       ServerID: auth.server.ID,
       Name: input.Name ?? "",
@@ -112,9 +113,12 @@ defineRoute({
       LayoutTemplate: input.LayoutTemplate || null,
       Active: true,
     };
-    checkTemplate(state, template);
-    template.TemplateId = store.nextId("template");
-    template.Alias ??= generatedAlias(state, template);
+    checkTemplate(state, draft);
+    const created = { ...draft, TemplateId: store.nextId("template") };
+    const template: Template = {
+      ...created,
+      Alias: created.Alias ?? generatedAlias(state, created),
+    };
     state.templates.set(template.TemplateId, template);
     return templateSummaryJson(template);
   },

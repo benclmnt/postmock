@@ -56,17 +56,16 @@ export function pushTemplates(
     [...state.templates.values()]
       .filter((t) => t.ServerID === serverId && t.Active)
       .sort((a, b) => a.TemplateId - b.TemplateId);
-  // Only templates with an alias are pushed; the destination matches by alias (refs/api_templates-api.md:359).
-  const sources = active(sourceServer.ID).filter(
-    (t): t is Template & { Alias: string } => t.Alias !== null,
-  );
+  // The destination matches by alias (refs/api_templates-api.md:359). Every template has one
+  // (docs/06 §3.2), so 1124 means a source server without templates.
+  const sources = active(sourceServer.ID);
   if (sources.length === 0) {
     // The message is INFERRED (a summary row).
     throw apiError(1124, { message: "No templates with aliases found to push." });
   }
   const destination = active(destinationServer.ID);
   // Aliases compare without case (INFERRED).
-  const byAlias = new Map(destination.map((t) => [t.Alias?.toLowerCase(), t]));
+  const byAlias = new Map(destination.map((t) => [t.Alias.toLowerCase(), t]));
 
   const changes = sources.flatMap((source) => {
     const target = byAlias.get(source.Alias.toLowerCase());

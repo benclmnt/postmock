@@ -133,6 +133,7 @@ No ref says fake bounces fire on a **sandbox** server. Scenario `g2-probe` check
 | C69 | Archived stream: does a send return 1235, 1236, or succeed? Do suppressions and bounces on the stream stay readable? | 04 Q15 | P1 — state model | Create stream `capture-archive`; send once; `POST /message-streams/capture-archive/archive`; send again; read bounces and dump; unarchive | volume (≤2) | open |
 | C70 | Bulk message with some recipients suppressed: counted as released or failed? Active recipients delivered? | 03 Q21 | P1 | `POST /email/bulk` to one blackhole address and the C18 address; poll `GET /email/bulk/{id}`. Needs bulk approval (ErrorCode 14 otherwise). | volume (≤2) | open |
 | C66 | Non-ASCII `Subject` (`【】`, `’`): accepted as is, length rule, echo in the Messages API. | 03 Q19 | P1 | `POST /email` to blackhole with a subject such as `【Test】 It’s here`; then `/details` and `/dump` | volume (1) | open |
+| C77 | Template created without `Alias`: does the create and get response hold a generated alias, in which format? Does a standard template differ from a layout? | 06 Q15 | P1 — postmark-cli pull stops at a template without an alias | `POST /templates` for a standard and a layout template without `Alias`; `GET` each; delete both | none | open |
 
 ### 1.4 G3 — sandbox server plus public webhook receiver
 

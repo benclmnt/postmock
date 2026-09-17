@@ -246,7 +246,7 @@ Disagreements:
 | --- | --- | --- |
 | `TemplateId` | integer | `refs/api_templates-api.md:459` **DOC** |
 | `Name` | required on create | `:539` **DOC** |
-| `Alias` | optional; `[A-Za-z][A-Za-z0-9._-]*`; generated when unset (see notes) | `:466`, `:568` **DOC**; notes **SDK** |
+| `Alias` | optional on create; `[A-Za-z][A-Za-z0-9._-]*`; generated when unset, never `null` (see notes, Q15) | format `:466` **DOC**; `null` when unset `:568` **DOC**, overruled by the postmark-cli live test **SDK** |
 | `Subject` | required for Standard; forbidden for Layout | `:543` **DOC** |
 | `HtmlBody`, `TextBody` | at least one required | `:541-542` **DOC** |
 | `TemplateType` | `Standard` (default) or `Layout`; immutable after create | `:544` **DOC** |
@@ -555,3 +555,4 @@ Domains and Sender Signatures (§4.3–§4.4):
 | Q12 | What does CSS inlining (`InlineCss`, `InlineCssForHtmlTestRender`) produce, byte for byte? | postmock answers 501 for rendered HTML with a `<style>` block. |
 | Q13 | Does `/email/withTemplate` accept a missing `TemplateModel`? The gem drops an empty model before it sends (`sdk/postmark-gem/lib/postmark/mail_message_converter.rb:20-22,38`). | postmock follows the doc: 1120. |
 | Q14 | Mustachio edge rules: the HTML-encoded character set, boolean text (`True`?), `0` in a section, `{{#x}}` on a list, comments, and the syntax error texts. | §3.5 rows marked INFERRED. |
+| Q15 | Does a template created without `Alias` get a generated alias, and in which format? Can any template read back with `Alias: null`? | The doc says `null` (`refs/api_templates-api.md:568`); the postmark-cli live pull test needs an alias on every template (§3.2). postmock generates `standard-<TemplateId>` or `layout-<TemplateId>`. |
