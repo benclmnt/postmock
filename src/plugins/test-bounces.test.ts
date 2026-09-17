@@ -97,6 +97,19 @@ describe("bounce-testing.postmarkapp.com", () => {
     expect({ messages: outbound.size, stats: stats.length }).toEqual(before);
   });
 
+  it("answers the captured 400 for an unknown sender before an uncaptured type", async () => {
+    const { call, runtime } = await kit();
+    const before = runtime.store.state.outbound.size;
+    const res = await call("POST", "/email", {
+      ...send({ To: `Blocked@${DOMAIN}` }),
+      From: "probe@elsewhere.org",
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.ErrorCode).toBe(400);
+    expect(res.body.Message).toContain("(probe@elsewhere.org) is not a Sender Signature");
+    expect(runtime.store.state.outbound.size).toBe(before);
+  });
+
   it("logs and skips a bounce whose effect became uncaptured after the send", async () => {
     const { call, runtime, bouncesOf } = await kit();
     const to = `hardbounce@${DOMAIN}`;
