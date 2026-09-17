@@ -55,8 +55,7 @@ const requestMatch = z.object({
   method: z.string(),
   path: z.string().startsWith("/"),
   recipientDomain: z
-    .string()
-    .regex(/^[^@\s]+$/)
+    .hostname()
     .transform((d) => d.toLowerCase())
     .optional(),
 });

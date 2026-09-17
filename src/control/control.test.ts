@@ -20,7 +20,7 @@ async function setup(clock = new Clock()) {
     api.request(path, {
       method: "POST",
       headers: { "X-Postmark-Server-Token": CONFORMANCE.serverToken },
-      body: JSON.stringify(body),
+      body: typeof body === "string" ? body : JSON.stringify(body),
     });
   return { runtime, control, post, getServer, send };
 }
@@ -128,7 +128,7 @@ describe("POST /control/latency", () => {
 
   it("holds only sends with a recipient at the rule's domain", async () => {
     const { runtime, post, send } = await setup(new Clock(Date.now, "manual"));
-    for (const path of ["/email", "/email/batch", "/email/batchWithTemplates"]) {
+    for (const path of ["/email", "/email/batch", "/email/batchWithTemplates", "/email/bulk"]) {
       await post("/control/latency", {
         match: { method: "POST", path, recipientDomain: "Slow.example" },
         times: 2,
@@ -139,14 +139,15 @@ describe("POST /control/latency", () => {
       send("/email", { To: "fast@fast.example", cc: '"Slow, Sam" <sam@SLOW.example>' }),
       send("/email/batch", [{ To: "a@fast.example" }, { To: "b@slow.example" }]),
       send("/email/batchWithTemplates", { Messages: [{ Bcc: "c@slow.example" }] }),
+      send("/email/bulk", { From: "x@fast.example", messages: [{ to: "d@slow.example" }] }),
     ];
-    await expect.poll(() => runtime.clock.pending).toBe(3);
+    await expect.poll(() => runtime.clock.pending).toBe(4);
     await send("/email", { To: "fast@fast.example" });
-    await send("/email", "not json");
-    expect(runtime.clock.pending).toBe(3);
+    await send("/email", "{");
+    expect(runtime.clock.pending).toBe(4);
     await runtime.clock.advance(1_000);
     await Promise.all(held);
-    expect(runtime.store.state.latencies.map((l) => l.remaining)).toEqual([1, 1, 1]);
+    expect(runtime.store.state.latencies.map((l) => l.remaining)).toEqual([1, 1, 1, 1]);
   });
 
   it.each([{ ms: 0 }, { ms: 1.5 }, { times: 0, ms: 1 }])("refuses latency %j", async (input) => {
@@ -187,15 +188,18 @@ describe("POST /control/faults", () => {
     expect((await send("/email", { To: "a@down.example" })).status).toBe(503);
   });
 
-  it("refuses a recipient domain with an @", async () => {
-    const { runtime, post } = await setup();
-    const res = await post("/control/faults", {
-      match: { method: "POST", path: "/email", recipientDomain: "@down.example" },
-      reply: { errorCode: 100 },
-    });
-    expect(res.status).toBe(400);
-    expect(runtime.store.state.faults).toEqual([]);
-  });
+  it.each(["@down.example", "down.example,", "*.example"])(
+    "refuses recipient domain %s",
+    async (recipientDomain) => {
+      const { runtime, post } = await setup();
+      const res = await post("/control/faults", {
+        match: { method: "POST", path: "/email", recipientDomain },
+        reply: { errorCode: 100 },
+      });
+      expect(res.status).toBe(400);
+      expect(runtime.store.state.faults).toEqual([]);
+    },
+  );
 
   it.each([
     [{ status: 599, errorCode: 402 }, "ErrorCode 402 needs a status from 422"],

@@ -23,22 +23,28 @@ export async function applyFault(
   request: RuleRequest,
   env: HttpBindings,
 ): Promise<Response | undefined> {
-  const latency = take(store.state.latencies, request);
+  let domains: Set<string> | undefined;
+  const mailsDomain = (domain: string) => {
+    domains ??= recipientDomains(request.body);
+    return domains.has(domain);
+  };
+  const latency = take(store.state.latencies, request, mailsDomain);
   if (latency) await clock.hold(latency.ms);
-  const fault = take(store.state.faults, request);
+  const fault = take(store.state.faults, request, mailsDomain);
   return fault && reply(fault, env);
 }
 
-function take<R extends RequestRule>(rules: R[], request: RuleRequest): R | undefined {
-  let domains: Set<string> | undefined;
+function take<R extends RequestRule>(
+  rules: R[],
+  request: RuleRequest,
+  mailsDomain: (domain: string) => boolean,
+): R | undefined {
   const rule = rules.find((r) => {
     if (r.remaining <= 0) return false;
     const table = new RouteTable<{ method: Method; path: string }>();
     table.add({ method: r.method.toUpperCase() as Method, path: r.path });
     if (table.match(request.method, request.pathname) === undefined) return false;
-    if (r.recipientDomain === undefined) return true;
-    domains ??= recipientDomains(request.body);
-    return domains.has(r.recipientDomain);
+    return r.recipientDomain === undefined || mailsDomain(r.recipientDomain);
   });
   if (rule) rule.remaining -= 1;
   return rule;
