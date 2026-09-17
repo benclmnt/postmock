@@ -367,7 +367,7 @@ export interface Template {
   TemplateId: number;
   ServerID: number;
   Name: string;
-  Alias: string | null;
+  Alias: string;
   Subject: string | null;
   HtmlBody: string | null;
   TextBody: string | null;

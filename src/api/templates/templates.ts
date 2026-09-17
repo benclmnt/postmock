@@ -107,12 +107,15 @@ export function layoutRuleError(
   return undefined;
 }
 
+/** A template before create: `Alias` is null when the request sets none. */
+export type TemplateDraft = Omit<Template, "Alias"> & { Alias: string | null };
+
 /**
  * Checks a template as it will be stored, after create or edit. Error codes per docs/02 §4.4;
  * every message is INFERRED except the 1131 prefix the postmark.js live test reads
  * (sdk/postmark.js/test/integration/Templates.test.ts:122).
  */
-export function checkTemplate(state: State, template: Template): void {
+export function checkTemplate(state: State, template: TemplateDraft): void {
   if (template.Name === "") throw apiError(1120, { message: "The 'Name' field is required." });
   if (template.HtmlBody === null && template.TextBody === null) {
     throw apiError(1120, { message: "Either 'HtmlBody' or 'TextBody' must be specified." });
@@ -181,7 +184,7 @@ export function checkLayoutChange(state: State, before: Template, after: Templat
  * at the first template without one (sdk/postmark-cli/test/integration/templates.pull.test.ts:47-50,
  * sdk/postmark-cli/src/commands/templates/pull.ts:142-151). The format is INFERRED.
  */
-export function generatedAlias(state: State, template: Template): string {
+export function generatedAlias(state: State, template: Omit<Template, "Alias">): string {
   const prefix = `${template.TemplateType.toLowerCase()}-${template.TemplateId}`;
   for (let n = 0; ; n += 1) {
     const alias = n === 0 ? prefix : `${prefix}-${n}`;
