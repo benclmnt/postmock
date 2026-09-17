@@ -1,8 +1,12 @@
 {
   "name": "@benclmnt/postmock",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A mock Postmark server for testing code that sends email through Postmark",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/benclmnt/postmock.git"
+  },
   "type": "module",
   "publishConfig": {
     "access": "public"
