@@ -52,8 +52,8 @@ function take<R extends RequestRule>(
 
 /**
  * The lower-case domains of every To, Cc and Bcc address in a send body: one message, a batch
- * array, or a `Messages` list. Keys match without case (docs/08 R8). A body that is not JSON has
- * none; its route answers the Postmark error.
+ * array, or a `Messages` list. Keys match without case (docs/08 R8). A body that is not JSON, or a
+ * field with a malformed entry, gives none; its route answers the Postmark error.
  */
 function recipientDomains(bytes: ArrayBuffer): Set<string> {
   let body: unknown;

@@ -46,7 +46,7 @@ Listeners bind in order api, https, plugins, control: once the control API answe
 
 ## Request flow (REST)
 
-A control-API latency rule that matches method, path and, if set, a recipient domain first holds the request on the clock (`src/http/faults.ts`).
+The API app reads the whole request body first. A control-API latency rule that matches method, path and, if set, a recipient domain then holds the request on the clock (`src/http/faults.ts`). So a `timeout` or `reset` fault fires only after the client sent the body.
 
 | Step | Result on failure | Code |
 | --- | --- | --- |

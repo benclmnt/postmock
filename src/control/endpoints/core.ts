@@ -54,8 +54,10 @@ function clockState(clock: Clock) {
 const requestMatch = z.object({
   method: z.string(),
   path: z.string().startsWith("/"),
+  // The domain part of a parsed address: DNS labels with a letter, so no IP, literal or trailing dot.
   recipientDomain: z
-    .hostname()
+    .string()
+    .regex(/^(?=.*[a-z])[a-z0-9-]+(\.[a-z0-9-]+)*$/i)
     .transform((d) => d.toLowerCase())
     .optional(),
 });
