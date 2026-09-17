@@ -17,7 +17,7 @@ One behavior is CAPTURED from real Postmark so far: the sender check ([`docs/03`
 
 | Way | Command |
 | --- | --- |
-| npm package (not published yet; `npm pack` builds it) | `npx @benclmnt/postmock --seed conformance` |
+| npm package (`npm pack` builds it) | `npx @benclmnt/postmock --seed conformance` |
 | From a checkout | `pnpm install`, then `pnpm start --seed conformance` |
 | Docker image | `docker build -t postmock .`, then `docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:8025:8025 -p 127.0.0.1:2525:2525 postmock --seed conformance` |
 | Compose, with the Postmark host names | Option B below |
