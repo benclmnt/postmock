@@ -1,4 +1,4 @@
-1. Read `README.md` first: goal, scope, layout. This repo builds postmock, a mock Postmark
+1. Read `README.md` first: goal, scope, usage. `ARCHITECTURE.md` has the repo layout. This repo builds postmock, a mock Postmark
    **server** in TypeScript. Real, unmodified Postmark clients (every official
    SDK, and plain SMTP clients) talk to it as if it were Postmark.
    `ARCHITECTURE.md` is the design and the shared contracts, `CONTROL-API.md` the
