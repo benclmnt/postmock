@@ -1,102 +1,138 @@
 # postmock
 
-A mock Postmark server in TypeScript, for testing code that sends email through Postmark.
-Real, unmodified clients talk to it: every official Postmark SDK, and plain SMTP clients.
-Tests then read what was sent, seed suppressions and bounces, inject faults, and trigger webhooks.
+[![npm](https://img.shields.io/npm/v/@benclmnt/postmock)](https://www.npmjs.com/package/@benclmnt/postmock)
+[![CI](https://github.com/benclmnt/postmock/actions/workflows/ci.yml/badge.svg)](https://github.com/benclmnt/postmock/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A local mock of the [Postmark](https://postmarkapp.com) email API, for testing code that sends email through Postmark.
+
+Your application uses its real, unmodified Postmark client: any official SDK, or a plain SMTP client.
+Your tests then read what was sent, seed suppressions and bounces, inject faults, and trigger webhooks.
 
 > Not affiliated with or endorsed by Postmark or ActiveCampaign. "Postmark" is their trademark.
 
-## Status
+## Why postmock
 
-W0 to W3 are built: REST and account APIs, SMTP, webhooks, the control API, a conformance runner for every official SDK, the npm package, the Docker image and CI.
-[`docs/11`](docs/11-build-plan.md) is the build plan; [`ARCHITECTURE.md`](ARCHITECTURE.md) marks what is built.
-The docs record Postmark's behavior from its public docs, its Swagger specs, and the official SDKs.
-One behavior is CAPTURED from real Postmark so far: the sender check ([`docs/03`](docs/03-sending.md) §3.4). [`docs/10`](docs/10-live-capture-plan.md) plans the rest.
+Postmark has no local test server.
+Its sandbox mode is hosted: it cannot inject faults or fire events on demand, and sends count toward your plan.
+Other open-source mocks answer `POST /email` only, with no errors, suppressions, webhooks or SMTP.
 
-## Run
+postmock covers the surface of every official SDK:
 
-| Way | Command |
-| --- | --- |
-| npm package (`npm pack` builds it) | `npx @benclmnt/postmock --seed conformance` |
-| From a checkout | `pnpm install`, then `pnpm start --seed conformance` |
-| Docker image | `docker build -t postmock .`, then `docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:8025:8025 -p 127.0.0.1:2525:2525 postmock --seed conformance` |
-| Compose, with the Postmark host names | Option B below |
+- **Server API**: send (single, batch, templates, bulk), bounces, suppressions, message streams, messages, stats, templates, webhooks, inbound rules.
+- **Account API**: servers, domains, sender signatures, data removals.
+- **SMTP**, with optional STARTTLS.
+- **Webhooks**: every record type, with retries.
+- **Postmark's errors**: the same HTTP status, `ErrorCode` and message that Postmark returns.
 
-The control API and SMTP have no real authentication: publish their ports on `127.0.0.1` only.
+Each official SDK's own live integration suite runs unmodified against postmock in CI. See [SDK compatibility](#sdk-compatibility).
 
-Startup prints one `name=url` per listener:
+## Quick start
+
+Requires Node.js 24 or later.
+
+```bash
+npx @benclmnt/postmock --seed conformance
+```
+
+postmock prints one `name=url` per listener:
 
 ```text
 postmock api=http://127.0.0.1:8080 smtp=smtp://127.0.0.1:53648 control=http://127.0.0.1:8025 seed=conformance
 ```
 
-Every setting is an env key and a flag (`postmock --help`). A flag wins over the env:
+Send an email with the `conformance` seed's server token:
 
-| Flag | Env | Default | Effect |
+```bash
+curl http://127.0.0.1:8080/email \
+  -H "Accept: application/json" \
+  -H "Content-Type: application/json" \
+  -H "X-Postmark-Server-Token: postmock-server-token" \
+  -d '{"From": "sender@example.com", "To": "user@example.org", "Subject": "Hello", "TextBody": "Hi"}'
+```
+
+Read it back from the control API:
+
+```bash
+curl "http://127.0.0.1:8025/control/messages?to=user@example.org"
+```
+
+## Installation
+
+| Method | Command |
+| --- | --- |
+| npm | `npx @benclmnt/postmock --seed conformance` |
+| Docker | `docker build -t postmock .`, then `docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:8025:8025 -p 127.0.0.1:2525:2525 postmock --seed conformance` |
+| Docker Compose | See [Option B](#option-b-dns-and-a-test-ca-with-docker-compose) |
+| From source | `pnpm install`, then `pnpm start --seed conformance` |
+
+> [!WARNING]
+> The control API and SMTP have no real authentication. Publish their ports on `127.0.0.1` only.
+
+## Configuration
+
+Each setting is a flag and an environment variable. A flag wins over the environment. Run `postmock --help` for the list.
+
+| Flag | Environment variable | Default | Effect |
 | --- | --- | --- | --- |
 | `--host` | `POSTMOCK_HOST` | `127.0.0.1` (image: `0.0.0.0`) | Bind address of every listener |
-| `--api-port` | `POSTMOCK_API_PORT` | `8080` | REST over plain http |
+| `--api-port` | `POSTMOCK_API_PORT` | `8080` | REST API over plain HTTP |
 | `--control-port` | `POSTMOCK_CONTROL_PORT` | `8025` | Control API |
-| `--seed` | `POSTMOCK_SEED` | `empty` | Seed applied at start: `empty`, `conformance` ([`CONTROL-API.md`](CONTROL-API.md#seeds)) |
-| `--https-port`, `--https-tls-key`, `--https-tls-cert` | `POSTMOCK_HTTPS_PORT`, `POSTMOCK_HTTPS_TLS_KEY`, `POSTMOCK_HTTPS_TLS_CERT` | off | REST over TLS; PEM files; all three or none |
-| `--smtp-ports` | `POSTMOCK_SMTP_PORTS` | `0`, a free port (image: `2525`) | Comma list; every port serves the same SMTP endpoint |
+| `--seed` | `POSTMOCK_SEED` | `empty` | Initial state: `empty` or `conformance` ([seeds](CONTROL-API.md#seeds)) |
+| `--clock` | `POSTMOCK_CLOCK` | `real` | `manual`: time moves only on `POST /control/clock/advance` |
+| `--https-port`, `--https-tls-key`, `--https-tls-cert` | `POSTMOCK_HTTPS_PORT`, `POSTMOCK_HTTPS_TLS_KEY`, `POSTMOCK_HTTPS_TLS_CERT` | off | REST API over TLS; PEM files; set all three or none |
+| `--smtp-ports` | `POSTMOCK_SMTP_PORTS` | `0` (image: `2525`) | Comma-separated list; each port serves the same SMTP endpoint |
 | `--smtp-tls-key`, `--smtp-tls-cert` | `POSTMOCK_SMTP_TLS_KEY`, `POSTMOCK_SMTP_TLS_CERT` | off | PEM files; with both, SMTP offers STARTTLS |
 | `--webhooks-allow-hosts` | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS` | none | Webhook targets other than loopback; `*` for all |
 
 Port `0` picks a free port.
-A bad value stops startup: an unknown flag, an empty value, a port that is not a decimal number, or a PEM file that does not exist.
+An invalid value stops startup: an unknown flag, an empty value, a port that is not a decimal number, or a missing PEM file.
 
-## Reach postmock from a client
+The `conformance` seed has these tokens:
 
-A client reaches postmock with no code change ([`docs/01`](docs/01-client-reachability.md) §3.3).
-Use a token that only postmock knows, such as the `conformance` seed token `postmock-server-token`.
-A misrouted request then gets 401 from real Postmark and sends nothing.
+| Token | Value |
+| --- | --- |
+| Account token | `postmock-account-token` |
+| Server token (server 10) | `postmock-server-token` |
+
+## Connect your application
+
+Your application reaches postmock with no code change.
+Use a token that only postmock knows, such as `postmock-server-token`.
+If a request goes to real Postmark by mistake, it gets 401 and sends nothing.
 
 ### Option A: base-URL option
 
-Set the client's own host option to postmock's REST listener, here `127.0.0.1:8080` over plain http.
+Set the client's host option to postmock's REST listener, here `127.0.0.1:8080` over plain HTTP.
 
-| SDK | Option |
+| Client | Option |
 | --- | --- |
 | postmark.js | `new ServerClient(token, { requestHost: "127.0.0.1:8080", useHttps: false })` |
-| postmark-cli | `--request-host 127.0.0.1:8443` on `templates pull`, `templates push`, `email template`, `email raw` and `servers list`. The CLI keeps https: start postmock with `--https-port 8443` and a certificate from `tools/test-ca.sh`, and set `NODE_EXTRA_CA_CERTS` to its `ca.pem`. |
+| postmark-cli | `--request-host 127.0.0.1:8443` on `templates pull`, `templates push`, `email template`, `email raw` and `servers list`. The CLI always uses HTTPS: start postmock with `--https-port 8443` and a certificate from `tools/test-ca.sh`, and set `NODE_EXTRA_CA_CERTS` to its `ca.pem`. |
 | postmark-python | `ServerClient(token, base_url="http://127.0.0.1:8080")` |
 | postmark-dotnet | `new PostmarkClient(token, "http://127.0.0.1:8080")` |
 | postmark-php | `PostmarkClientBase::$BASE_URL = "http://127.0.0.1:8080"` |
-| postmark-gem, postmark-rails | `host: "127.0.0.1", port: 8080, secure: false` (rails: `config.action_mailer.postmark_settings`) |
-| postmark-java | `Postmark.getApiClient(token, false, "127.0.0.1:8080")`: host and port, then the scheme from the `false` |
-| postmark-mcp | none: use option B |
+| postmark-gem, postmark-rails | `host: "127.0.0.1", port: 8080, secure: false` (Rails: `config.action_mailer.postmark_settings`) |
+| postmark-java | `Postmark.getApiClient(token, false, "127.0.0.1:8080")` |
+| postmark-mcp | Not supported: use option B |
 
-Cites and per-SDK transport details: [`docs/01`](docs/01-client-reachability.md) §2.1, [`docs/08`](docs/08-sdk-client-matrix.md).
+### Option B: DNS and a test CA, with Docker Compose
 
-### Sender addresses
-
-As on Postmark, a send `From` must be on a DKIM-verified domain or be a confirmed sender signature.
-A `From` that no account domain or signature matches gets HTTP 422 with ErrorCode 400 ([`docs/03`](docs/03-sending.md) §3.4, CAPTURED).
-Other states that no capture covers answer 501 on REST and a 502 reply on SMTP: an unverified domain, a subdomain, an unconfirmed signature.
-SMTP accepts every message and records problems as bounces (`refs/user-guide_send-email-with-smtp.md:56`); the `SMTPApiError` bounce with ErrorCode 400 is INFERRED.
-The `POSTMARK_API_TEST` token skips this check.
-
-| Need | How |
-| --- | --- |
-| Send from `example.com` | The `conformance` seed verifies `example.com` and `your-verified-domain.com` |
-| Send from another domain | `POST /domains` with the account token, then `POST /control/domains/<ID>/verify` with `{"dkim": true}` ([`CONTROL-API.md`](CONTROL-API.md)) |
-| Send from one address | `POST /senders` with the account token, then `POST /control/senders/<ID>/confirm` |
-
-### Option B: DNS and a test CA, with Compose
+Use this option when the client has no host option, or when you do not want to change your application's configuration.
 
 [`compose.yaml`](compose.yaml) runs postmock on the internal network `sandbox` under the names `api.postmarkapp.com`, `smtp.postmarkapp.com` and `smtp-broadcasts.postmarkapp.com`.
-postmock serves REST over TLS on 443 and SMTP with STARTTLS on 25, 587 and 2525.
+postmock serves REST over TLS on port 443, and SMTP with STARTTLS on ports 25, 587 and 2525.
+
+The `ca` service ([`tools/compose-ca.sh`](tools/compose-ca.sh)) writes a test CA and a server certificate into two volumes:
 
 | Volume | Content | Mounted by |
 | --- | --- | --- |
-| `ca` | `ca.pem` only | clients |
+| `ca` | `ca.pem` only | Clients |
 | `tls` | `cert.pem`, `key.pem` | postmock only |
 
-The `ca` service ([`tools/compose-ca.sh`](tools/compose-ca.sh)) writes both with [`tools/test-ca.sh`](tools/test-ca.sh).
-It deletes the CA key after signing: that is the protection, as nobody can sign another certificate with this CA.
-Name constraints on the CA (`postmarkapp.com`, `localhost`, `127.0.0.1`) add a limit only for clients that enforce them on a trust anchor; Java does not.
-The volumes keep the CA across runs. A missing file, a key that does not match the certificate, or a certificate that fails to verify or expires within a day makes a new one; restart postmock after that (`docker compose restart postmock`).
+The service deletes the CA key after it signs the certificate, so nobody can sign another certificate with this CA.
+The volumes keep the CA across runs.
+When the certificate is missing, invalid or expires within a day, the service makes a new one. Then restart postmock with `docker compose restart postmock`.
 
 Run the example application:
 
@@ -105,10 +141,10 @@ docker compose run --rm --build example-node
 docker compose --profile example down -v
 ```
 
-[`examples/node/default-hosts.ts`](examples/node/default-hosts.ts) sends with postmark.js and nodemailer, and neither names postmock.
+[`examples/node/default-hosts.ts`](examples/node/default-hosts.ts) sends with postmark.js and nodemailer. Neither names postmock.
 
-To test your own application, include this `compose.yaml` from your Compose file (Compose 2.20 or later).
-[`examples/compose/compose.yaml`](examples/compose/compose.yaml) is a complete file:
+To test your own application, include postmock's `compose.yaml` from your Compose file (Compose 2.20 or later).
+[`examples/compose/compose.yaml`](examples/compose/compose.yaml) is a complete example:
 
 ```yaml
 include:
@@ -129,17 +165,17 @@ services:
 
 | Need | Setting |
 | --- | --- |
-| Trust the CA | Node: `NODE_EXTRA_CA_CERTS=/ca/ca.pem`; Java: import `ca.pem` into a trust store; others: the runtime's trust store |
-| Read what was sent | `http://postmock:8025/control/messages` |
-| Receive webhooks | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS: app` in the override file ([`examples/compose/postmock.override.yaml`](examples/compose/postmock.override.yaml)) |
+| Trust the CA | Node.js: `NODE_EXTRA_CA_CERTS=/ca/ca.pem`; Java: import `ca.pem` into a trust store; others: the runtime's trust store |
+| Read sent messages | `http://postmock:8025/control/messages` |
+| Receive webhooks | `POSTMOCK_WEBHOOKS_ALLOW_HOSTS: app` in the override file ([example](examples/compose/postmock.override.yaml)) |
 
-A service of your file cannot redefine an included service, so postmock settings go in the override file.
+Put postmock settings in the override file. A service in your file cannot redefine an included service.
 
-No route out holds only while the application joins `sandbox` and no other network.
-With a second network, `api.postmarkapp.com` resolves to real Postmark whenever postmock is down.
-Use a token that only postmock knows in every case: a misrouted request then gets 401 and sends nothing.
+> [!IMPORTANT]
+> Attach your application to the `sandbox` network only.
+> With a second network, `api.postmarkapp.com` resolves to real Postmark whenever postmock is down.
 
-Why DNS and not a hosts file: nodemailer queries DNS before it reads the hosts file ([`docs/01`](docs/01-client-reachability.md) §2.2).
+postmock uses DNS, not a hosts file, because nodemailer queries DNS before it reads the hosts file.
 
 ### SMTP
 
@@ -147,26 +183,48 @@ Why DNS and not a hosts file: nodemailer queries DNS before it reads the hosts f
 | --- | --- |
 | Host | postmock's host, or `smtp.postmarkapp.com` with option B |
 | Port | The `smtp` URL in the startup line; `25`, `587` or `2525` with option B |
-| User and password | A server API token for both, or an SMTP token from `POST /control/smtp/tokens` |
+| User and password | A server token for both, or an SMTP token from `POST /control/smtp/tokens` |
 | TLS | STARTTLS when `POSTMOCK_SMTP_TLS_KEY` and `POSTMOCK_SMTP_TLS_CERT` are set |
-| Stream | Header `X-PM-Message-Stream` |
+| Message stream | Header `X-PM-Message-Stream` |
 
 [`examples/node/smtp-send.ts`](examples/node/smtp-send.ts) sends with nodemailer through option A.
-Details: [`docs/07`](docs/07-smtp-sandbox-limits.md).
+
+## Sender addresses
+
+As on Postmark, the `From` address of a send must be on a DKIM-verified domain or be a confirmed sender signature.
+Otherwise the REST API returns HTTP 422 with `ErrorCode` 400.
+SMTP accepts every message and records the problem as a bounce, as Postmark does.
+The `POSTMARK_API_TEST` token skips this check.
+
+| Need | How |
+| --- | --- |
+| Send from `example.com` | The `conformance` seed verifies `example.com` and `your-verified-domain.com` |
+| Send from another domain | `POST /domains` with the account token, then `POST /control/domains/<ID>/verify` with `{"dkim": true}` |
+| Send from one address | `POST /senders` with the account token, then `POST /control/senders/<ID>/confirm` |
 
 ## Control API
 
-Tests drive postmock through the control API on its own port: reset, seeds, the clock (advance; `--clock manual` stops real time), latency, faults, sent messages, bounces, opens, clicks, inbound mail and webhook attempts.
-Every call maps to something that can happen on real Postmark.
-Reference: [`CONTROL-API.md`](CONTROL-API.md).
+Tests drive postmock through the control API on its own port.
+
+| Area | What you can do |
+| --- | --- |
+| State | Reset, apply a seed |
+| Clock | Read, advance; `--clock manual` stops real time |
+| Faults | Add latency, return a Postmark error, time out or reset a connection; on REST and SMTP |
+| Sent mail | List messages by recipient, tag or channel |
+| Events | Bounce, spam complaint, unsubscribe, delivery, open, click |
+| Inbound | Deliver mail to an inbound address |
+| Webhooks | Read the delivery log |
+| Account | Verify domains, confirm sender signatures, create SMTP tokens |
+
+Each call produces a state that a real Postmark client or a real Postmark event could produce.
+See [`CONTROL-API.md`](CONTROL-API.md) for the full reference.
 
 ## SDK compatibility
 
-Each official SDK's own live integration suite runs unmodified against postmock ([`TESTING.md`](TESTING.md)).
-`pnpm compat-table` writes this table from `conformance/results/*.json`.
-`not run` means the suite has no results yet. postmark-cli, postmark-java and postmark-php run in Docker containers.
-CI runs every suite, writes the full table to its job summary, and fails when a row this table lists as run differs from its results ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
-A `not run` row enters this table only after a real run.
+Each official SDK's own live integration suite runs unmodified against postmock.
+CI runs every suite and fails when a result differs from this table.
+A skipped test cannot pass against any mock. For example, it needs real delivery, real DNS, or a placeholder ID from a real account.
 
 <!-- compat-table:start -->
 | SDK | SDK commit | Pass | Fail | Skip | Baseline |
@@ -182,70 +240,26 @@ A `not run` row enters this table only after a real run.
 | postmark.js | f955212 | 79/80 | 0 | 1 | 79 |
 <!-- compat-table:end -->
 
-## Why
+## Contributing
 
-Postmark has no local test server.
-Its sandbox mode is hosted: it cannot inject faults or fire events on demand, and sends count toward the plan.
-Existing open-source mocks answer `POST /email` only, with no errors, suppressions, webhooks or SMTP (`docs/09`).
+Issues and pull requests are welcome.
 
-## Scope
+```bash
+pnpm install
+pnpm check                          # lint, type check, unit tests
+tools/fetch-sources.sh postmark.js  # clone an official SDK into sdk/
+pnpm conformance postmark.js        # run its integration suite against postmock
+```
 
-| Surface | Doc |
+| Document | Content |
 | --- | --- |
-| Transport, tokens, error envelope, ErrorCodes | `docs/02` |
-| Sending: single, batch, templates, bulk | `docs/03` |
-| Bounces, suppressions, message streams, data removals | `docs/04` |
-| Webhooks: config API, every RecordType, retries, inbound | `docs/05` |
-| Messages, stats, templates, server, servers, domains, sender signatures | `docs/06` |
-| SMTP, sandbox mode, limits | `docs/07` |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Listeners, modules, request flow, known pitfalls |
+| [`CONTROL-API.md`](CONTROL-API.md) | Control API reference and seeds |
+| [`TESTING.md`](TESTING.md) | Test gates and conformance runners |
+| [`docs/`](docs) | Postmark's behavior, with sources |
 
-## Top traps
-
-| Trap | Doc |
-| --- | --- |
-| The 406 `Message` must match an SDK regex, or clients get an empty inactive-recipient list | `docs/03` |
-| postmark.js has no proxy support and a default host; apps that never set a host need DNS + a test CA | `docs/01` |
-| SMTP accepts every message; problems become `SMTPApiError` bounces, not SMTP rejects | `docs/07` |
-| Every success is HTTP 200 with JSON; several SDKs treat 201/204 as errors | `docs/08` |
-| SDKs disagree on path case, query key case and boolean encoding; the server must accept all of them | `docs/08` |
-
-## Layout
-
-| Path | Content |
-| --- | --- |
-| `AGENTS.md` | Rules for working in this repo (`CLAUDE.md` links to it) |
-| `ARCHITECTURE.md` | Listeners, modules, request flow, shared contracts, traps |
-| `CONTROL-API.md` | Test-facing control API: principle, shape, endpoints, seeds |
-| `TESTING.md` | Gates, conformance runners, results and baseline, test traps |
-| `flake.nix` | Dev shell with every toolchain the SDK suites need |
-| `Dockerfile`, `compose.yaml` | The image, and the option B sandbox |
-| `.github/workflows/` | CI |
-| `examples/node/` | Applications that send through Postmark with no postmock code |
-| `examples/compose/` | An application's Compose file that includes postmock's |
-| `src/` | The server (`ARCHITECTURE.md` "Modules") |
-| `seeds/` | Named seeds: `empty`, `conformance` |
-| `conformance/` | One runner per SDK suite, baselines, skip lists |
-| `docs/01-client-reachability.md` | How clients pick the host; routing an unmodified app to the mock; client parsing of server text; surface tiers |
-| `docs/02-transport-auth-errors.md` | Hosts, headers, tokens, `POSTMARK_API_TEST`, error envelope, ErrorCode table, SDK error mapping, JSON and paging rules |
-| `docs/03-sending.md` | `/email`, batch, templates, bulk; validation and ErrorCodes; sandbox; tracking after accept |
-| `docs/04-bounces-suppressions-streams.md` | Bounce API, suppressions, message streams, data removals, and the state machine between them |
-| `docs/05-webhooks.md` | Webhook config API, every RecordType payload, retries, inbound |
-| `docs/06-messages-stats-templates-server.md` | Messages, opens/clicks, stats, templates, server/servers/domains/signatures |
-| `docs/07-smtp-sandbox-limits.md` | SMTP and `X-PM-*` headers, sandbox mode, bounce-testing addresses, limits |
-| `docs/08-sdk-client-matrix.md` | How each official SDK sends and parses; endpoint coverage; spec bugs; conformance plan |
-| `docs/09-implementation-options.md` | TypeScript design, routing options, control API, phases, decisions |
-| `docs/10-live-capture-plan.md` | Open questions and a safe capture harness design (deferred) |
-| `docs/11-build-plan.md` | Waves, parallel tracks, conformance runners, definition of done |
-| `tools/fetch-sources.sh` | Clones the official SDKs into `sdk/` at the commits the docs cite |
-| `tools/fetch-refs.sh` | Downloads Postmark's docs and Swagger specs into `refs/` |
-| `tools/test-ca.sh` | Writes a test CA and a certificate for the Postmark host names |
-| `tools/compose-ca.sh` | Keeps a valid test CA in the Compose volumes |
-| `tools/pack-smoke.sh` | Installs the packed npm package outside the repo and checks REST and SMTP |
-| `tools/compat-table.ts` | Writes the SDK compatibility table into this README |
-
-`sdk/` and `refs/` are git-ignored: they hold third-party code and Postmark's copyrighted docs.
-Run both scripts before you follow a citation.
+[`flake.nix`](flake.nix) provides a Nix dev shell with every toolchain that the SDK suites need.
 
 ## License
 
-MIT.
+[MIT](LICENSE)

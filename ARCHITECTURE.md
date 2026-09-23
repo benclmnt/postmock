@@ -59,6 +59,43 @@ The API app reads the whole request body first. A control-API latency rule that 
 A success is always HTTP 200 with `Content-Type: application/json`.
 The handler cannot choose another success status.
 
+## Repository layout
+
+| Path | Content |
+| --- | --- |
+| `AGENTS.md` | Rules for working in this repo (`CLAUDE.md` links to it) |
+| `ARCHITECTURE.md` | Listeners, modules, request flow, shared contracts, traps |
+| `CONTROL-API.md` | Test-facing control API: principle, shape, endpoints, seeds |
+| `TESTING.md` | Gates, conformance runners, results and baseline, test traps |
+| `flake.nix` | Dev shell with every toolchain the SDK suites need |
+| `Dockerfile`, `compose.yaml` | The image, and the option B sandbox |
+| `.github/workflows/` | CI |
+| `examples/node/` | Applications that send through Postmark with no postmock code |
+| `examples/compose/` | An application's Compose file that includes postmock's |
+| `src/` | The server (`ARCHITECTURE.md` "Modules") |
+| `seeds/` | Named seeds: `empty`, `conformance` |
+| `conformance/` | One runner per SDK suite, baselines, skip lists |
+| `docs/01-client-reachability.md` | How clients pick the host; routing an unmodified app to the mock; client parsing of server text; surface tiers |
+| `docs/02-transport-auth-errors.md` | Hosts, headers, tokens, `POSTMARK_API_TEST`, error envelope, ErrorCode table, SDK error mapping, JSON and paging rules |
+| `docs/03-sending.md` | `/email`, batch, templates, bulk; validation and ErrorCodes; sandbox; tracking after accept |
+| `docs/04-bounces-suppressions-streams.md` | Bounce API, suppressions, message streams, data removals, and the state machine between them |
+| `docs/05-webhooks.md` | Webhook config API, every RecordType payload, retries, inbound |
+| `docs/06-messages-stats-templates-server.md` | Messages, opens/clicks, stats, templates, server/servers/domains/signatures |
+| `docs/07-smtp-sandbox-limits.md` | SMTP and `X-PM-*` headers, sandbox mode, bounce-testing addresses, limits |
+| `docs/08-sdk-client-matrix.md` | How each official SDK sends and parses; endpoint coverage; spec bugs; conformance plan |
+| `docs/09-implementation-options.md` | TypeScript design, routing options, control API, phases, decisions |
+| `docs/10-live-capture-plan.md` | Open questions and a safe capture harness design (deferred) |
+| `docs/11-build-plan.md` | Waves, parallel tracks, conformance runners, definition of done |
+| `tools/fetch-sources.sh` | Clones the official SDKs into `sdk/` at the commits the docs cite |
+| `tools/fetch-refs.sh` | Downloads Postmark's docs and Swagger specs into `refs/` |
+| `tools/test-ca.sh` | Writes a test CA and a certificate for the Postmark host names |
+| `tools/compose-ca.sh` | Keeps a valid test CA in the Compose volumes |
+| `tools/pack-smoke.sh` | Installs the packed npm package outside the repo and checks REST and SMTP |
+| `tools/compat-table.ts` | Writes the SDK compatibility table into `README.md` |
+
+`sdk/` and `refs/` are git-ignored: they hold third-party code and Postmark's copyrighted docs.
+Run both scripts before you follow a citation.
+
 ## Modules
 
 | Path | Holds | Status |
