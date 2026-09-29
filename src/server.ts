@@ -18,6 +18,8 @@ export interface PostmockConfig {
   seed: string;
   /** `manual`: time moves only on `POST /control/clock/advance`. */
   clock: ClockMode;
+  /** The time source the clock follows. Defaults to `Date.now`; an in-process test passes its own. */
+  now?: () => number;
   /** Defaults to every plugin in `src/plugins/`. */
   plugins?: readonly Plugin[];
 }
@@ -54,7 +56,10 @@ function listen(
 
 /** Seeds the state, then starts the REST, control and plugin listeners. */
 export async function startPostmock(config: PostmockConfig): Promise<RunningPostmock> {
-  const runtime = createRuntime(config.plugins ?? PLUGINS, new Clock(Date.now, config.clock));
+  const runtime = createRuntime(
+    config.plugins ?? PLUGINS,
+    new Clock(config.now ?? Date.now, config.clock),
+  );
   await applySeed(runtime, config.seed);
   const api = createApiApp(runtime);
   const started = [await listen("api", api.fetch, config.host, config.apiPort)];

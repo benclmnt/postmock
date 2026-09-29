@@ -49,6 +49,27 @@ describe("startPostmock", () => {
     });
   });
 
+  it("follows the time source it is given", async () => {
+    let now = Date.UTC(2026, 0, 2);
+    running = await startPostmock({
+      host: "127.0.0.1",
+      apiPort: 0,
+      controlPort: 0,
+      seed: "empty",
+      clock: "real",
+      now: () => now,
+    });
+    const clock = async () =>
+      (
+        (await (await fetch(`${running?.listeners.control}/control/clock`)).json()) as {
+          now: string;
+        }
+      ).now;
+    expect(await clock()).toBe("2026-01-02T00:00:00.0000000Z");
+    now += 60_000;
+    expect(await clock()).toBe("2026-01-02T00:01:00.0000000Z");
+  });
+
   it("binds the control listener after every other listener", async () => {
     const plugin: Plugin = {
       start: async () => ({ name: "extra", url: "x://", close: async () => {} }),

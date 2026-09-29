@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { apiError, ERROR_FAMILIES, isSummaryRow } from "../../errors.ts";
+import { type Method, RouteTable } from "../../http/routes.ts";
 import type { Clock } from "../../state/clock.ts";
 import type { RequestRule } from "../../state/types.ts";
 import { formatTimestamp } from "../../time.ts";
 import { ControlError, controlInput, defineControl } from "../registry.ts";
 import { seedAtomically } from "../seeding.ts";
 
-// docs/09 §5: reset, seed, clock, latency, faults, messages.
+// docs/09 §5: reset, seed, clock, latency, faults, messages; and requests.
 
 defineControl({
   method: "POST",
@@ -163,6 +164,34 @@ defineControl({
         Channel: m.channel,
         SubmittedAt: formatTimestamp(m.ReceivedAt),
         Request: m.request,
+      })),
+    };
+  },
+});
+
+defineControl({
+  method: "GET",
+  path: "/control/requests",
+  handler: ({ store, query }) => {
+    const method = query.get("method");
+    const path = query.get("path");
+    if ((method === null) !== (path === null)) {
+      throw new ControlError("give method and path together, or neither");
+    }
+    const table = new RouteTable<{ method: Method; path: string }>();
+    if (method !== null && path !== null) {
+      if (!path.startsWith("/")) throw new ControlError(`path must start with /, got '${path}'`);
+      table.add({ method: method.toUpperCase() as Method, path });
+    }
+    const requests = store.state.requests.filter(
+      (r) => method === null || table.match(r.method, r.pathname) !== undefined,
+    );
+    return {
+      Requests: requests.map((r) => ({
+        Method: r.method,
+        Path: r.pathname,
+        Query: Object.fromEntries(new URLSearchParams(r.search)),
+        ReceivedAt: formatTimestamp(r.receivedAt, "utc"),
       })),
     };
   },

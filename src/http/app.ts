@@ -16,6 +16,12 @@ export function createApiApp(runtime: Runtime): Hono<{ Bindings: HttpBindings }>
     const request = c.req.raw;
     const url = new URL(request.url);
     const bytes = await request.arrayBuffer();
+    runtime.store.state.requests.push({
+      method: request.method,
+      pathname: url.pathname,
+      search: url.search.slice(1),
+      receivedAt: runtime.clock.now(),
+    });
     const fault = await applyFault(
       runtime,
       { method: request.method, pathname: url.pathname, body: bytes },

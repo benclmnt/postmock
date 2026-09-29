@@ -1,5 +1,6 @@
 import type {
   Account,
+  ApiRequest,
   Bounce,
   BulkRequest,
   ClickEvent,
@@ -68,6 +69,8 @@ export interface State {
   faults: Fault[];
   latencies: Latency[];
   smtpFaults: SmtpFault[];
+  /** Every REST request, in arrival order. */
+  requests: ApiRequest[];
   usedIds: Record<IdKind, Set<number>>;
   /** Highest used ID per kind. */
   maxIds: Record<IdKind, number>;
@@ -106,6 +109,7 @@ function emptyState(): State {
     faults: [],
     latencies: [],
     smtpFaults: [],
+    requests: [],
     usedIds: {
       server: new Set(),
       bounce: new Set(),
