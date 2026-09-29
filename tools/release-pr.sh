@@ -92,18 +92,20 @@ git add package.json
 git commit -m "chore: bump package to ${next_version}"
 git push --set-upstream origin "$release_branch"
 
-gh pr create \
-  --base main \
-  --head "$release_branch" \
-  --title "chore: bump package to ${next_version}" \
-  --body "$(cat <<EOF
+pr_body="$(cat <<EOF
 ## Summary
 
-- Bump \\`@benclmnt/postmock\\` from the current version to \\`${next_version}\\`.
+- Bump @benclmnt/postmock from the current version to ${next_version}.
 - Publish the package after this PR merges.
 
 ## Verification
 
-- \\`npm run check\\`
+- npm run check
 EOF
 )"
+
+gh pr create \
+  --base main \
+  --head "$release_branch" \
+  --title "chore: bump package to ${next_version}" \
+  --body "$pr_body"
