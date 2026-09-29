@@ -64,6 +64,7 @@ curl "http://127.0.0.1:8025/control/messages?to=user@example.org"
 | npm | `npx @benclmnt/postmock --seed conformance` |
 | Docker | `docker build -t postmock .`, then `docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:8025:8025 -p 127.0.0.1:2525:2525 postmock --seed conformance` |
 | Docker Compose | See [Option B](#option-b-dns-and-a-test-ca-with-docker-compose) |
+| In process, from a Node test | `startPostmock({ host: "127.0.0.1", apiPort: 0, controlPort: 0, seed: "conformance", clock: "real", now: () => Date.now() })`. `now` sets postmock's time source, so a test's fake clock moves postmock's clock too |
 | From source | `pnpm install`, then `pnpm start --seed conformance` |
 
 > [!WARNING]
@@ -212,6 +213,7 @@ Tests drive postmock through the control API on its own port.
 | Clock | Read, advance; `--clock manual` stops real time |
 | Faults | Add latency, return a Postmark error, time out or reset a connection; on REST and SMTP |
 | Sent mail | List messages by recipient, tag or channel |
+| Requests | List the REST requests postmock received, by route |
 | Events | Bounce, spam complaint, unsubscribe, delivery, open, click |
 | Inbound | Deliver mail to an inbound address |
 | Webhooks | Read the delivery log |

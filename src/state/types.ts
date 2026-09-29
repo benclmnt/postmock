@@ -517,6 +517,15 @@ export type FaultReply =
   | "reset";
 
 /** A control-API rule for REST requests: `path` is a route pattern, matched like an API route. */
+/** An API request as it arrived, before faults and auth: what `GET /control/requests` lists. */
+export interface ApiRequest {
+  method: string;
+  pathname: string;
+  /** The query string without `?`; empty when there is none. */
+  search: string;
+  receivedAt: Date;
+}
+
 export interface RequestRule {
   method: string;
   /** `/email`, `/templates/:id` */

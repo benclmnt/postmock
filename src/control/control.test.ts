@@ -269,6 +269,53 @@ describe("GET /control/messages", () => {
   });
 });
 
+describe("GET /control/requests", () => {
+  it("lists API requests in arrival order, faulted ones too, and filters by route", async () => {
+    const { control, post, getServer, send } = await setup(
+      new Clock(() => Date.UTC(2026, 0, 2), "manual"),
+    );
+    await post("/control/faults", {
+      match: { method: "GET", path: "/server" },
+      reply: { errorCode: 100 },
+    });
+    expect((await getServer()).status).toBe(503);
+    await send("/email", { From: "sender@example.com", To: "a@example.com", TextBody: "Hi" });
+    const list = async (qs = "") =>
+      (await (await control.request(`/control/requests${qs}`)).json()) as { Requests: unknown[] };
+    expect(await list()).toEqual({
+      Requests: [
+        { Method: "GET", Path: "/server", Query: {}, ReceivedAt: "2026-01-02T00:00:00.0000000Z" },
+        { Method: "POST", Path: "/email", Query: {}, ReceivedAt: "2026-01-02T00:00:00.0000000Z" },
+      ],
+    });
+    expect((await list("?method=get&path=/SERVER")).Requests).toHaveLength(1);
+    expect((await list("?method=GET&path=/bounces/:id")).Requests).toEqual([]);
+  });
+
+  it("reads the query of a request", async () => {
+    const { runtime, control } = await setup();
+    await createApiApp(runtime).request("/bounces?count=500&offset=0&tag=welcome", {
+      headers: { "X-Postmark-Server-Token": CONFORMANCE.serverToken },
+    });
+    const res = await control.request("/control/requests?method=GET&path=/bounces");
+    expect(await res.json()).toMatchObject({
+      Requests: [{ Query: { count: "500", offset: "0", tag: "welcome" } }],
+    });
+  });
+
+  it("refuses a method without a path", async () => {
+    const { control } = await setup();
+    expect((await control.request("/control/requests?method=GET")).status).toBe(400);
+  });
+
+  it("forgets the requests at reset", async () => {
+    const { control, post, getServer } = await setup();
+    await getServer();
+    await post("/control/reset", {});
+    expect(await (await control.request("/control/requests")).json()).toEqual({ Requests: [] });
+  });
+});
+
 it("answers an unknown control route with 404 JSON", async () => {
   const res = await (await setup()).control.request("/control/nope");
   expect(res.status).toBe(404);
