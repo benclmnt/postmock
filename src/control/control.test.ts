@@ -45,7 +45,9 @@ describe("POST /control/reset", () => {
     const { runtime, post } = await setup();
     const res = await post("/control/reset", { seed: "nope" });
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "unknown seed 'nope'; seeds: conformance, empty, server" });
+    expect(await res.json()).toEqual({
+      error: "unknown seed 'nope'; seeds: conformance, empty, server",
+    });
     expect(runtime.store.state.servers.has(CONFORMANCE.serverId)).toBe(true);
   });
 });
