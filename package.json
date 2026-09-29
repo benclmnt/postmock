@@ -36,7 +36,8 @@
     "conformance": "node conformance/run.ts",
     "conformance:check": "node conformance/check.ts",
     "compat-table": "node tools/compat-table.ts",
-    "release:pr": "tools/release-pr.sh"
+    "release:pr": "tools/release-pr.sh",
+    "publish": "npm whoami && pnpm build && npm publish --ignore-scripts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",

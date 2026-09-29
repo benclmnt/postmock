@@ -77,6 +77,14 @@ pnpm release:pr [patch|minor|major]
 
 The default is `patch`. The script runs the checks, bumps `package.json`, creates a release branch, pushes it, and opens a pull request.
 
+After the pull request merges, publish from the updated `main` checkout:
+
+```bash
+pnpm run publish
+```
+
+The publish script checks the npm login state, builds the package, and publishes it with npm.
+
 > [!WARNING]
 > The control API and SMTP have no real authentication. Publish their ports on `127.0.0.1` only.
 
