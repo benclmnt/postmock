@@ -67,6 +67,16 @@ curl "http://127.0.0.1:8025/control/messages?to=user@example.org"
 | In process, from a Node test | `startPostmock({ host: "127.0.0.1", apiPort: 0, controlPort: 0, seed: "server", clock: "real", now: () => Date.now() })`. `now` sets postmock's time source, so a test's fake clock moves postmock's clock too |
 | From source | `pnpm install`, then `pnpm start --seed conformance` |
 
+## Release a new npm version
+
+From a clean, up-to-date `main` checkout, run:
+
+```bash
+pnpm release:pr [patch|minor|major]
+```
+
+The default is `patch`. The script runs the checks, bumps `package.json`, creates a release branch, pushes it, and opens a pull request.
+
 > [!WARNING]
 > The control API and SMTP have no real authentication. Publish their ports on `127.0.0.1` only.
 
