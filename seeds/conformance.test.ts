@@ -76,7 +76,7 @@ describe("conformance seed", () => {
     expect(from("sender@elsewhere.org")).toBe("rejected");
   });
 
-  it("is listed with the empty seed", () => {
-    expect(seedNames()).toEqual(["conformance", "empty"]);
+  it("is listed with the other seeds", () => {
+    expect(seedNames()).toEqual(["conformance", "empty", "server"]);
   });
 });

@@ -64,7 +64,7 @@ curl "http://127.0.0.1:8025/control/messages?to=user@example.org"
 | npm | `npx @benclmnt/postmock --seed conformance` |
 | Docker | `docker build -t postmock .`, then `docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:8025:8025 -p 127.0.0.1:2525:2525 postmock --seed conformance` |
 | Docker Compose | See [Option B](#option-b-dns-and-a-test-ca-with-docker-compose) |
-| In process, from a Node test | `startPostmock({ host: "127.0.0.1", apiPort: 0, controlPort: 0, seed: "conformance", clock: "real", now: () => Date.now() })`. `now` sets postmock's time source, so a test's fake clock moves postmock's clock too |
+| In process, from a Node test | `startPostmock({ host: "127.0.0.1", apiPort: 0, controlPort: 0, seed: "server", clock: "real", now: () => Date.now() })`. `now` sets postmock's time source, so a test's fake clock moves postmock's clock too |
 | From source | `pnpm install`, then `pnpm start --seed conformance` |
 
 > [!WARNING]
@@ -79,7 +79,7 @@ Each setting is a flag and an environment variable. A flag wins over the environ
 | `--host` | `POSTMOCK_HOST` | `127.0.0.1` (image: `0.0.0.0`) | Bind address of every listener |
 | `--api-port` | `POSTMOCK_API_PORT` | `8080` | REST API over plain HTTP |
 | `--control-port` | `POSTMOCK_CONTROL_PORT` | `8025` | Control API |
-| `--seed` | `POSTMOCK_SEED` | `empty` | Initial state: `empty` or `conformance` ([seeds](CONTROL-API.md#seeds)) |
+| `--seed` | `POSTMOCK_SEED` | `empty` | Initial state: `empty`, `server` or `conformance` ([seeds](CONTROL-API.md#seeds)) |
 | `--clock` | `POSTMOCK_CLOCK` | `real` | `manual`: time moves only on `POST /control/clock/advance` |
 | `--https-port`, `--https-tls-key`, `--https-tls-cert` | `POSTMOCK_HTTPS_PORT`, `POSTMOCK_HTTPS_TLS_KEY`, `POSTMOCK_HTTPS_TLS_CERT` | off | REST API over TLS; PEM files; set all three or none |
 | `--smtp-ports` | `POSTMOCK_SMTP_PORTS` | `0` (image: `2525`) | Comma-separated list; each port serves the same SMTP endpoint |
